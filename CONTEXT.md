@@ -39,15 +39,15 @@ A Devbox-supported dependency that runs alongside a Sandbox but is not part of i
 **Built-in defaults**:
 Lucas-curated Devbox options distributed as part of the package and changed through package updates rather than user configuration.
 
-**Devbox Git configuration**:
-The user-scope Git defaults and identity shared by every Sandbox, initialized from Built-in defaults plus user-confirmed host identity suggestions and kept separate from the developer's normal host Git configuration.
-
 **Platform lock**:
 The user-scope mapping from the installed Base profile and Runtime or future Service release lines to the single exact artifact revisions and digests shared by every project. AI Agents are outside this lock.
 
 
 **Project**:
 One project root directory registered with Devbox; separate subdirectories, clones, and Git worktrees are distinct Projects even when they originate from the same repository.
+
+**Missing-root Project registration**:
+A retained Project registration whose exact absolute Project root cannot be found at observation time. It does not imply that the root was permanently deleted or relocated.
 
 **Project configuration**:
 A shareable set of project-safe Devbox options fixed by a project. Fixed options are limited to the safe allowlist, shown during initialization, and cannot be changed by the user.
