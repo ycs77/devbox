@@ -1,0 +1,3 @@
+# Share one Devbox-managed Git configuration across Sandboxes
+
+Devbox maintains one writable user-scope Git configuration in a Devbox-managed Docker volume mounted into every Sandbox but no Service, with Git directed to its config file through `GIT_CONFIG_GLOBAL`; changes made through `git config --global` therefore affect every Devbox project. The first `devbox init` that finds no such configuration creates it from Built-in defaults after asking the user to confirm or edit `user.name` and `user.email` suggestions read from the host global Git configuration; later project initialization reuses it without prompting, and Devbox never mounts or copies the complete host `.gitconfig`.

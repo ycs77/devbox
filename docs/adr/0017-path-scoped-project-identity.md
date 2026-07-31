@@ -1,0 +1,3 @@
+# Treat each project root as a distinct Project
+
+Devbox identifies a Project by the existing current working directory reported by the operating system rather than Git remote, repository lineage, or extra filesystem alias detection. `devbox init` uses exactly the directory in which it is invoked as the root and never climbs to a Git top-level directory; separate subdirectories, clones, and worktrees therefore remain eligible for independent Local configuration, ports, Services, Agent state, and Sandbox lifecycle, while non-Git directories use the same model. Moving a root creates a new Project that must be initialized independently; Devbox neither infers relocation nor migrates state, and the old registration remains until explicit cleanup.

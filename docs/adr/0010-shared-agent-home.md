@@ -1,0 +1,3 @@
+# Share one Devbox-managed Agent home across projects
+
+Devbox keeps one writable user-scope Agent home per AI Agent and mounts it into every Sandbox that selects that Agent, while never mounting or importing the developer's normal host Agent home. Authentication remains an explicit Devbox operation without a Project workspace, but credentials, settings, history, trust state, hooks, MCP configuration, and other mutable Agent state then share the Agent's upstream-compatible data directory across projects; this deliberately accepts cross-project visibility and modification for a simpler lifecycle and avoids splitting credentials from state through mount or symlink behavior that the prototype found incomplete or incorrect.

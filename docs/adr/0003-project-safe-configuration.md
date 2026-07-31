@@ -1,0 +1,3 @@
+# Restrict project-fixed options to a safe allowlist
+
+Project configuration may fix only project-safe options. Its initial schema exposes the complete Toolchain selection but no PHP extension or Service options; future schemas may add those options to the safe allowlist without allowing AI Agent selection, ports, resource limits, network policy, or credentials. Devbox also provides neither arbitrary additional host mounts nor SSH Agent or SSH key access. This preserves reproducible project requirements without allowing a cloned repository to expose sensitive host capabilities, and secrets are never valid Project configuration values.
