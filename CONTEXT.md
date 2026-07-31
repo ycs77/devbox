@@ -18,13 +18,10 @@ The single versioned userland ABI shared by Devbox and every compatible Runtime 
 A Base-profile-compatible, independently reusable Runtime installation placed at an isolated path and linked into Workspace images.
 
 **Workspace image**:
-An immutable image assembled on demand from one Base profile and the selected Runtime and AI Agent bundles. Projects with the same selections share it.
+An immutable image assembled on demand from one Base profile and the selected Runtime bundles. Projects with the same Toolchain share it independently of their selected AI Agent.
 
 **AI Agent**:
 The user-selected AI coding agent that works inside a Sandbox with writable access to its Project workspace.
-
-**AI Agent bundle**:
-The current reusable installation of one AI Agent in user scope, built from its latest upstream release and shared by every Workspace image that selects that Agent.
 
 **Agent credentials**:
 The authentication material stored in an Agent home, shared across Devbox projects but kept separate from the developer's normal host credentials.
