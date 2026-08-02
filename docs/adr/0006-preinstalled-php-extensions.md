@@ -19,3 +19,7 @@ The first release excludes the project-specific SOAP, LDAP, and IMAP extensions 
 If any required extension cannot be built and enabled for a selected open PHP release line, preparation fails as an incompatible Runtime without omitting the extension, falling back to another extension revision, or publishing a Workspace stable tag.
 
 PhpRedis's exact revision and immutable PECL archive digest are part of the applicable PHP entry in the Platform lock rather than mutable build-time input or a Devbox package-only version. Resolution independently selects the newest stable PhpRedis 6.x release compatible with each exact PHP revision; Devbox derives the official PECL source location from that selected revision.
+
+## Extension assembly evidence
+
+On 2026-08-02, the integrated WSL2 `linux/amd64` assembly prototype built and enabled the complete set above for PHP 8.4.24, including PhpRedis 6.3.0 from a PECL archive with SHA-256 `0d5141f634bd1db6c1ddcda053d25ecf2c4fc1c395430d534fd3f8d51dd7f0b5`. PDO MySQL, PostgreSQL, and SQLite, `bcmath`, `intl`, `pcntl`, `zip`, `Zend OPcache`, GD, EXIF, sockets, and Redis passed module and dynamic-library verification after relocation. PHP reports the OPcache module as `Zend OPcache`, which the verifier must use. A digest-verified PhpRedis 3.1.6 negative candidate rejected PHP 8.4.24 and published no stable tag, confirming the incompatible-Runtime failure boundary.
