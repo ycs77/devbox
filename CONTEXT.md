@@ -14,11 +14,14 @@ A language execution environment selected independently by release line and comb
 **Base profile**:
 The single versioned userland ABI shared by Devbox and every compatible Runtime bundle. It is selected by Devbox rather than by project users.
 
+**Base image**:
+An immutable local Docker image materialized from one exact Base-profile source and one resolved set of curated native packages, then shared as the parent of compatible Workspace images.
+
 **Runtime bundle**:
 A Base-profile-compatible, independently reusable Runtime installation placed at an isolated path and linked into Workspace images.
 
 **Workspace image**:
-An immutable image assembled on demand from one Base profile and the selected Runtime bundles. Projects with the same Toolchain share it independently of their selected AI Agent.
+An immutable image assembled on demand from one Base image and the selected Runtime bundles. Projects with the same Toolchain share it independently of their selected AI Agent.
 
 **AI Agent**:
 The user-selected AI coding agent that works inside a Sandbox with writable access to its Project workspace.
@@ -31,6 +34,9 @@ A Devbox-managed user-scope home for one AI Agent's credentials, configuration, 
 
 **Sandbox**:
 An execution environment whose writable boundary includes the current project workspace but excludes the rest of the developer's machine by default. It protects the host environment, not the project contents.
+
+**Sandbox user**:
+The non-root account that runs interactive shells, commands, project tools, and the selected AI Agent inside a Sandbox after its UID and GID are aligned with the developer invoking Devbox.
 
 
 **Service**:
