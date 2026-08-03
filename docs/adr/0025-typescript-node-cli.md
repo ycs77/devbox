@@ -1,0 +1,9 @@
+# Implement the CLI in TypeScript with one Go host helper
+
+The initial Devbox CLI is an ESM TypeScript package published as `@ycs77/devbox` and installed globally with `npm i -g @ycs77/devbox`, accepting the prerequisite that the WSL2 host already provides Node.js and npm. Its `engines.node` range is `>=22`, intentionally allowing Node 22, Node 24, non-LTS releases, and future majors without a separate up-front compatibility matrix; concrete incompatibilities will be handled when observed rather than narrowing installation preemptively.
+
+TypeScript production code is bundled with tsdown, tests run with Vitest, Oxlint is the sole linter, and Oxfmt is the sole formatter. One internal `devbox-host` binary written in Go provides only host primitives whose required semantics Node cannot supply without native addons; its first-release interface is limited to kernel advisory locks, while Project, Sync, Build, Docker, and presentation logic remain in TypeScript.
+
+The main package depends on an exact same-version `@ycs77/devbox-linux-x64` package containing the precompiled helper, so users need neither Go nor native npm compilation. The helper exposes a small versioned machine protocol and is not a public command; mismatched, missing, or non-executable helpers fail with a reinstall instruction. Platform-package expansion and release-upgrade behavior remain part of the separate CLI distribution branch.
+
+The repository is one pnpm workspace monorepo with root `pnpm-workspace.yaml` and `pnpm-lock.yaml`; the root `packageManager` field pins the development pnpm release. `packages/devbox` contains the TypeScript CLI, `packages/devbox-linux-x64` contains the publishable platform package, and `native/devbox-host` is the Go module whose release build is copied into that platform package. The two published packages release together at the same version; the Go source is not a third independently versioned product.
