@@ -61,7 +61,7 @@ Ctrl-C aborts the operation, stops scheduling work, sends SIGINT to the active D
 
 ## HostOperations and lock capability
 
-The TypeScript production adapter starts the exact-version `devbox-host` binary from `@ycs77/devbox-linux-x64`. Module tests use a fake adapter; focused integration tests use the binary.
+The TypeScript production adapter resolves the exported package metadata and helper asset from the independently versioned `@ycs77/devbox-linux-x64` dependency through Node package resolution. It requires the platform-package version to satisfy the helper range declared by the running CLI, converts the resolved helper URL to an absolute path, and starts that path directly without a shell or `PATH` lookup. It performs no separate hello exchange, pre-spawn access check, or per-launch binary hash: the first real `acquire` request and response validate protocol version 1, while a missing or non-executable helper, unsupported package version, malformed or wrong-version response, or premature exit fails before protected work with an instruction to reinstall the current exact CLI version. Module tests use a fake adapter; focused integration tests use the binary.
 
 ```ts
 interface HostOperations {
@@ -160,7 +160,7 @@ interface PreparedWorkspace {
 
 - A plan contains exactly one active or candidate Platform snapshot.
 - Every Runtime required by a requested Toolchain has one complete exact entry in that snapshot.
-- A candidate contains fully resolved upstream revisions, digests, package integrities, and recipe inputs. Only a newly materialized Base local image ID may still be absent.
+- A candidate contains fully resolved upstream revisions, digests, and package integrities. Only a newly materialized Base local image ID may still be absent; artifact recipe versions come from Build's injected packaged Recipe catalog rather than caller-supplied Platform state.
 - Workspace request keys are non-empty and unique. Keys correlate results only and never participate in fingerprints, tags, Docker labels, or cache identity.
 - Toolchains are canonical domain values, not caller-generated Dockerfiles or command fragments.
 - Objects crossing the Interface are immutable.
@@ -171,13 +171,13 @@ Invalid plans return a validation error before Docker, temporary-file, tag, or l
 
 1. Validate the complete plan.
 2. For an active Base, require its derived tag to resolve to the locked exact image ID. Never repair it.
-3. For a new Base candidate, render the versioned Base template into a securely created disposable context, build without assigning the stable tag, verify the package and image contract, obtain the content-addressed image ID, then assign its derived stable tag.
+3. For a new Base candidate, use the current Base artifact recipe to render its owned template and disposable context, build without assigning the stable tag, verify the recipe contract, obtain the content-addressed image ID, then assign its derived stable tag. A newer packaged Base recipe is never applied to an active Base outside explicit Base update.
 4. Produce the complete prepared Platform snapshot containing that Base image ID.
-5. Canonicalize each selected Toolchain with the complete exact entries it selects, compute fingerprint schema version 1, deduplicate equal fingerprints, and sort unique candidates by fingerprint.
+5. Canonicalize each selected Toolchain with the complete exact entries it selects, the current Workspace recipe version, and each selected Runtime's current recipe version; compute fingerprint schema version 1, deduplicate equal fingerprints, and sort unique candidates by fingerprint. Exclude the Base recipe version and every unselected Runtime recipe.
 6. Process at most one Workspace candidate at a time. For each candidate, acquire its exclusive fingerprint lease, recheck the stable tag, and either reuse the verified image or render the versioned Workspace template, build, verify, and publish the stable tag.
 7. Return one result for every request key, including duplicate semantic requests that shared one build.
 
-Build owns checked-in, versioned Dockerfile templates and their context layouts. tsdown copies these package assets unchanged. Build passes only validated values through argument arrays and controlled BuildKit build arguments; it never invokes a shell. Template or context-layout changes require an explicit recipe-version change, and the Workspace recipe version participates in its fingerprint.
+Build's injected packaged Recipe catalog exposes exactly four monotonically versioned artifact recipes: Base, Node Runtime, PHP Runtime, and Workspace assembly. Each recipe owns its checked-in Dockerfile templates, disposable-context layout, controlled arguments, assembly steps, and verification contract; the Node recipe also owns package-manager installation, while the PHP recipe owns extension build and enablement. tsdown copies those assets unchanged. Callers never supply recipe files or versions. A template, context, build-flow, or verifier change that can alter an artifact or its contract increments only the owning recipe; implementation-only and byte-identical packaging changes do not.
 
 The DockerProcess production adapter invokes `docker buildx` with argv, streams native output, preserves exit status, uses terminal-aware progress in an interactive terminal and plain progress otherwise, and accepts AbortSignal. It does not use a Docker Engine client.
 
@@ -257,6 +257,9 @@ Build must prove:
 - equal Workspace semantic inputs build once and return every request key;
 - request-key changes do not change fingerprints;
 - fingerprint-input changes do change fingerprints;
+- changing the Workspace recipe changes every Workspace fingerprint;
+- changing one Runtime recipe changes only fingerprints that select that Runtime;
+- changing an unselected Runtime recipe or the packaged Base recipe alone does not change a Workspace fingerprint;
 - a stable matching tag is reused only after recheck under its fingerprint lease;
 - Workspace verification failure publishes no stable tag and stops later scheduling;
 - failure after an earlier verified publication preserves that tag but returns overall failure;
@@ -332,4 +335,4 @@ native/
     internal/protocol/
 ```
 
-The root pnpm workspace owns development scripts and the single `pnpm-lock.yaml`; its `packageManager` field pins the exact development pnpm release. `packages/devbox` uses Node `>=22`, ESM TypeScript, tsdown, Vitest, Oxlint, and Oxfmt. `native/devbox-host` builds with CGO disabled for `linux/amd64`; release output is copied into the exact-version platform package and is never compiled during `npm i -g @ycs77/devbox`.
+The root pnpm workspace owns development scripts and the single `pnpm-lock.yaml`; its `packageManager` field pins the exact development pnpm release. `packages/devbox` uses Node `>=22`, ESM TypeScript, tsdown, Vitest, Oxlint, and Oxfmt. `native/devbox-host` builds with CGO disabled for `linux/amd64`; a helper release copies that output into the independently versioned platform package, and installation through `npm install -g @ycs77/devbox` never compiles it locally.
