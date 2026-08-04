@@ -6,6 +6,10 @@ This is the implementation contract for the first production Build and Sync modu
 
 The accepted rationale and lifecycle rules remain canonical in ADR-0001, ADR-0002, ADR-0007, ADR-0016, ADR-0020, ADR-0023, and ADR-0025. This specification defines implementable interfaces and acceptance scenarios rather than repeating their history.
 
+## Delivery sequencing
+
+Production implementation proceeds as small, usable vertical slices rather than waiting for every future implementation contract to be complete. The first slice uses a committed Dockerfile for Node `24.19.0` that is intended for later composition. `node scripts/build-node-image.mjs` runs `docker build` from that Dockerfile, tags the result as `devbox-node:24.19.0`, and prints that image reference ready for direct `docker run`. Its acceptance path is `docker run --rm devbox-node:24.19.0 node --version`, returning `v24.19.0`; Project mounts, interactive shells, non-root users, AI Agents, and verification of downstream `FROM` composition are deliberately excluded. It has no public CLI. Sandbox lifecycle, AI Agent installation, CLI release upgrades, and schema migration remain later slices and are specified when their implementation begins.
+
 Out of scope:
 
 - a public `build` command;
