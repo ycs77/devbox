@@ -1,43 +1,42 @@
-import { randomUUID } from "node:crypto";
-import { lstat, link, mkdir, unlink, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
-import { isAbsolute, join, parse, relative, sep } from "node:path";
-
-import { validateSupportedHost } from "./host.js";
-import { failure, success, type Result } from "./result.js";
+import { randomUUID } from 'node:crypto'
+import { lstat, link, mkdir, unlink, writeFile } from 'node:fs/promises'
+import { homedir } from 'node:os'
+import { isAbsolute, join, parse, relative, sep } from 'node:path'
+import { validateSupportedHost } from './host.js'
+import { failure, success, type Result } from './result.js'
 
 export interface RegisteredProject {
-  readonly root: string;
-  readonly stateDirectory: string;
-  readonly created: boolean;
+  readonly root: string
+  readonly stateDirectory: string
+  readonly created: boolean
 }
 
 export interface InitializeProjectInput {
-  readonly root?: string;
-  readonly devboxHome?: string;
-  readonly validateHost?: () => Promise<Result<void>>;
-  readonly signal?: AbortSignal;
+  readonly root?: string
+  readonly devboxHome?: string
+  readonly validateHost?: () => Promise<Result<void>>
+  readonly signal?: AbortSignal
 }
 
 export function projectStateDirectory(projectRoot: string, devboxHome: string): string {
-  const root = parse(projectRoot).root;
-  const pathWithinRoot = relative(root, projectRoot);
+  const root = parse(projectRoot).root
+  const pathWithinRoot = relative(root, projectRoot)
 
   if (
     !isAbsolute(projectRoot) ||
-    pathWithinRoot === ".." ||
+    pathWithinRoot === '..' ||
     pathWithinRoot.startsWith(`..${sep}`)
   ) {
-    throw new TypeError("Project root must be an absolute path.");
+    throw new TypeError('Project root must be an absolute path.')
   }
 
-  const segments = pathWithinRoot === "" ? [] : pathWithinRoot.split(sep);
-  return join(devboxHome, "projects", ...segments.map(escapePathSegment));
+  const segments = pathWithinRoot === '' ? [] : pathWithinRoot.split(sep)
+  return join(devboxHome, 'projects', ...segments.map(escapePathSegment))
 }
 
 export function escapePathSegment(segment: string): string {
-  const bytes = new TextEncoder().encode(segment);
-  let escaped = "";
+  const bytes = new TextEncoder().encode(segment)
+  let escaped = ''
 
   for (const byte of bytes) {
     if (
@@ -47,148 +46,148 @@ export function escapePathSegment(segment: string): string {
       byte === 0x2d ||
       byte === 0x5f
     ) {
-      escaped += String.fromCharCode(byte);
+      escaped += String.fromCharCode(byte)
     } else {
-      escaped += `%${byte.toString(16).toUpperCase().padStart(2, "0")}`;
+      escaped += `%${byte.toString(16).toUpperCase().padStart(2, '0')}`
     }
   }
 
-  return escaped;
+  return escaped
 }
 
 export function unescapePathSegment(segment: string): string {
-  const bytes: number[] = [];
+  const bytes: number[] = []
 
   for (let index = 0; index < segment.length; index += 1) {
-    if (segment[index] === "%") {
-      const hex = segment.slice(index + 1, index + 3);
+    if (segment[index] === '%') {
+      const hex = segment.slice(index + 1, index + 3)
       if (!/^[0-9A-F]{2}$/i.test(hex)) {
-        throw new TypeError(`Invalid escaped Project path segment: ${segment}`);
+        throw new TypeError(`Invalid escaped Project path segment: ${segment}`)
       }
-      bytes.push(Number.parseInt(hex, 16));
-      index += 2;
-      continue;
+      bytes.push(Number.parseInt(hex, 16))
+      index += 2
+      continue
     }
 
-    const codePoint = segment.codePointAt(index);
+    const codePoint = segment.codePointAt(index)
     if (codePoint === undefined || codePoint > 0x7f) {
-      throw new TypeError(`Invalid escaped Project path segment: ${segment}`);
+      throw new TypeError(`Invalid escaped Project path segment: ${segment}`)
     }
-    bytes.push(codePoint);
+    bytes.push(codePoint)
   }
 
-  return new TextDecoder().decode(new Uint8Array(bytes));
+  return new TextDecoder().decode(new Uint8Array(bytes))
 }
 
 export async function initializeProject(
   input: InitializeProjectInput = {},
 ): Promise<Result<RegisteredProject>> {
-  const projectRoot = input.root ?? process.cwd();
-  const rootCheck = await validateProjectRoot(projectRoot);
+  const projectRoot = input.root ?? process.cwd()
+  const rootCheck = await validateProjectRoot(projectRoot)
   if (!rootCheck.ok) {
-    return rootCheck;
+    return rootCheck
   }
 
   if (input.signal?.aborted) {
-    throw new InterruptedError();
+    throw new InterruptedError()
   }
 
-  const hostCheck = await (input.validateHost ?? validateSupportedHost)();
+  const hostCheck = await (input.validateHost ?? validateSupportedHost)()
   if (!hostCheck.ok) {
-    return hostCheck;
+    return hostCheck
   }
 
   if (input.signal?.aborted) {
-    throw new InterruptedError();
+    throw new InterruptedError()
   }
 
   const stateDirectory = projectStateDirectory(
     projectRoot,
-    input.devboxHome ?? join(homedir(), ".devbox"),
-  );
-  const configurationPath = join(stateDirectory, "config.yaml");
+    input.devboxHome ?? join(homedir(), '.devbox'),
+  )
+  const configurationPath = join(stateDirectory, 'config.yaml')
 
   try {
-    await mkdir(stateDirectory, { recursive: true, mode: 0o700 });
+    await mkdir(stateDirectory, { recursive: true, mode: 0o700 })
   } catch {
     return failure({
-      kind: "operational",
-      code: "state-directory-unavailable",
+      kind: 'operational',
+      code: 'state-directory-unavailable',
       observed: `Devbox could not create its Project state directory: ${stateDirectory}.`,
-      nextAction: "Check write access to ~/.devbox and run devbox init again.",
-    });
+      nextAction: 'Check write access to ~/.devbox and run devbox init again.',
+    })
   }
 
   if (input.signal?.aborted) {
-    throw new InterruptedError();
+    throw new InterruptedError()
   }
 
-  const temporaryPath = join(stateDirectory, `.config-${process.pid}-${randomUUID()}.tmp`);
-  const content = `version: 1\nprojectRoot: ${JSON.stringify(projectRoot)}\n`;
+  const temporaryPath = join(stateDirectory, `.config-${process.pid}-${randomUUID()}.tmp`)
+  const content = `version: 1\nprojectRoot: ${JSON.stringify(projectRoot)}\n`
 
   try {
-    await writeFile(temporaryPath, content, { encoding: "utf8", flag: "wx", mode: 0o600 });
-    await link(temporaryPath, configurationPath);
-    await unlink(temporaryPath);
-    return success({ root: projectRoot, stateDirectory, created: true });
+    await writeFile(temporaryPath, content, { encoding: 'utf8', flag: 'wx', mode: 0o600 })
+    await link(temporaryPath, configurationPath)
+    await unlink(temporaryPath)
+    return success({ root: projectRoot, stateDirectory, created: true })
   } catch (cause) {
-    await unlink(temporaryPath).catch(() => undefined);
+    await unlink(temporaryPath).catch(() => undefined)
 
     if (isFileExistsError(cause)) {
-      return success({ root: projectRoot, stateDirectory, created: false });
+      return success({ root: projectRoot, stateDirectory, created: false })
     }
 
     return failure({
-      kind: "operational",
-      code: "registration-write-failed",
+      kind: 'operational',
+      code: 'registration-write-failed',
       observed: `Devbox could not register this Project in ${stateDirectory}.`,
-      nextAction: "Check write access to ~/.devbox and run devbox init again.",
-    });
+      nextAction: 'Check write access to ~/.devbox and run devbox init again.',
+    })
   }
 }
 
 async function validateProjectRoot(projectRoot: string): Promise<Result<void>> {
   if (!isAbsolute(projectRoot)) {
     return failure({
-      kind: "validation",
-      code: "invalid-project-root",
+      kind: 'validation',
+      code: 'invalid-project-root',
       observed: `The current Project directory is not absolute: ${projectRoot}.`,
-      nextAction: "Run devbox init from an existing directory.",
-    });
+      nextAction: 'Run devbox init from an existing directory.',
+    })
   }
 
   try {
-    const metadata = await lstat(projectRoot);
+    const metadata = await lstat(projectRoot)
     if (!metadata.isDirectory()) {
       return failure({
-        kind: "validation",
-        code: "invalid-project-root",
+        kind: 'validation',
+        code: 'invalid-project-root',
         observed: `The current Project path is not a directory: ${projectRoot}.`,
-        nextAction: "Run devbox init from an existing directory.",
-      });
+        nextAction: 'Run devbox init from an existing directory.',
+      })
     }
   } catch {
     return failure({
-      kind: "validation",
-      code: "missing-project-root",
+      kind: 'validation',
+      code: 'missing-project-root',
       observed: `The current Project directory does not exist: ${projectRoot}.`,
-      nextAction: "Change to an existing directory and run devbox init again.",
-    });
+      nextAction: 'Change to an existing directory and run devbox init again.',
+    })
   }
 
-  return success(undefined);
+  return success(undefined)
 }
 
 function isFileExistsError(error: unknown): error is NodeJS.ErrnoException {
   return (
-    typeof error === "object" &&
+    typeof error === 'object' &&
     error !== null &&
-    (error as NodeJS.ErrnoException).code === "EEXIST"
-  );
+    (error as NodeJS.ErrnoException).code === 'EEXIST'
+  )
 }
 
 export class InterruptedError extends Error {
   public constructor() {
-    super("Devbox command interrupted.");
+    super('Devbox command interrupted.')
   }
 }

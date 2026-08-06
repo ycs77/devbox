@@ -2,6 +2,13 @@
   "name": "@ycs77/devbox",
   "version": "0.1.0",
   "description": "Devbox Node-only MVP CLI",
+  "homepage": "https://github.com/ycs77/devbox",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ycs77/devbox.git",
+    "directory": "packages/devbox"
+  },
   "bin": {
     "devbox": "./dist/cli.js"
   },
@@ -9,23 +16,29 @@
     "dist"
   ],
   "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsdown",
-    "format": "oxfmt --write .",
-    "format:check": "oxfmt --check .",
-    "lint": "oxlint .",
-    "test": "vitest run"
+    "lint": "oxlint",
+    "fmt": "oxfmt",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest",
+    "check": "pnpm lint && pnpm fmt --check && pnpm typecheck && pnpm test --run",
+    "prepack": "pnpm build"
   },
   "dependencies": {
     "citty": "^0.2.2"
   },
   "devDependencies": {
-    "@types/node": "^24.0.0",
+    "@types/node": "^26.0.1",
     "oxfmt": "^0.62.0",
     "oxlint": "^1.77.0",
+    "oxlint-tsgolint": "^7.0.2001",
     "tsdown": "^0.15.4",
-    "typescript": "^5.9.0",
-    "vitest": "^4.0.0"
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
   },
   "engines": {
     "node": ">=22"

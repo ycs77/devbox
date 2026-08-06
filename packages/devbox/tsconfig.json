@@ -1,9 +1,15 @@
 {
   "compilerOptions": {
+    "target": "ESNext",
+    "lib": ["ES2023"],
+    "moduleDetection": "force",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "target": "ES2024",
+    "resolveJsonModule": true,
+    "types": ["node"],
+    "allowImportingTsExtensions": true,
     "strict": true,
+    "esModuleInterop": true,
     "verbatimModuleSyntax": true,
     "skipLibCheck": true,
     "noEmit": true

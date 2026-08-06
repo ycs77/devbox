@@ -1,9 +1,5 @@
-import { defineConfig } from "tsdown";
+import { defineConfig } from 'tsdown'
 
 export default defineConfig({
-  entry: ["src/cli.ts"],
-  format: "esm",
-  clean: true,
-  dts: false,
-  platform: "node",
-});
+  entry: ['src/cli.ts'],
+})
