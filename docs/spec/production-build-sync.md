@@ -2,21 +2,21 @@
 
 ## Status and scope
 
-This is the implementation contract for the first production Build and Sync modules. The supported first-release host is WSL2 `linux/amd64`; the repository remains design-only until a separate implementation task creates the production scaffold.
+This is the target implementation contract for production Build and Sync modules. The current implementation target is the v0.x Node-only MVP in ADR-0026: WSL2 `linux/amd64` with Docker and Docker Compose, fixed Node `24.19.0`, and no PHP. The broader PHP-plus-Node contracts retained below define the v1.0 scope; they are not required to complete v0.x.
 
-The accepted rationale and lifecycle rules remain canonical in ADR-0001, ADR-0002, ADR-0007, ADR-0016, ADR-0020, ADR-0023, and ADR-0025. This specification defines implementable interfaces and acceptance scenarios rather than repeating their history.
+The accepted rationale and lifecycle rules remain canonical in ADR-0001, ADR-0002, ADR-0007, ADR-0016, ADR-0020, ADR-0023, ADR-0025, ADR-0026, and ADR-0027. This specification defines implementable interfaces and acceptance scenarios rather than repeating their history.
 
 ## Delivery sequencing
 
-Production implementation proceeds as small, usable vertical slices rather than waiting for every future implementation contract to be complete. The first slice uses a committed Dockerfile for Node `24.19.0` that is intended for later composition. `node scripts/build-node-image.mjs` runs `docker build` from that Dockerfile, tags the result as `devbox-node:24.19.0`, and prints that image reference ready for direct `docker run`. Its acceptance path is `docker run --rm devbox-node:24.19.0 node --version`, returning `v24.19.0`; Project mounts, interactive shells, non-root users, AI Agents, and verification of downstream `FROM` composition are deliberately excluded. It has no public CLI. Sandbox lifecycle, AI Agent installation, CLI release upgrades, and schema migration remain later slices and are specified when their implementation begins.
+Production implementation proceeds as small, usable vertical slices rather than waiting for every future implementation contract to be complete. The completed first slice uses a committed Dockerfile for Node `24.19.0`, built by `node scripts/build-node-image.mjs` and tagged `devbox-node:24.19.0`. The current v0.x slice replaces that direct artifact path with the public `devbox init`, `sync`, `up`, `exec`, and `down` Node-only MVP: Build prepares verified Base, Node Runtime, and Workspace artifacts; Sync publishes retained Compose; `up` starts the Sandbox; `exec` runs the requested tool; and `down` removes only matching Sandbox resources. There is no public build command.
 
-Out of scope:
+## Out of v0.x MVP scope
 
-- a public `build` command;
-- Sandbox creation, replacement, or AI Agent installation;
-- CLI release upgrades and schema migration;
+- PHP, other Runtime families, and Runtime selection;
+- `devbox.yaml`, Local-configuration UI, Runtime updates, CLI release upgrades, and schema migration;
+- AI Agents, Services, arbitrary host mounts, host Docker access, and host credential mounting;
 - general Linux, macOS, `arm64`, native Windows, or cross-machine guarantees;
-- Services and additional Runtime families.
+- npm publication and image garbage collection.
 
 ## Module map
 
