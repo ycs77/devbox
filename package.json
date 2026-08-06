@@ -1,0 +1,10 @@
+{
+  "name": "devbox-workspace",
+  "private": true,
+  "packageManager": "pnpm@10.33.4",
+  "scripts": {
+    "build": "pnpm --filter @ycs77/devbox build",
+    "test": "pnpm --filter @ycs77/devbox test",
+    "pack:cli": "pnpm --filter @ycs77/devbox pack"
+  }
+}

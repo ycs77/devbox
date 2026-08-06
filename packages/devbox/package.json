@@ -1,0 +1,33 @@
+{
+  "name": "@ycs77/devbox",
+  "version": "0.1.0",
+  "description": "Devbox Node-only MVP CLI",
+  "bin": {
+    "devbox": "./dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "scripts": {
+    "build": "tsdown",
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check .",
+    "lint": "oxlint .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "citty": "^0.2.2"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "oxfmt": "^0.62.0",
+    "oxlint": "^1.77.0",
+    "tsdown": "^0.15.4",
+    "typescript": "^5.9.0",
+    "vitest": "^4.0.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
