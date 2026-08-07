@@ -27,3 +27,6 @@ test-results
 *.njsproj
 *.sln
 *.sw?
+
+# Local OMP cofiguration file
+.omp/config.yml
