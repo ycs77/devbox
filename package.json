@@ -7,7 +7,12 @@
   "scripts": {
     "build": "pnpm -C packages/devbox build",
     "test": "pnpm -C packages/devbox test",
+    "check": "pnpm -C packages/devbox check",
     "pack:cli": "pnpm -C packages/devbox pack",
-    "smoke:cli": "node scripts/package-devbox-smoke.mjs"
+    "smoke:cli": "node scripts/package-devbox-smoke.mjs",
+    "release": "bumpp --commit \"Release v%s\""
+  },
+  "devDependencies": {
+    "bumpp": "^12.2.0"
   }
 }
