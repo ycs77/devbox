@@ -30,8 +30,9 @@ export function projectStateDirectory(projectRoot: string, devboxHome: string): 
     throw new TypeError('Project root must be an absolute path.')
   }
 
-  const segments = pathWithinRoot === '' ? [] : pathWithinRoot.split(sep)
-  return join(devboxHome, 'projects', ...segments.map(escapePathSegment))
+  const mirrorName =
+    pathWithinRoot === '' ? 'root' : pathWithinRoot.split(sep).map(escapePathSegment).join('-')
+  return join(devboxHome, 'projects', mirrorName)
 }
 
 export function escapePathSegment(segment: string): string {

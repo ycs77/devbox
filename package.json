@@ -7,6 +7,7 @@
   "scripts": {
     "build": "pnpm -C packages/devbox build",
     "test": "pnpm -C packages/devbox test",
-    "pack:cli": "pnpm -C packages/devbox pack"
+    "pack:cli": "pnpm -C packages/devbox pack",
+    "smoke:cli": "node scripts/package-devbox-smoke.mjs"
   }
 }
