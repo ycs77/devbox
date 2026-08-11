@@ -1,10 +1,10 @@
 # Production Build and Sync specification
 
-## Status and scope
+## Historical status
 
-This is the target implementation contract for production Build and Sync modules. The current implementation target is the v0.x Node-only MVP in ADR-0026: WSL2 `linux/amd64` with Docker and Docker Compose, fixed Node `24.19.0`, and no PHP. The broader PHP-plus-Node contracts retained below define the v1.0 scope; they are not required to complete v0.x.
+This file is a superseded implementation snapshot retained only as historical design evidence. None of the Build, Sync, fingerprint, Base-image, lock-scope, public-command, readiness, or delivery-sequencing contracts below are current implementation targets.
 
-The accepted rationale and lifecycle rules remain canonical in ADR-0001, ADR-0002, ADR-0007, ADR-0016, ADR-0020, ADR-0023, ADR-0025, ADR-0026, and ADR-0027. This specification defines implementable interfaces and acceptance scenarios rather than repeating their history.
+The current contract has no public or internal Sync lifecycle, no Workspace fingerprints, no separately materialized Base image, and no post-build or Sandbox readiness gate. Implement from `CONTEXT.md` and the supersession entries in ADR-0001, ADR-0023, ADR-0025, ADR-0029 through ADR-0043; when this file conflicts with them, the ADRs are authoritative.
 
 ## Delivery sequencing
 

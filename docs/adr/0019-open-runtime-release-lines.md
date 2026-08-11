@@ -1,3 +1,5 @@
 # Allow formatted Runtime release lines beyond Built-in suggestions
 
+ADR-0031 supersedes this decision. Devbox now recognizes only release lines present in its finite packaged Runtime catalog.
+
 Devbox packages an explicit ordered list of Built-in suggested release lines for each PHP and Node Runtime family; the first entry is the initialization default, the full list is presented during `init`, and package updates may revise either list. Users may also enter PHP `X.Y` and Node `X` lines that are absent from those suggestions without checking a closed support catalog. Official Docker source availability and Base-profile compatibility are verified only during the atomic build operation; an unavailable or incompatible line fails that operation without activating partial state, deliberately favoring version flexibility over a prevalidated support guarantee.

@@ -6,4 +6,4 @@ v0.x may evolve its incomplete surfaces as the MVP exposes real needs; v1.0 esta
 
 ## Consequences
 
-ADR-0026 is the v0.x delivery target. ADR-0005 and the broader Build and Sync specification describe the intended v1.0 scope rather than work required to complete v0.x. New tickets and acceptance claims must identify which stage they serve.
+ADR-0026 remains the Node-only v0.x delivery boundary only where its opening supersession notice says so; current Workspace, configuration, CLI, Platform, Base, Agent, and lifecycle behavior comes from ADR-0029 through ADR-0043. New tickets and acceptance claims must identify their delivery stage without reviving the superseded Build-and-Sync flow.

@@ -1,0 +1,11 @@
+# Register Projects in one machine-owned registry
+
+Devbox stores a machine-owned `version: 1` Project registry at `~/.devbox/projects.yaml` as the sole authority for Project registration: an entry registers one exact Project root, while the Project's Local configuration contains only user-owned choices and does not duplicate that root. This replaces treating Local `config.yaml` existence as registration truth, makes Missing-root Project registrations explicitly enumerable, and accepts one user-scope atomic publication and coordination boundary for registration changes.
+
+Its version-1 shape contains only `version` and a `projects` mapping from quoted exact absolute Project roots to safe direct-child directory names, serialized in root order. Missing or unsupported versions, duplicate or unknown keys, non-absolute roots, unsafe directory names, and duplicate directory assignments are invalid current state and fail closed rather than falling back to a directory scan.
+
+Project state remains human-locatable in one flat `~/.devbox/projects/` directory. The registry records the selected direct-child directory name for each exact root; Devbox starts with the existing path-derived mirror name and resolves a collision by appending `-2`, `-3`, and so on instead of sharing one Project's Local configuration or retained Compose with another Project.
+
+`init` assigns the first candidate whose name is neither present in the registry nor present as an existing directory, testing the unsuffixed name before ascending numeric suffixes. Project removal deletes Project state before removing the registry entry, so a name becomes reusable only after complete removal; Devbox never adopts an unregistered residual directory as a new Project's state.
+
+Every operation that mutates Project registration holds the existing user-scope lifecycle lock exclusively for its complete operation; `rm` also holds its Project lock. Devbox adds no registry-specific lock, revision, or optimistic retry protocol: Local state is prepared or removed first and the registry is atomically published last, so the entry remains the registration commit point and failures remain forward-retryable.

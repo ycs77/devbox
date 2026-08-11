@@ -2,6 +2,14 @@
 
 > 研究日期：2026-08-02。這是方案比較筆記，不是新的架構決策；既有行為仍以 `CONTEXT.md` 與 `docs/adr/` 為準。
 
+## 現況更新（2026-08-10）
+
+後續討論提出第三種方案：**一份使用者層級共用的 multi-runtime Workspace image，加上每個 Project 各自一個 Sandbox container**。這不是本文件 B 方案的單一 all-in-one container，因此不會把所有 Projects 合併到同一個檔案、程序、網路、資源與故障邊界。
+
+新方案暫定由 Devbox CLI 根據使用者實際啟用的 Runtime release lines 聯集動態產生 Dockerfile，只把需要的版本安裝進 common image；每個 Project container 在 create/start 階段選擇自己的預設 Runtime。新增或更新 Runtime 時，可以重建整份 common image。
+
+因此，本文件對「單一 all-in-one container」的比較與結論仍然成立，但不涵蓋這個保留 per-Project Sandbox 邊界的新方案。新方案的目前結論、接受的取捨、與既有 ADR 的衝突及尚待決定事項，另見[共用 Multi-runtime Workspace image 討論結論](./shared-multi-runtime-image.md)。
+
 ## 結論
 
 Devbox 應維持目前的 **每個 Project 一個 Sandbox container，加上相同 Toolchain 共用 Workspace image**。

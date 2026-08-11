@@ -1,5 +1,7 @@
 # Use a fixed PHP extension set initially
 
+ADR-0037 invalidates the Trixie-specific extension assembly evidence below but does not change the curated extension set.
+
 Each PHP Runtime bundle contains and enables one Lucas-curated, Laravel-oriented extension set for that PHP release line. The initial Project and Local configuration schemas expose no `extensions` option, so users cannot add, remove, enable, or disable extensions; this favors a ready-to-use Laravel development experience over the smallest possible Runtime bundle, avoids per-project compilation and extension-combination images, and keeps shared bundles and startup predictable.
 
 The set includes PDO drivers for MySQL, PostgreSQL, and SQLite so the same PHP Runtime bundle can run the three common Laravel database configurations without per-project Runtime variants.
