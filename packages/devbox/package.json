@@ -29,7 +29,8 @@
     "prepack": "pnpm build"
   },
   "dependencies": {
-    "cac": "^7.0.0"
+    "cac": "^7.0.0",
+    "yaml": "^2.9.0"
   },
   "devDependencies": {
     "@types/node": "^26.0.1",

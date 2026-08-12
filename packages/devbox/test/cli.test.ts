@@ -27,6 +27,7 @@ describe('main', () => {
     const status = await main(
       ['init'],
       {
+        isInteractive: () => true,
         initializeProject: async () =>
           success({
             root: '/workspace/non-git-project',
@@ -89,6 +90,7 @@ describe('main', () => {
     const status = await main(
       ['init'],
       {
+        isInteractive: () => true,
         initializeProject: async () =>
           failure({
             kind: 'validation',
@@ -105,5 +107,63 @@ describe('main', () => {
     expect(output.stderr).toEqual([
       'Devbox supports only WSL2 linux/amd64.\nRun Devbox from WSL2.\n',
     ])
+  })
+  it('rejects interactive-only init outside a TTY before running the operation', async () => {
+    let initialized = false
+    const output = terminalOutput()
+
+    const status = await main(
+      ['init'],
+      {
+        isInteractive: () => false,
+        initializeProject: async () => {
+          initialized = true
+          return success({
+            root: '/workspace/non-git-project',
+            stateDirectory: '/home/user/.devbox/projects/workspace/non-git-project',
+            created: true,
+          })
+        },
+      },
+      output.output,
+    )
+
+    expect(status).toBe(2)
+    expect(initialized).toBe(false)
+    expect(output.stdout).toEqual([])
+    expect(output.stderr[0]).toContain('requires an interactive terminal')
+  })
+
+  it('dispatches config -g without invoking Local configuration', async () => {
+    let localCalled = false
+    const output = terminalOutput()
+
+    const status = await main(
+      ['config', '-g'],
+      {
+        isInteractive: () => true,
+        prompt: { confirm: async () => true },
+        configureGlobal: async () => success({ scope: 'global', changed: true }),
+        configureLocalProject: async () => {
+          localCalled = true
+          return success({ scope: 'local', root: '/workspace/project', changed: true })
+        },
+      },
+      output.output,
+    )
+
+    expect(status).toBe(0)
+    expect(localCalled).toBe(false)
+    expect(output.stdout).toEqual(['Global configuration updated.\n'])
+  })
+
+  it('requires --yes for rm and cleanup outside a TTY', async () => {
+    const output = terminalOutput()
+
+    expect(await main(['rm'], { isInteractive: () => false }, output.output)).toBe(2)
+    expect(
+      await main(['cleanup', '--missing-projects'], { isInteractive: () => false }, output.output),
+    ).toBe(2)
+    expect(output.stderr).toHaveLength(2)
   })
 })
