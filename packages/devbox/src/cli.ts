@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 
+import type { CAC } from 'cac'
+import type { Result } from './result.js'
 import { realpathSync } from 'node:fs'
 import { pathToFileURL } from 'node:url'
-import { defineCommand, runCommand } from 'citty'
+import { cac } from 'cac'
 import { initializeProject, InterruptedError } from './project.js'
-import { failure, type Result } from './result.js'
 
 interface CliDependencies {
   readonly initializeProject: typeof initializeProject
@@ -17,97 +18,40 @@ interface CliSuccess {
 
 type CliResult = Result<CliSuccess>
 
-const initCommand = defineCommand({
-  meta: {
-    name: 'init',
-    description: 'Register the current directory as a Devbox Project.',
-  },
-  run: async (context): Promise<CliResult> => {
-    if (context.rawArgs.length > 0) {
-      return failure({
-        kind: 'usage',
-        code: 'unexpected-init-arguments',
-        observed: 'devbox init does not accept arguments.',
-        nextAction: 'Run devbox init without arguments.',
-      })
-    }
+function createCli(dependencies: CliDependencies): CAC {
+  const cli = cac('devbox')
+  cli.usage('<command> [options]')
 
-    const registration = await (context.data as CliDependencies).initializeProject()
-    if (!registration.ok) {
-      return registration
-    }
+  cli
+    .command('init', 'Register the current directory as a Devbox Project.')
+    .action(async (): Promise<CliResult> => {
+      const registration = await dependencies.initializeProject()
+      if (!registration.ok) {
+        return registration
+      }
 
-    return {
-      ok: true,
-      value: {
-        projectRoot: registration.value.root,
-        created: registration.value.created,
-      },
-    }
-  },
-})
-
-const rootCommand = defineCommand({
-  meta: {
-    name: 'devbox',
-    description: 'Prepare and run the Devbox Node Toolchain.',
-  },
-  args: {
-    command: {
-      type: 'positional',
-      required: true,
-    },
-  },
-  run: async (context): Promise<CliResult> => {
-    if (context.args.command !== 'init') {
-      return failure({
-        kind: 'usage',
-        code: 'unknown-command',
-        observed: `Unknown command: ${context.args.command}.`,
-        nextAction: 'Run devbox --help to see available commands.',
-      })
-    }
-
-    const { result } = await runCommand(initCommand, {
-      rawArgs: context.rawArgs.slice(1),
-      data: context.data,
+      return {
+        ok: true,
+        value: {
+          projectRoot: registration.value.root,
+          created: registration.value.created,
+        },
+      }
     })
-    return result as CliResult
-  },
-})
 
-export async function runCli(
-  rawArgs: readonly string[],
-  dependencies: CliDependencies = { initializeProject },
-): Promise<CliResult> {
-  if (rawArgs.length === 1 && (rawArgs[0] === '--help' || rawArgs[0] === '-h')) {
-    return {
-      ok: true,
-      value: {
-        projectRoot: '',
-        created: false,
-      },
+  cli
+    .command('', '')
+    .usage('<command> [options]')
+    .action(() => cli.globalCommand.outputHelp())
+
+  cli.help(sections => {
+    const commandSection = sections.find(section => section.title === 'Commands')
+    if (commandSection) {
+      commandSection.body = commandSection.body.trimEnd()
     }
-  }
-
-  try {
-    const { result } = await runCommand(rootCommand, {
-      rawArgs: [...rawArgs],
-      data: dependencies,
-    })
-    return result as CliResult
-  } catch (error) {
-    if (error instanceof InterruptedError) {
-      throw error
-    }
-
-    return failure({
-      kind: 'usage',
-      code: 'invalid-command-usage',
-      observed: error instanceof Error ? error.message : 'Invalid Devbox command usage.',
-      nextAction: 'Run devbox --help to see available commands.',
-    })
-  }
+    return sections
+  })
+  return cli
 }
 
 interface TerminalOutput {
@@ -121,13 +65,6 @@ export function present(result: CliResult, output: TerminalOutput = process): nu
     return result.error.kind === 'usage' ? 2 : 1
   }
 
-  if (result.value.projectRoot === '') {
-    output.stdout.write(
-      'Usage: devbox init\n\nRegister the current directory as a Devbox Project.\n',
-    )
-    return 0
-  }
-
   output.stdout.write(
     result.value.created
       ? `Registered Project: ${result.value.projectRoot}\n`
@@ -136,25 +73,41 @@ export function present(result: CliResult, output: TerminalOutput = process): nu
   return 0
 }
 
-async function main(): Promise<void> {
+function isCacError(error: unknown): error is Error {
+  return error instanceof Error && error.name === 'CACError'
+}
+
+export async function main(
+  args: readonly string[] = process.argv.slice(2),
+  dependencies?: CliDependencies,
+  output: TerminalOutput = process,
+): Promise<number> {
   const abortController = new AbortController()
   const interrupt = () => abortController.abort()
   process.once('SIGINT', interrupt)
 
+  const cliDependencies = dependencies ?? {
+    initializeProject: () => initializeProject({ signal: abortController.signal }),
+  }
+  const cli = createCli(cliDependencies)
+
   try {
-    const result = await runCli(process.argv.slice(2), {
-      initializeProject: () => initializeProject({ signal: abortController.signal }),
-    })
-    process.exitCode = present(result)
+    cli.parse(['node', 'devbox', ...args], { run: false })
+    const result = (await cli.runMatchedCommand()) as CliResult | undefined
+    return result === undefined ? 0 : present(result, output)
   } catch (error) {
     if (error instanceof InterruptedError || abortController.signal.aborted) {
-      process.stderr.write('Devbox command interrupted.\n')
-      process.exitCode = 130
-      return
+      output.stderr.write('Devbox command interrupted.\n')
+      return 130
     }
 
-    process.stderr.write('Devbox encountered an unexpected failure. Run devbox init again.\n')
-    process.exitCode = 1
+    if (isCacError(error)) {
+      output.stderr.write(`${error.message}\n`)
+      return 1
+    }
+
+    output.stderr.write('Devbox encountered an unexpected failure. Run devbox init again.\n')
+    return 1
   } finally {
     process.off('SIGINT', interrupt)
   }
@@ -164,5 +117,5 @@ if (
   process.argv[1] !== undefined &&
   import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href
 ) {
-  await main()
+  process.exitCode = await main()
 }
