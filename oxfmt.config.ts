@@ -20,4 +20,5 @@ export default defineConfig({
     ],
     newlinesBetween: false,
   },
+  ignorePatterns: ['**/.agents/**', '**/*.md'],
 })

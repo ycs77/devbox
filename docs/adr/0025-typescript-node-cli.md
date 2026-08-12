@@ -1,4 +1,9 @@
-# Implement the CLI in TypeScript with one Go host helper
+# Historical: Implement the CLI in TypeScript with one Go host helper
+ADR-0045 supersedes this decision's Go `devbox-host` helper, platform package, helper protocol, and helper release contract. ADR-0046 also supersedes this decision's pnpm workspace monorepo, platform-package layout, native Go module, and multi-package release model. The TypeScript CLI remains the current implementation direction; every helper-specific and monorepo-specific statement below is historical and must not be used as a current implementation requirement.
+
+The current package boundary is one pnpm-managed package at the repository root, published as `@ycs77/devbox`. Its package manifest, lockfile, source, tests, tooling, and release flow are not split across a workspace. See ADR-0046 for the current package decision.
+
+## Historical decision details
 
 The initial Devbox CLI is an ESM TypeScript package published as `@ycs77/devbox` and installed globally with `npm install -g @ycs77/devbox`, accepting the prerequisite that the WSL2 host already provides Node.js and npm. Its `engines.node` range is `>=22`, intentionally allowing Node 22, Node 24, non-LTS releases, and future majors without a separate up-front compatibility matrix; concrete incompatibilities will be handled when observed rather than narrowing installation preemptively.
 

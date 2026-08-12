@@ -2,28 +2,22 @@
 
 Research date: 2026-08-03. Scope is Devbox v1 WSL2 `linux/amd64`, Node `>=22`, examining only locking across independent CLI processes; does not revisit existing ADRs and does not extend to other host primitives.
 
-> **Subsequent decision override:** ADR-0025 later split the CLI and helper into independent SemVer, with the main package using a compatible helper `1.x` caret range. References to `exact-version`/`exact same-version` platform package in this document should be read as "a platform package that the runtime has resolved and verified as compatible"; this does not alter the conclusions of this document regarding locking primitives and the Go helper boundary.
+> **Current decision override:** ADR-0045 supersedes the former recommendation to retain `devbox-host`. Devbox's current pre-release contract intentionally accepts simple non-waiting filesystem command markers for configuration and Project operations, with manual cleanup after abnormal termination. ADR-0046 records the related packaging consequence: one pnpm-managed package at the repository root, with no workspace graph, platform package, native Go module, or multi-package release flow. The source facts and candidate comparisons below remain useful historical evidence, but ADR-0045 and ADR-0046 are the current product decisions.
 
 This document marks content directly supported by official documentation or first-party sources as **"Source fact"**, and marks judgment applied to the Devbox contract as **"Devbox analysis"**. Such "pure JS" must also be differentiated: whether the JavaScript code additionally carries a native artifact and whether the underlying implementation is genuinely done in JavaScript are two different things.
 
-## Conclusion Summary
+## Current decision
 
-**Devbox analysis: Retain `devbox-host` under the existing contract without reduction.** As of Node v26.5.1, Node 22 through the current version still has no built-in `flock(2)`, POSIX `fcntl(F_SETLK/F_SETLKW)`, or Linux OFD lock in `node:fs`. `fs.open(..., 'wx')`/`O_CREAT | O_EXCL` only atomically determines "this pathname does not currently exist and is created by me"; it is not an advisory lock attached to a file descriptor that is automatically released upon process death. Node's later addition of `worker_threads.locks` is explicitly limited to coordinating **threads within the same Node process**, and was only added in v24.5.0, making it unable to coordinate two independently executed `devbox` invocations.
+ADR-0045 removes the planned Go helper from the current configuration and Project-operation scope. Devbox uses one Global command marker and one Project command marker per Project under `~/.devbox/locks/`; lock acquisition is non-waiting, a busy scope fails immediately, and normal command completion removes the marker. Forced termination may leave a marker for manual cleanup after the user confirms that no Devbox process is running.
 
-Therefore the bottleneck is not whether TypeScript can write a retry loop, but the absence of a built-in primitive that simultaneously possesses both of the following:
+`up` uses only its Project marker, reads a configuration snapshot, and holds the marker through the complete `docker compose up -d` command. Different Projects can run `up` concurrently; a later command for the same Project fails until Compose returns. `config -g` uses only the Global marker and may run during `up`; Project `config`, `init`, `rm`, and Missing-root cleanup use the Global marker plus relevant Project markers. Future `build` and `update` coordination remains undecided.
+ADR-0046 records the related packaging consequence: the CLI is one pnpm-managed package at the repository root, with one package lockfile and one npm release boundary. The helper-specific packaging and release analysis below is historical and does not prescribe a current implementation.
 
-1. The kernel can accurately track the live owner and release immediately after crash, `SIGKILL`, or FD close;
-2. Shared/exclusive modes can be directly applied to any arbitrary resource name.
+The remainder of this document records the source facts and alternatives considered under the previous helper-backed contract. Those comparisons explain the accepted reliability trade-off; they no longer prescribe the current implementation.
 
-`mkdir`/lockfile with heartbeat, if it never takes over a stale marker, permanently loses liveness after `SIGKILL`; if it allows timeout-based takeover, a normal but paused, event-loop-stalled, system-suspended, or wall-clock-jumped holder is misjudged, resulting in two owners simultaneously entering the critical section. What Devbox protects are external side effects such as Docker lifecycle, Platform publication, and image tags that cannot check a fencing token, so "a newer lease number" cannot remediate split brain.
+## Previous Devbox Lock Contract
 
-Linux abstract Unix socket bind yields a crash-releasing **single exclusive name**, but has no reader/writer semantics; a full socket coordinator can implement its own queue, at the cost of introducing a socket and daemon-like coordinator. SQLite can provide cross-process database read/write transactions and crash recovery, but the Node built-in is a synchronous native binding; maintaining concurrency across different arbitrary resources requires resource-per-database-file and introduces persistent SQLite files/journals, and waiting has no `AbortSignal` or FIFO contract. Neither is a zero-cost pure-JS substitute for `flock`.
-
-If the goal is only to remove the Go language/child process, a Node-API addon can directly wrap `flock(2)`, but that merely swaps an "external precompiled helper" for an "npm native `.node` addon"; it still requires distributing a platform native binary, and additionally requires nonblocking retry, cancellation, and ABI/package verification. Given that v1 is WSL2 `linux/amd64` only and the current exact-version platform package can already carry a helper, this does not remove the most significant native distribution burden.
-
-## Devbox Existing Lock Contract
-
-This research is based on the observable contract of existing decisions:
+This research is based on the former observable contract of earlier decisions:
 
 - A Project-local lifecycle first acquires a user-scope lifecycle **shared** lock, then acquires that Project **exclusive** lock; different Projects can therefore proceed in parallel, while the same Project is serialized.
 - Global `update`/Base update/`cleanup` acquires a user-scope lifecycle **exclusive** lock, excluding all Project operations.
@@ -158,7 +152,7 @@ Legend: `Yes` means the primitive or a reasonably thin adapter can satisfy; `Par
 | Node-API `flock` addon | Yes | Yes | Yes | Yes | Yes, provided `LOCK_NB` + abortable retry; blocking addon alone insufficient | Kernel does not guarantee FIFO, same tier as helper | Yes, no daemon/socket/lease registry | npm native addon; semantically feasible but not pure JS |
 | exact-version `devbox-host` | Yes | Yes | Yes | Yes, EOF/helper exit/FD close | Yes, existing rank and cancellation protocol | Kernel does not guarantee FIFO | Yes | external precompiled helper; **retain** |
 
-## Conditional Recommendations
+## Historical Conditional Recommendations
 
 ### 1. Existing Requirements Unchanged: Retain Go Helper
 
@@ -193,4 +187,4 @@ If a future decision changes to "allow native addon, only compare addon vs. Go h
 
 ## Final Answer
 
-**It is currently not possible to reliably remove `devbox-host` and switch to pure-JS locking.** As of Node v26.5.1 there is still no cross-process `flock`/`fcntl` built-in; `worker_threads.locks` is same-process only; filesystem-marker leases cannot simultaneously guarantee SIGKILL liveness and paused-owner safety; socket/SQLite can only express the full reader/writer topology by violating no-socket/no-persistent-coordinator-state or substantially increasing protocol complexity. Retaining the Go helper is the smallest, deepest, and most clearly bounded failure-boundary solution under existing constraints. If the future only requires "no Go child" without requiring "pure JS", the Node-API advisory-lock addon is the semantically equivalent alternative; if zero additional native artifact is insisted upon, then at least one of the cross-process, shared/exclusive, crash-release, or no-coordinator requirements must be explicitly reduced.
+The current answer is not "pure JavaScript locking is safe under the former crash-release contract." The current pre-release decision deliberately reduces that contract: it removes Go and native locking, uses simple command markers, rejects busy operations immediately, and documents manual cleanup after forced termination. This is accepted because keeping the package simple and allowing different Projects to run `up` concurrently is more important for the current scope than automatic recovery of abandoned markers. Future native coordination remains an open decision for operations that modify shared Docker or Platform artifacts.

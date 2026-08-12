@@ -4,7 +4,8 @@
 
 This file is a superseded implementation snapshot retained only as historical design evidence. None of the Build, Sync, fingerprint, Base-image, lock-scope, public-command, readiness, or delivery-sequencing contracts below are current implementation targets.
 
-The current contract has no public or internal Sync lifecycle, no Workspace fingerprints, no separately materialized Base image, and no post-build or Sandbox readiness gate. Implement from `CONTEXT.md` and the supersession entries in ADR-0001, ADR-0023, ADR-0025, ADR-0029 through ADR-0043; when this file conflicts with them, the ADRs are authoritative.
+The current contract has no public or internal Sync lifecycle, no Workspace fingerprints, no separately materialized Base image, and no post-build or Sandbox readiness gate. ADR-0045 also supersedes this snapshot's Go-helper and lifecycle-lock sequencing: current configuration and Project operations use simple command markers, while future Build and Update coordination remains undecided. Implement from `CONTEXT.md` and the supersession entries in ADR-0001, ADR-0023, ADR-0025, ADR-0029 through ADR-0046; when this file conflicts with them, the ADRs are authoritative.
+The repository-layout sketch later in this file is also historical. ADR-0046 defines the current package boundary as one pnpm-managed package at the repository root; `pnpm-workspace.yaml`, `packages/*`, the platform package, and `native/devbox-host` are not current implementation targets.
 
 ## Delivery sequencing
 

@@ -63,6 +63,17 @@ Lucas-curated Devbox options distributed as part of the package and changed thro
 
 **Global configuration**:
 The complete user-owned configuration shared across all Projects, defining the Configured Runtime set and Configured Agent set. Project registration removal never changes it; an item becoming unused only makes it eligible for a separate explicit Global configuration change.
+**Configuration snapshot**:
+The complete set of Global, Local, Project-registry, and host inputs read by one Project operation before it performs its work; later configuration changes do not alter that operation.
+_Avoid_: live configuration
+
+**Global command lock**:
+The short-lived coordination state for operations that modify Devbox-wide configuration or Project registration. It does not block `up`, which may use a configuration snapshot while it runs.
+_Avoid_: lifecycle lock
+
+**Project command lock**:
+The short-lived coordination state for one Project command. It prevents another command for that Project while the host-side command is running, but it does not keep the Sandbox locked after `up` returns.
+_Avoid_: container lock
 
 **Platform lock**:
 The user-scope exact build plan mapping the current Base profile, its upstream source and curated native packages, and the Configured Runtime set to the single artifact revisions and digests that `build` consumes. It may be newer than the last successfully built Workspace image while explicit stages remain incomplete. AI Agents are outside this lock.

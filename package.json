@@ -1,18 +1,51 @@
 {
-  "name": "devbox-workspace",
-  "type": "module",
+  "name": "@ycs77/devbox",
   "version": "0.1.0",
-  "private": true,
-  "packageManager": "pnpm@11.9.0",
+  "description": "Devbox Node-only MVP CLI",
+  "homepage": "https://github.com/ycs77/devbox",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ycs77/devbox.git"
+  },
+  "bin": {
+    "devbox": "./dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
-    "build": "pnpm -C packages/devbox build",
-    "test": "pnpm -C packages/devbox test",
-    "check": "pnpm -C packages/devbox check",
-    "pack:cli": "pnpm -C packages/devbox pack",
+    "build": "tsdown",
+    "lint": "oxlint",
+    "fmt": "oxfmt",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest",
+    "check": "pnpm lint && pnpm fmt --check && pnpm typecheck && pnpm test --run",
+    "pack:cli": "pnpm pack",
     "smoke:cli": "node scripts/package-devbox-smoke.mjs",
-    "release": "bumpp --commit \"Release v%s\""
+    "release": "bumpp --commit \"Release v%s\"",
+    "prepack": "pnpm build"
+  },
+  "dependencies": {
+    "cac": "^7.0.0",
+    "yaml": "^2.9.0"
   },
   "devDependencies": {
-    "bumpp": "^12.2.0"
-  }
+    "@types/node": "^26.2.0",
+    "bumpp": "^12.2.0",
+    "oxfmt": "^0.63.0",
+    "oxlint": "^1.78.0",
+    "oxlint-tsgolint": "^7.0.2001",
+    "tsdown": "^0.22.14",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.10"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@11.9.0"
 }
