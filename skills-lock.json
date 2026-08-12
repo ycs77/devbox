@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "cac": {
+      "source": "cacjs/cac",
+      "sourceType": "github",
+      "skillPath": "skills/cac/SKILL.md",
+      "computedHash": "135ab59eb9f6e22a2fa3038ab77fcf7daf0de3ae27a145b07e9a9dd3f0ac4bbc"
+    }
+  }
+}
