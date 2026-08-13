@@ -193,7 +193,12 @@ export async function initializeProject(
   input: InitializeProjectInput = {},
 ): Promise<Result<RegisteredProject>> {
   return withStateLocks(
-    { devboxHome: input.devboxHome ?? join(homedir(), '.devbox'), signal: input.signal },
+    {
+      devboxHome: input.devboxHome ?? join(homedir(), '.devbox'),
+      global: true,
+      projectRoots: [input.root ?? process.cwd()],
+      signal: input.signal,
+    },
     () => initializeProjectUnlocked(input),
   )
 }
@@ -405,7 +410,8 @@ export async function configureLocalProject(
   return withStateLocks(
     {
       devboxHome: input.devboxHome ?? join(homedir(), '.devbox'),
-      projectRoot: input.root ?? process.cwd(),
+      global: true,
+      projectRoots: [input.root ?? process.cwd()],
       signal: input.signal,
     },
     () => configureLocalProjectUnlocked(input),
@@ -491,7 +497,12 @@ export async function configureGlobal(
   input: ConfigureGlobalInput = {},
 ): Promise<Result<ConfigurationOperation>> {
   return withStateLocks(
-    { devboxHome: input.devboxHome ?? join(homedir(), '.devbox'), signal: input.signal },
+    {
+      devboxHome: input.devboxHome ?? join(homedir(), '.devbox'),
+      global: true,
+      projectRoots: [],
+      signal: input.signal,
+    },
     () => configureGlobalUnlocked(input),
   )
 }
@@ -615,7 +626,8 @@ export async function removeProject(
   return withStateLocks(
     {
       devboxHome: input.devboxHome ?? join(homedir(), '.devbox'),
-      projectRoot: input.root ?? process.cwd(),
+      global: true,
+      projectRoots: [input.root ?? process.cwd()],
       signal: input.signal,
     },
     () => removeProjectUnlocked(input),
@@ -680,15 +692,29 @@ async function removeProjectUnlocked(
 export async function cleanupMissingProjects(
   input: CleanupMissingProjectsInput = {},
 ): Promise<Result<MissingProjectsCleanup>> {
+  const devboxHome = input.devboxHome ?? join(homedir(), '.devbox')
   return withStateLocks(
-    { devboxHome: input.devboxHome ?? join(homedir(), '.devbox'), signal: input.signal },
-    () => cleanupMissingProjectsUnlocked(input),
+    { devboxHome, global: true, projectRoots: [], signal: input.signal },
+    async locks => {
+      const discovery = await discoverMissingProjects(input)
+      if (!discovery.ok) {
+        return discovery
+      }
+      await locks.acquireProjectScopes(discovery.value.missingRoots)
+      return cleanupMissingProjectsUnlocked(input, discovery.value)
+    },
   )
 }
 
-async function cleanupMissingProjectsUnlocked(
-  input: CleanupMissingProjectsInput = {},
-): Promise<Result<MissingProjectsCleanup>> {
+interface MissingProjectsDiscovery {
+  readonly paths: DevboxPaths
+  readonly registry: ProjectRegistry
+  readonly missingRoots: readonly string[]
+}
+
+async function discoverMissingProjects(
+  input: CleanupMissingProjectsInput,
+): Promise<Result<MissingProjectsDiscovery>> {
   if (input.signal?.aborted) {
     throw new InterruptedError()
   }
@@ -698,7 +724,11 @@ async function cleanupMissingProjectsUnlocked(
     return registryState
   }
   if (!registryState.value.exists) {
-    return success({ roots: [], removed: false })
+    return success({
+      paths,
+      registry: { version: 1, projects: {} },
+      missingRoots: [],
+    })
   }
   const registryCheck = parseProjectRegistry(registryState.value.content)
   if (!registryCheck.ok) {
@@ -707,6 +737,9 @@ async function cleanupMissingProjectsUnlocked(
 
   const missingRoots: string[] = []
   for (const root of Object.keys(registryCheck.value.projects)) {
+    if (input.signal?.aborted) {
+      throw new InterruptedError()
+    }
     const exists = await projectRootExists(root)
     if (exists === undefined) {
       return failure({
@@ -720,7 +753,17 @@ async function cleanupMissingProjectsUnlocked(
       missingRoots.push(root)
     }
   }
-  if (missingRoots.length === 0) {
+  return success({ paths, registry: registryCheck.value, missingRoots })
+}
+
+async function cleanupMissingProjectsUnlocked(
+  input: CleanupMissingProjectsInput,
+  discovery: MissingProjectsDiscovery,
+): Promise<Result<MissingProjectsCleanup>> {
+  if (input.signal?.aborted) {
+    throw new InterruptedError()
+  }
+  if (discovery.missingRoots.length === 0) {
     return success({ roots: [], removed: false })
   }
 
@@ -728,7 +771,7 @@ async function cleanupMissingProjectsUnlocked(
     const confirm = input.confirm ?? (async () => false)
     if (
       !(await confirm(
-        `Remove Missing-root Project registrations?\n${missingRoots.map(root => `- ${root}`).join('\n')}`,
+        `Remove Missing-root Project registrations?\n${discovery.missingRoots.map(root => `- ${root}`).join('\n')}`,
       ))
     ) {
       return success({ roots: [], removed: false })
@@ -736,8 +779,8 @@ async function cleanupMissingProjectsUnlocked(
   }
 
   const removedRoots: string[] = []
-  const projects = { ...registryCheck.value.projects }
-  for (const root of missingRoots) {
+  const projects = { ...discovery.registry.projects }
+  for (const root of discovery.missingRoots) {
     const rootExists = await projectRootExists(root)
     if (rootExists === undefined) {
       return failure({
@@ -755,7 +798,7 @@ async function cleanupMissingProjectsUnlocked(
       continue
     }
     try {
-      await rm(join(paths.projects, stateDirectoryName), { recursive: true, force: true })
+      await rm(join(discovery.paths.projects, stateDirectoryName), { recursive: true, force: true })
     } catch {
       return failure({
         kind: 'operational',
@@ -772,7 +815,7 @@ async function cleanupMissingProjectsUnlocked(
     return success({ roots: [], removed: false })
   }
   const written = await writeAtomically(
-    paths.projectRegistry,
+    discovery.paths.projectRegistry,
     serializeProjectRegistry({ version: 1, projects }),
   )
   if (!written.ok) {

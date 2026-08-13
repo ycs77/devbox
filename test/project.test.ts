@@ -14,6 +14,7 @@ import {
   unescapePathSegment,
 } from '../src/project.js'
 import { success } from '../src/result.js'
+import { withStateLocks } from '../src/state-lock.js'
 
 const temporaryDirectories: string[] = []
 
@@ -21,6 +22,17 @@ async function temporaryDirectory(): Promise<string> {
   const directory = await mkdtemp(join(tmpdir(), 'devbox-project-test-'))
   temporaryDirectories.push(directory)
   return directory
+}
+
+function deferred(): {
+  readonly promise: Promise<void>
+  readonly resolve: () => void
+} {
+  let resolve!: () => void
+  const promise = new Promise<void>(resolvePromise => {
+    resolve = resolvePromise
+  })
+  return { promise, resolve }
 }
 
 async function createProjectState(
@@ -68,6 +80,42 @@ describe('initializeProject', () => {
       value: { root: projectRoot, created: false, confirmed: false },
     })
     await expect(stat(devboxHome)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+  it('fails immediately when the required Global marker is occupied', async () => {
+    const sandbox = await temporaryDirectory()
+    const projectRoot = join(sandbox, 'project')
+    const devboxHome = join(sandbox, 'user-state', '.devbox')
+    await mkdir(projectRoot)
+    const entered = deferred()
+    const release = deferred()
+    const running = withStateLocks({ devboxHome, global: true, projectRoots: [] }, async () => {
+      entered.resolve()
+      await release.promise
+      return success(undefined)
+    })
+    await entered.promise
+
+    try {
+      const result = await initializeProject({
+        root: projectRoot,
+        devboxHome,
+        validateHost: async () => success(undefined),
+        confirm: async () => true,
+      })
+
+      expect(result).toMatchObject({
+        ok: false,
+        error: {
+          kind: 'operational',
+          code: 'command-lock-busy',
+          observed: expect.stringContaining('Global'),
+          nextAction: expect.stringContaining('no Devbox process'),
+        },
+      })
+    } finally {
+      release.resolve()
+      await running
+    }
   })
 
   it('commits Global, Local, and registry state for the exact current directory', async () => {
@@ -337,6 +385,58 @@ describe('Project removal and Missing-root cleanup', () => {
       projects: Record<string, string>
     }
     expect(registry.projects[projectRoot]).toBeUndefined()
+  })
+  it('does not partially clean Missing-root Projects when one Project marker is busy', async () => {
+    const sandbox = await temporaryDirectory()
+    const firstRoot = join(sandbox, 'a-missing-project')
+    const secondRoot = join(sandbox, 'b-missing-project')
+    const devboxHome = join(sandbox, 'user-state', '.devbox')
+    await Promise.all([mkdir(firstRoot), mkdir(secondRoot)])
+    const first = await createProjectState(firstRoot, devboxHome)
+    const second = await createProjectState(secondRoot, devboxHome)
+    await Promise.all([
+      rm(firstRoot, { recursive: true, force: true }),
+      rm(secondRoot, { recursive: true, force: true }),
+    ])
+
+    const entered = deferred()
+    const release = deferred()
+    const running = withStateLocks(
+      { devboxHome, global: false, projectRoots: [secondRoot] },
+      async () => {
+        entered.resolve()
+        await release.promise
+        return success(undefined)
+      },
+    )
+    await entered.promise
+
+    try {
+      const result = await cleanupMissingProjects({ devboxHome, yes: true })
+
+      expect(result).toMatchObject({
+        ok: false,
+        error: {
+          kind: 'operational',
+          code: 'command-lock-busy',
+          observed: expect.stringContaining('Project'),
+        },
+      })
+      await expect(stat(first.stateDirectory)).resolves.toMatchObject({
+        isDirectory: expect.any(Function),
+      })
+      await expect(stat(second.stateDirectory)).resolves.toMatchObject({
+        isDirectory: expect.any(Function),
+      })
+      const registry = parse(await readFile(join(devboxHome, 'projects.yaml'), 'utf8')) as {
+        projects: Record<string, string>
+      }
+      expect(registry.projects[firstRoot]).toBe(basename(first.stateDirectory))
+      expect(registry.projects[secondRoot]).toBe(basename(second.stateDirectory))
+    } finally {
+      release.resolve()
+      await running
+    }
   })
 })
 
