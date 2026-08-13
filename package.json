@@ -37,6 +37,7 @@
   "devDependencies": {
     "@types/node": "^26.2.0",
     "bumpp": "^12.2.0",
+    "memfs": "^4.68.1",
     "oxfmt": "^0.63.0",
     "oxlint": "^1.78.0",
     "oxlint-tsgolint": "^7.0.2001",

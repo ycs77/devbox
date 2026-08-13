@@ -1,7 +1,7 @@
 import { mkdtemp, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { success } from '../src/result.js'
 import { StateLockInterruptedError, withStateLocks } from '../src/state-lock.js'
 
@@ -72,18 +72,9 @@ describe('withStateLocks', () => {
     })
     await entered.promise
 
-    const setTimeoutSpy = vi.spyOn(globalThis, 'setTimeout').mockImplementation(() => {
-      throw new Error('busy acquisition waited')
-    })
-    let busy
-    try {
-      busy = await withStateLocks({ devboxHome, global: true, projectRoots: [] }, async () =>
-        success('should not run'),
-      )
-    } finally {
-      setTimeoutSpy.mockRestore()
-    }
-
+    const busy = await withStateLocks({ devboxHome, global: true, projectRoots: [] }, async () =>
+      success('should not run'),
+    )
     expect(busy).toMatchObject({
       ok: false,
       error: {

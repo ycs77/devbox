@@ -1,10 +1,6 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { main } from '../src/cli.js'
 import { failure, success } from '../src/result.js'
-
-afterEach(() => {
-  vi.restoreAllMocks()
-})
 
 function terminalOutput() {
   const stdout: string[] = []

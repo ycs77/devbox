@@ -1,7 +1,7 @@
 import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
 import {
   cleanupMissingProjects,
@@ -53,7 +53,6 @@ async function createProjectState(
 }
 
 afterEach(async () => {
-  vi.restoreAllMocks()
   await Promise.all(
     temporaryDirectories
       .splice(0)
