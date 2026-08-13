@@ -2,7 +2,7 @@
 
 ADR-0032 supersedes this decision's cleanup of fingerprinted Workspace tags: Devbox now publishes only `devbox-workspace:latest`, and existing Sandbox containers protect the exact older images they use. The host-side data-root decision remains in force, while final old-container and image cleanup behavior is decided with the common lifecycle.
 
-ADR-0033 adds the machine-owned generated Workspace build context at `~/.devbox/build/workspace/`; it is derived input for BuildKit rather than a supported configuration or cache interface.
+ADR-0033 defines the machine-owned generated Workspace build context directly at `~/.devbox/build/`; it is derived input for BuildKit rather than a supported configuration or cache interface.
 
 ADR-0035 removes Devbox-owned Base tags entirely; cleanup no longer evaluates or protects a separately materialized Base image.
 
