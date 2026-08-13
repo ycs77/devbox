@@ -104,6 +104,7 @@ describe('main', () => {
       'Devbox supports only WSL2 linux/amd64.\nRun Devbox from WSL2.\n',
     ])
   })
+
   it('rejects interactive-only init outside a TTY before running the operation', async () => {
     let initialized = false
     const output = terminalOutput()
@@ -151,6 +152,73 @@ describe('main', () => {
     expect(status).toBe(0)
     expect(localCalled).toBe(false)
     expect(output.stdout).toEqual(['Global configuration updated.\n'])
+  })
+
+  it('dispatches update and presents the Platform lock status', async () => {
+    const output = terminalOutput()
+
+    const status = await main(
+      ['update'],
+      {
+        isInteractive: () => false,
+        updatePlatform: async () =>
+          success({
+            changed: true,
+            lockPath: '/home/user/.devbox/platform-lock.yaml',
+            runtimes: { node: ['24'] },
+          }),
+      },
+      output.output,
+    )
+
+    expect(status).toBe(0)
+    expect(output.stdout).toEqual(['Platform lock updated.\n'])
+    expect(output.stderr).toEqual([])
+  })
+
+  it('presents an unchanged Platform lock status', async () => {
+    const output = terminalOutput()
+
+    const status = await main(
+      ['update'],
+      {
+        updatePlatform: async () =>
+          success({
+            changed: false,
+            lockPath: '/home/user/.devbox/platform-lock.yaml',
+            runtimes: { node: ['24'] },
+          }),
+      },
+      output.output,
+    )
+
+    expect(status).toBe(0)
+    expect(output.stdout).toEqual(['Platform lock is up to date.\n'])
+    expect(output.stderr).toEqual([])
+  })
+
+  it('presents an update failure with a nonzero status', async () => {
+    const output = terminalOutput()
+
+    const status = await main(
+      ['update'],
+      {
+        updatePlatform: async () =>
+          failure({
+            kind: 'operational',
+            code: 'base-resolution-failed',
+            observed: 'The official Ubuntu Base input could not be resolved.',
+            nextAction: 'Check network access and run devbox update again.',
+          }),
+      },
+      output.output,
+    )
+
+    expect(status).toBe(1)
+    expect(output.stdout).toEqual([])
+    expect(output.stderr).toEqual([
+      'The official Ubuntu Base input could not be resolved.\nCheck network access and run devbox update again.\n',
+    ])
   })
 
   it('requires --yes for rm and cleanup outside a TTY', async () => {

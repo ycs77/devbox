@@ -33,4 +33,21 @@ Devbox does not provide an `unlock` command and does not guess whether a marker 
 
 Never remove a marker while its Devbox command is still running. Doing so can allow two commands to modify the same Project or Global state at once.
 
-The coordination rules for future `build`, `update`, and other operations that modify shared Docker or Platform artifacts will be documented separately when those operations are implemented.
+## Platform lock coordination
+
+`devbox update` uses a separate user-scope Platform marker at
+`~/.devbox/locks/platform`. It does not acquire the Global command marker or any
+Project marker, and those command-marker rules do not coordinate Platform-lock
+publication. A second `update` fails immediately while the first resolution is
+running; it never waits, invokes Docker, changes configuration, or creates a
+Sandbox. The marker is held through configuration validation, exact Base and
+Configured Runtime resolution, and the atomic replacement of
+`~/.devbox/platform-lock.yaml`.
+
+The lock's coordination contract is intentionally independent from the
+configuration and Project command markers: only one `update` may publish the
+shared Platform lock at a time, while `config -g`, `config`, and Project
+lifecycle operations retain their existing marker scopes. A resolution or
+publication failure leaves the prior Platform-lock bytes unchanged. After
+forced termination, confirm that no Devbox process is running before manually
+removing only the residual `platform` marker.

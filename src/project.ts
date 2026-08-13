@@ -36,6 +36,7 @@ export interface DevboxPaths {
   readonly home: string
   readonly globalConfiguration: string
   readonly projectRegistry: string
+  readonly platformLock: string
   readonly projects: string
 }
 
@@ -123,6 +124,7 @@ export function devboxPaths(devboxHome = join(homedir(), '.devbox')): DevboxPath
     home: devboxHome,
     globalConfiguration: join(devboxHome, 'config.yaml'),
     projectRegistry: join(devboxHome, 'projects.yaml'),
+    platformLock: join(devboxHome, 'platform-lock.yaml'),
     projects: join(devboxHome, 'projects'),
   }
 }

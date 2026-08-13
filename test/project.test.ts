@@ -80,6 +80,7 @@ describe('initializeProject', () => {
     })
     await expect(stat(devboxHome)).rejects.toMatchObject({ code: 'ENOENT' })
   })
+
   it('fails immediately when the required Global marker is occupied', async () => {
     const sandbox = await temporaryDirectory()
     const projectRoot = join(sandbox, 'project')
@@ -144,6 +145,7 @@ describe('initializeProject', () => {
       },
     )
   })
+
   it('serializes registry roots in exact root order', async () => {
     const sandbox = await temporaryDirectory()
     const firstRoot = join(sandbox, 'z-project')
@@ -316,6 +318,45 @@ describe('configuration boundaries', () => {
     await expect(readFile(localPath, 'utf8')).resolves.toBe(invalidBefore)
   })
 
+  it('rejects catalog-external interactive Global and Local input before persistence', async () => {
+    const sandbox = await temporaryDirectory()
+    const projectRoot = join(sandbox, 'project')
+    const devboxHome = join(sandbox, 'user-state', '.devbox')
+    await mkdir(projectRoot)
+    const project = await createProjectState(projectRoot, devboxHome)
+    const globalPath = join(devboxHome, 'config.yaml')
+    const localPath = join(project.stateDirectory, 'config.yaml')
+    const globalBefore = await readFile(globalPath, 'utf8')
+    const localBefore = await readFile(localPath, 'utf8')
+
+    const globalResult = await configureGlobal({
+      devboxHome,
+      prompt: {
+        confirm: async () => true,
+        editGlobal: async () => ({ version: 1, runtimes: { node: ['26'] }, agents: [] }),
+      },
+    })
+    const localResult = await configureLocalProject({
+      root: projectRoot,
+      devboxHome,
+      prompt: {
+        confirm: async () => true,
+        editLocal: async () => ({ version: 1, toolchain: { node: '26' }, ports: [] }),
+      },
+    })
+
+    expect(globalResult).toMatchObject({
+      ok: false,
+      error: { code: 'invalid-global-configuration' },
+    })
+    expect(localResult).toMatchObject({
+      ok: false,
+      error: { code: 'invalid-local-configuration' },
+    })
+    await expect(readFile(globalPath, 'utf8')).resolves.toBe(globalBefore)
+    await expect(readFile(localPath, 'utf8')).resolves.toBe(localBefore)
+  })
+
   it('rejects Global Runtime removal selected by a Missing-root Project', async () => {
     const sandbox = await temporaryDirectory()
     const projectRoot = join(sandbox, 'project')
@@ -385,6 +426,7 @@ describe('Project removal and Missing-root cleanup', () => {
     }
     expect(registry.projects[projectRoot]).toBeUndefined()
   })
+
   it('does not partially clean Missing-root Projects when one Project marker is busy', async () => {
     const sandbox = await temporaryDirectory()
     const firstRoot = join(sandbox, 'a-missing-project')

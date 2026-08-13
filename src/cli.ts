@@ -6,6 +6,8 @@ import { realpathSync } from 'node:fs'
 import { createInterface } from 'node:readline/promises'
 import { pathToFileURL } from 'node:url'
 import { cac } from 'cac'
+import { PlatformLockInterruptedError } from './platform-coordination.js'
+import { updatePlatform, type PlatformUpdateResult, type UpdatePlatformInput } from './platform.js'
 import {
   cleanupMissingProjects,
   configureGlobal,
@@ -31,6 +33,7 @@ interface CliDependencies {
   readonly initializeProject?: (input: InitializeProjectInput) => Promise<InitializeProjectResult>
   readonly configureLocalProject?: (input: ConfigureLocalInput) => Promise<ConfigureLocalResult>
   readonly configureGlobal?: (input: ConfigureGlobalInput) => Promise<ConfigureGlobalResult>
+  readonly updatePlatform?: (input: UpdatePlatformInput) => Promise<Result<PlatformUpdateResult>>
   readonly removeProject?: (input: RemoveProjectInput) => Promise<RemoveProjectResult>
   readonly cleanupMissingProjects?: (
     input: CleanupMissingProjectsInput,
@@ -65,6 +68,7 @@ function createCli(
       | 'initializeProject'
       | 'configureLocalProject'
       | 'configureGlobal'
+      | 'updatePlatform'
       | 'removeProject'
       | 'cleanupMissingProjects'
     >
@@ -136,6 +140,17 @@ function createCli(
         message: result.value.changed
           ? 'Local configuration updated.'
           : 'Local configuration was not changed.',
+      })
+    })
+  cli
+    .command('update', 'Resolve and publish the exact Platform lock.')
+    .action(async (): Promise<CliResult> => {
+      const result = await dependencies.updatePlatform({ signal })
+      if (!result.ok) {
+        return result
+      }
+      return success({
+        message: result.value.changed ? 'Platform lock updated.' : 'Platform lock is up to date.',
       })
     })
 
@@ -258,6 +273,8 @@ export async function main(
       ((input: ConfigureLocalInput) => configureLocalProject(input)),
     configureGlobal:
       dependencies?.configureGlobal ?? ((input: ConfigureGlobalInput) => configureGlobal(input)),
+    updatePlatform:
+      dependencies?.updatePlatform ?? ((input: UpdatePlatformInput) => updatePlatform(input)),
     removeProject:
       dependencies?.removeProject ?? ((input: RemoveProjectInput) => removeProject(input)),
     cleanupMissingProjects:
@@ -271,7 +288,11 @@ export async function main(
     const result = (await cli.runMatchedCommand()) as CliResult | undefined
     return result === undefined ? 0 : present(result, output)
   } catch (error) {
-    if (error instanceof InterruptedError || abortController.signal.aborted) {
+    if (
+      error instanceof InterruptedError ||
+      error instanceof PlatformLockInterruptedError ||
+      abortController.signal.aborted
+    ) {
       output.stderr.write('Devbox command interrupted.\n')
       return 130
     }
