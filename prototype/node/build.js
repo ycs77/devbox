@@ -1,11 +1,11 @@
-// Build the prototype image with:
-// docker build --file prototype/node/Dockerfile --tag devbox:latest .
-//
 // Enter the prototype image with the default Node.js 24 runtime:
 // docker run --rm -it --user devbox devbox:latest
 //
 // Switch to Node.js 22 with:
 // docker run --rm -it --user devbox -e NODE_VERSION=22 devbox:latest
+//
+// Mount the current project and publish a Node.js app on port 3000:
+// docker run --rm -it --user devbox -v "$PWD:/workspace" -p 3000:3000 devbox:latest
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
 import { fileURLToPath } from 'node:url'
