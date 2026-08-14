@@ -103,8 +103,12 @@ RUN ARCH= OPENSSL_ARCH= && dpkgArch="$(dpkg --print-architecture)" \
     && find "$NODE_RUNTIME_ROOT/include/node/openssl/archs" -mindepth 1 -maxdepth 1 ! -name "$OPENSSL_ARCH" -exec rm -rf {} \; \
     && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
     && export PATH="$NODE_RUNTIME_ROOT/bin:$PATH" \
+    && echo "Node runtime installed to $NODE_RUNTIME_ROOT" \
+    && npm install -g npm@latest corepack@latest @antfu/ni@latest \
     && "$NODE_RUNTIME_ROOT/bin/node" --version \
     && "$NODE_RUNTIME_ROOT/bin/npm" --version \
+    && corepack enable pnpm \
+    && npm install -g -f yarn@^1 \
     && rm -rf /tmp/node-source
 
 # Install and verify Node.js 24.
@@ -158,8 +162,11 @@ RUN ARCH= OPENSSL_ARCH= && dpkgArch="$(dpkg --print-architecture)" \
     && find "$NODE_RUNTIME_ROOT/include/node/openssl/archs" -mindepth 1 -maxdepth 1 ! -name "$OPENSSL_ARCH" -exec rm -rf {} \; \
     && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
     && export PATH="$NODE_RUNTIME_ROOT/bin:$PATH" \
+    && npm install -g npm@latest corepack@latest @antfu/ni@latest \
     && "$NODE_RUNTIME_ROOT/bin/node" --version \
     && "$NODE_RUNTIME_ROOT/bin/npm" --version \
+    && corepack enable pnpm \
+    && npm install -g -f yarn@^1 \
     && rm -rf /tmp/node-source
 
 # Select an installed Node.js runtime at container startup.
