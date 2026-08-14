@@ -167,6 +167,14 @@ RUN ARCH= OPENSSL_ARCH= && dpkgArch="$(dpkg --print-architecture)" \
     && npm install -g -f yarn@^1 \
     && rm -rf /tmp/node-source
 
+# Configure pnpm for the non-root Sandbox user
+RUN install -d -o devbox -g devbox \
+    /home/devbox/.config \
+    /home/devbox/.config/pnpm \
+    /home/devbox/.pnpm-store \
+    && printf 'storeDir: /home/devbox/.pnpm-store\n' > /home/devbox/.config/pnpm/config.yaml \
+    && chown devbox:devbox /home/devbox/.config/pnpm/config.yaml
+
 # Select an installed Node.js runtime at container startup
 COPY prototype/node/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
