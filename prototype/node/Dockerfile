@@ -10,11 +10,6 @@ ENV NODE_VERSION=24
 
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
-# Create the devbox user and group
-RUN userdel --remove ubuntu
-RUN groupadd --force --gid 1000 devbox
-RUN useradd --create-home --shell /bin/bash --no-user-group --gid 1000 --uid 1000 devbox
-
 # Install the Base profile packages and build tools
 RUN set -eux \
     && apt-get update && apt-get upgrade -y \
@@ -27,6 +22,7 @@ RUN set -eux \
     && apt-get install -y --no-install-recommends \
       ca-certificates \
       curl \
+      wget \
       git \
       openssh-client \
       zip \
@@ -50,7 +46,15 @@ RUN set -eux \
       gnupg \
       dirmngr \
       xz-utils \
+      sudo \
     && rm -rf /var/lib/apt/lists/*
+
+# Create the devbox user and group
+RUN userdel -r ubuntu \
+    && groupadd -f -g 1000 devbox \
+    && useradd -m -s /bin/bash -N -g 1000 -u 1000 devbox \
+    && echo "devbox ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/devbox \
+    && chmod 0440 /etc/sudoers.d/devbox
 
 # Install Node.js 22
 RUN ARCH= OPENSSL_ARCH= && dpkgArch="$(dpkg --print-architecture)" \
@@ -167,19 +171,37 @@ RUN ARCH= OPENSSL_ARCH= && dpkgArch="$(dpkg --print-architecture)" \
     && npm install -g -f yarn@^1 \
     && rm -rf /tmp/node-source
 
+WORKDIR /workspace
+
 # Configure pnpm for the non-root Sandbox user
-RUN install -d -o devbox -g devbox \
-    /home/devbox/.config \
-    /home/devbox/.config/pnpm \
-    /home/devbox/.pnpm-store \
+USER devbox
+RUN mkdir -p /home/devbox/.config/pnpm /home/devbox/.pnpm-store \
     && printf 'storeDir: /home/devbox/.pnpm-store\n' > /home/devbox/.config/pnpm/config.yaml \
     && chown devbox:devbox /home/devbox/.config/pnpm/config.yaml
+USER root
+
+# Install Claude Code
+USER devbox
+RUN curl -fsSL https://claude.ai/install.sh | bash
+USER root
+
+# Install Codex CLI
+USER devbox
+RUN curl -fsSL https://chatgpt.com/codex/install.sh | sh
+USER root
+
+# Install OMP
+USER devbox
+RUN curl -fsSL https://omp.sh/install | sh \
+    && mkdir -p /home/devbox/.omp
+USER root
+
+# Set the PATH for the devbox user to include local binaries
+ENV PATH="/home/devbox/.local/bin:${PATH}"
 
 # Select an installed Node.js runtime at container startup
 COPY prototype/node/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
-
-WORKDIR /workspace
 
 CMD ["/bin/bash"]
