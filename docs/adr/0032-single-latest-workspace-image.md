@@ -1,5 +1,7 @@
 # Publish one latest Workspace image without persisted identity
 
+> **Current status (2026-08-14):** ADR-0048 supersedes this ADR's Platform-lock source for the Workspace plan. The single latest Workspace-image direction remains, but Build inputs now come from Global `build.node` and packaged recipes.
+
 ADR-0041 supersedes this decision's Configured-Agent Workspace build input: the common image now contains only Base and Configured Runtime contents, while every Project Sandbox installs Configured Agents during first-start bootstrap independently of its Toolchain. The single mutable `devbox-workspace:latest` identity and old-image retention rules remain in force.
 
 Devbox removes the custom Workspace fingerprint and does not persist a Workspace image ID, generation, or candidate registry. Each explicit `build` regenerates the fully resolved Workspace plan from the Platform lock, relies only on BuildKit's internal cache, and builds directly to the single local `devbox-workspace:latest` tag; all retained Compose definitions use that mutable reference.

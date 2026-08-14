@@ -1,5 +1,7 @@
 # Select Runtimes through the container-local PATH
 
+> **Current status (2026-08-14):** ADR-0048 keeps native Runtime paths but supersedes the statement that Node global tools are installed by Sandbox bootstrap. The current prototype installs those tools during Runtime Build; Project-specific Runtime selection remains deferred.
+
 Each Sandbox container definition sets a complete container-local `PATH` that prepends the native command directories declared by each Selected Runtime recipe to the Base-profile path. Because the selection is part of the container environment, the entrypoint, Compose command, Compose-exec processes, interactive and non-interactive shells, and AI Agent subprocesses inherit one Runtime command-resolution rule without command shims, `update-alternatives`, or mutable selector state. A Local-configuration change takes effect only when a later `up` applies a replacement-requiring Compose definition, matching Devbox's explicit staged workflow rather than supporting live Runtime switching inside an existing Sandbox.
 
 Each family-owned Runtime recipe owns its native command layout and declares only the directories that selection adds to `PATH`. Node uses `/opt/devbox/runtimes/node/<release-line>/bin` directly, preserving the official archive's commands and the npm-global executables later installed into that same prefix by Sandbox bootstrap; Devbox creates no Node command projection or relocated links. PHP's command layout, including whether and how Composer follows a PHP release line, remains deferred with the PHP recipe.

@@ -1,5 +1,7 @@
 # Require release lines in the packaged Runtime catalog
 
+> **Current status (2026-08-14):** ADR-0048 keeps the finite packaged Runtime catalog, but each supported release line now points to a packaged fixed-version recipe and Global `build.node` selects the build set. There is no Platform-lock exact-resolution stage.
+
 Devbox recognizes only the finite set of Runtime family and release-line pairs distributed in its packaged Runtime catalog. For each Runtime family, its ordered catalog entries and Built-in suggestions are the same set; the first entry is the initialization default, while the Configured Runtime set is the user-specific subset selected for resolution and future Workspace builds. A new official release line remains unavailable until a Devbox package update adds it, deliberately accepting that release cadence constraint in exchange for a finite, inspectable support surface. This supersedes ADR-0019's open release-line space.
 
 `devbox config` and `devbox config -g` accept only release lines in the current packaged catalog, and Local or Global configuration loaded after supported manual edits must satisfy the same membership rule. A catalog-external release line fails validation before persistence, so Devbox never saves desired state it cannot interpret.

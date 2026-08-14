@@ -1,5 +1,7 @@
 # Build Base layers inside the Workspace image
 
+> **Current status (2026-08-14):** ADR-0048 supersedes this ADR's persisted Base-input and lock-bootstrap contract. The inline Base and Runtime Docker flow remains, with `prototype/node/Dockerfile` as the current behavior reference; no Platform lock stores the Base digest, package plan, or source coordinates.
+
 Devbox removes the separately materialized local Base image, its `devbox-base:<image-id>` tag, and the Base local `image_id` from Platform-lock schema version 1. The Base profile remains Devbox-selected package data and the shared Runtime ABI, while the Platform lock records its exact upstream source revision and digest plus the exact curated native-package plan needed by Build. Ordinary `update` resolves and atomically writes those Base inputs together with the Configured Runtime set without invoking Docker.
 
 For Ubuntu Noble, that plan locks the `ubuntu:24.04` source digest and the ordered Devbox-curated top-level package names. It deliberately does not lock an Ubuntu snapshot timestamp or package revisions. Build first uses the digest-pinned Base's default live Ubuntu archive to install `ca-certificates`, switches the Ubuntu archive URLs to HTTPS, and resolves the curated package plan from that live archive. It does not enumerate package versions or the transitive dependency closure, so later Builds may receive different package revisions as the live archive changes; this is an accepted reproducibility trade-off rather than a missing lock field.
