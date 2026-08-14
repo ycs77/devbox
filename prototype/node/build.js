@@ -1,10 +1,12 @@
+// Enter the prototype image with:
+// docker run --rm -it --entrypoint /bin/bash devbox-node:24.19.0
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
 import { fileURLToPath } from 'node:url'
 
 const image = 'devbox-node:24.19.0'
-const projectRoot = fileURLToPath(new URL('../', import.meta.url))
-const dockerfile = fileURLToPath(new URL('../Dockerfile.node', import.meta.url))
+const projectRoot = fileURLToPath(new URL('../../', import.meta.url))
+const dockerfile = fileURLToPath(new URL('./Dockerfile', import.meta.url))
 
 const build = spawn('docker', ['build', '--file', dockerfile, '--tag', image, '.'], {
   cwd: projectRoot,

@@ -76,7 +76,7 @@ The short-lived coordination state for one Project command. It prevents another 
 _Avoid_: container lock
 
 **Platform lock**:
-The user-scope exact build plan mapping the current Base profile, its upstream source and curated native packages, and the Configured Runtime set to the single artifact revisions and digests that `build` consumes. It may be newer than the last successfully built Workspace image while explicit stages remain incomplete. AI Agents are outside this lock.
+The user-scope Build plan mapping the current Base profile, its upstream source and curated native packages, and the Configured Runtime set to exact Runtime revisions, source coordinates, and trusted release-key fingerprints consumed by `build`; AI Agents are outside this lock. Base source remains digest-pinned, while its curated package names are resolved from Ubuntu's live archive during Build and may receive different package revisions across Builds; Runtime archive integrity is verified during `build` rather than represented as a lock digest, so the plan fixes source version and trust policy without promising identical archive bytes forever.
 
 
 **Project**:
