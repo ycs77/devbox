@@ -1,8 +1,11 @@
 // Build the prototype image with:
 // docker build --file prototype/node/Dockerfile --tag devbox:latest .
 //
-// Enter the prototype image with:
-// docker run --rm -it --user devbox -e NODE_VERSION=24 devbox:latest /bin/bash
+// Enter the prototype image with the default Node.js 24 runtime:
+// docker run --rm -it --user devbox devbox:latest /bin/bash
+//
+// Switch to Node.js 22 with:
+// docker run --rm -it --user devbox -e NODE_VERSION=22 devbox:latest /bin/bash
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
 import { fileURLToPath } from 'node:url'
