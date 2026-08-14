@@ -172,7 +172,8 @@ RUN ARCH= OPENSSL_ARCH= && dpkgArch="$(dpkg --print-architecture)" \
 # Select an installed Node.js runtime at container startup.
 COPY prototype/node/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
-
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+
 WORKDIR /workspace
-CMD ["node", "--version"]
+
+CMD ["/bin/bash"]
