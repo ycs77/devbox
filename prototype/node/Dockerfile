@@ -10,12 +10,12 @@ ENV NODE_VERSION=24
 
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
-# Create the fixed Sandbox user and group.
+# Create the devbox user and group
 RUN userdel --remove ubuntu
 RUN groupadd --force --gid 1000 devbox
 RUN useradd --create-home --shell /bin/bash --no-user-group --gid 1000 --uid 1000 devbox
 
-# Install the Base profile packages and build tools.
+# Install the Base profile packages and build tools
 RUN set -eux \
     && apt-get update && apt-get upgrade -y \
     && apt-get install -y --no-install-recommends ca-certificates \
@@ -52,8 +52,7 @@ RUN set -eux \
       xz-utils \
     && rm -rf /var/lib/apt/lists/*
 
-# Install and verify Node.js 22.
-# Keep each release-line recipe in one contiguous block for Dockerfile generation.
+# Install Node.js 22
 RUN ARCH= OPENSSL_ARCH= && dpkgArch="$(dpkg --print-architecture)" \
     && case "${dpkgArch##*-}" in \
       amd64) ARCH='x64' OPENSSL_ARCH='linux-x86_64';; \
@@ -111,8 +110,7 @@ RUN ARCH= OPENSSL_ARCH= && dpkgArch="$(dpkg --print-architecture)" \
     && npm install -g -f yarn@^1 \
     && rm -rf /tmp/node-source
 
-# Install and verify Node.js 24.
-# Keep each release-line recipe in one contiguous block for Dockerfile generation.
+# Install Node.js 24
 RUN ARCH= OPENSSL_ARCH= && dpkgArch="$(dpkg --print-architecture)" \
     && case "${dpkgArch##*-}" in \
       amd64) ARCH='x64' OPENSSL_ARCH='linux-x86_64';; \
@@ -169,7 +167,7 @@ RUN ARCH= OPENSSL_ARCH= && dpkgArch="$(dpkg --print-architecture)" \
     && npm install -g -f yarn@^1 \
     && rm -rf /tmp/node-source
 
-# Select an installed Node.js runtime at container startup.
+# Select an installed Node.js runtime at container startup
 COPY prototype/node/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
