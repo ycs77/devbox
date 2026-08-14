@@ -1,5 +1,7 @@
 # Install Node global tools in each Runtime tree
 
+> **Current status (2026-08-14):** ADR-0048 supersedes the Sandbox-bootstrap placement of Node global tools for the current prototype. The Node Runtime Build installs `npm@latest`, `corepack@latest`, `@antfu/ni@latest`, Corepack pnpm enablement, and the current Yarn v1 installation flow; these are not lockfile entries.
+
 ADR-0041 supersedes this decision's build-time global-tool refresh and image-owned added-tool lifecycle. The native Node prefix, npm layout, Corepack-owned pnpm, forced Yarn Classic, and installation sequence remain the Sandbox-bootstrap contract.
 
 The Node Runtime recipe extracts the official Node archive into `/opt/devbox/runtimes/node/<release-line>` and uses npm's native global layout without relocating it: npm's prefix follows that Node installation, packages remain under `<prefix>/lib/node_modules`, executables remain under `<prefix>/bin`, and npm keeps its default `~/.npm` cache. Selecting Node prepends that native `<prefix>/bin` directly to the container-local `PATH`; Devbox does not create a command projection for Node. Composer remains deferred with the PHP recipe.

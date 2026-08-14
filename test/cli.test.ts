@@ -104,6 +104,7 @@ describe('main', () => {
       'Devbox supports only WSL2 linux/amd64.\nRun Devbox from WSL2.\n',
     ])
   })
+
   it('rejects interactive-only init outside a TTY before running the operation', async () => {
     let initialized = false
     const output = terminalOutput()

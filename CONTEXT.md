@@ -12,8 +12,10 @@ _Avoid_: Development environment
 A language execution environment selected independently by release line and combined with other selected Runtimes into a Toolchain.
 
 **Runtime catalog**:
-The finite package-managed set of Runtime family and release-line pairs that Devbox recognizes and claims it can resolve from an official source and install compatibly with the current Base profile, ordered within each family. A release line enters the catalog only through a Devbox package update.
+The finite package-managed set of Runtime family and release-line pairs that Devbox recognizes and claims it can build through an official source and a compatible packaged Runtime recipe, ordered within each family. A release line enters the catalog only through a Devbox package update.
 
+**Runtime recipe**:
+A packaged, family-owned definition of a Runtime release line, including its supported source version and the behavior needed to make that Runtime available in a Workspace image.
 **Agent catalog**:
 The finite package-managed set of AI Agents that Devbox can install through an official Runtime-independent installation path compatible with the current Base profile and runnable by the Sandbox user without elevation. An AI Agent enters the catalog only through a Devbox package update.
 
@@ -24,7 +26,7 @@ The ordered Runtime catalog entries presented as Devbox's Runtime choices. The t
 A Runtime release line chosen from the Configured Runtime set for one family in a Project's Toolchain. Selection defines Devbox-supported command resolution and entrypoint preflight, not exclusive access to Runtime capabilities present in the shared Workspace image.
 
 **Configured Runtime set**:
-The user-scope subset of Runtime catalog entries selected in Global configuration for exact resolution and the next Workspace build. It may differ from the contents of the last successfully built Workspace image while explicit stages remain incomplete. A Runtime remains configured only because it is desired globally, not because an existing Sandbox still uses an older Workspace image containing it; removal is rejected while any Local configuration, including a Missing-root Project registration, still selects it.
+The user-scope subset of Runtime catalog entries listed in Global configuration for the next Workspace build. It describes which Runtime release lines the shared Workspace image should contain; a future Project configuration may select one of those available lines for a Project's Toolchain.
 
 **Base profile**:
 The single versioned userland ABI shared by Devbox and every compatible Runtime bundle. It is selected by Devbox rather than by project users.
@@ -33,7 +35,7 @@ The single versioned userland ABI shared by Devbox and every compatible Runtime 
 A Base-profile-compatible, independently reusable Runtime installation placed at an isolated path and linked into Workspace images.
 
 **Workspace image**:
-An immutable image built from exact Base-profile inputs and the Configured Runtime set, then shared by every Project Sandbox independently of its Toolchain. Its latest successful build is used for new or recreated Sandboxes, while existing Sandbox containers may continue using an older build.
+An immutable image built from the Base profile and the Configured Runtime set through packaged Runtime recipes, then shared by every Project Sandbox independently of its Toolchain. Its latest successful build is used for new or recreated Sandboxes, while existing Sandbox containers may continue using an older build.
 
 **AI Agent**:
 An AI coding agent from the Configured Agent set that works inside every Project Sandbox with writable access to its Project workspace.
@@ -62,7 +64,7 @@ A Devbox-supported dependency that runs alongside a Sandbox but is not part of i
 Lucas-curated Devbox options distributed as part of the package and changed through package updates rather than user configuration.
 
 **Global configuration**:
-The complete user-owned configuration shared across all Projects, defining the Configured Runtime set and Configured Agent set. Project registration removal never changes it; an item becoming unused only makes it eligible for a separate explicit Global configuration change.
+The complete user-owned configuration shared across all Projects, including the Runtime release lines requested for the next Workspace build and the Configured Agent set. Project registration removal never changes it; an item becoming unused only makes it eligible for a separate explicit Global configuration change.
 **Configuration snapshot**:
 The complete set of Global, Local, Project-registry, and host inputs read by one Project operation before it performs its work; later configuration changes do not alter that operation.
 _Avoid_: live configuration
@@ -75,8 +77,6 @@ _Avoid_: lifecycle lock
 The short-lived coordination state for one Project command. It prevents another command for that Project while the host-side command is running, but it does not keep the Sandbox locked after `up` returns.
 _Avoid_: container lock
 
-**Platform lock**:
-The user-scope exact build plan mapping the current Base profile, its upstream source and curated native packages, and the Configured Runtime set to the single artifact revisions and digests that `build` consumes. It may be newer than the last successfully built Workspace image while explicit stages remain incomplete. AI Agents are outside this lock.
 
 
 **Project**:

@@ -9,7 +9,7 @@ The repository-layout sketch later in this file is also historical. ADR-0046 def
 
 ## Delivery sequencing
 
-Production implementation proceeds as small, usable vertical slices rather than waiting for every future implementation contract to be complete. The completed first slice uses a committed Dockerfile for Node `24.19.0`, built by `node scripts/build-node-image.mjs` and tagged `devbox-node:24.19.0`. The current v0.x slice replaces that direct artifact path with the public `devbox init`, `sync`, `up`, `exec`, and `down` Node-only MVP: Build prepares verified Base, Node Runtime, and Workspace artifacts; Sync publishes retained Compose; `up` starts the Sandbox; `exec` runs the requested tool; and `down` removes only matching Sandbox resources. There is no public build command.
+Production implementation proceeds as small, usable vertical slices rather than waiting for every future implementation contract to be complete. The completed first slice uses a committed Dockerfile for Node `24.19.0`, built by `node prototype/node/build.js` and tagged `devbox-node:24.19.0`. The current v0.x slice replaces that direct artifact path with the public `devbox init`, `sync`, `up`, `exec`, and `down` Node-only MVP: Build prepares verified Base, Node Runtime, and Workspace artifacts; Sync publishes retained Compose; `up` starts the Sandbox; `exec` runs the requested tool; and `down` removes only matching Sandbox resources. There is no public build command.
 
 ## Out of v0.x MVP scope
 

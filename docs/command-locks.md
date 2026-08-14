@@ -33,4 +33,3 @@ Devbox does not provide an `unlock` command and does not guess whether a marker 
 
 Never remove a marker while its Devbox command is still running. Doing so can allow two commands to modify the same Project or Global state at once.
 
-The coordination rules for future `build`, `update`, and other operations that modify shared Docker or Platform artifacts will be documented separately when those operations are implemented.
