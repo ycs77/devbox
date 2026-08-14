@@ -6,18 +6,18 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=UTC
 ENV LANG=C.UTF-8
 
-ARG NODE_VERSION=24.19.0
-ARG NODE_RELEASE_LINE=24
-ARG NODE_ARCHIVE_URL=https://nodejs.org/dist/v24.19.0/node-v24.19.0-linux-x64.tar.xz
-ARG NODE_CHECKSUMS_URL=https://nodejs.org/dist/v24.19.0/SHASUMS256.txt.asc
-ENV NODE_RUNTIME_ROOT=/opt/devbox/runtimes/node/${NODE_RELEASE_LINE}
+ENV NODE_VERSION=24
 
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
+# Create the fixed Sandbox user and group.
+RUN userdel --remove ubuntu
+RUN groupadd --force --gid 1000 devbox
+RUN useradd --create-home --shell /bin/bash --no-user-group --gid 1000 --uid 1000 devbox
+
 # Install the Base profile packages and build tools.
-RUN set -eux && \
-    apt-get update \
-    && apt-get upgrade -y \
+RUN set -eux \
+    && apt-get update && apt-get upgrade -y \
     && apt-get install -y --no-install-recommends ca-certificates \
     && sed -i 's|^URIs: http://|URIs: https://|' /etc/apt/sources.list.d/ubuntu.sources \
     && if [ -f /etc/apt/sources.list ]; then \
@@ -52,10 +52,9 @@ RUN set -eux && \
       xz-utils \
     && rm -rf /var/lib/apt/lists/*
 
-# Install and verify the Node.js runtime.
-RUN set -eux && \
-    ARCH= OPENSSL_ARCH= \
-    && dpkgArch="$(dpkg --print-architecture)" \
+# Install and verify Node.js 24.
+# Keep each release-line recipe in one contiguous block for Dockerfile generation.
+RUN ARCH= OPENSSL_ARCH= && dpkgArch="$(dpkg --print-architecture)" \
     && case "${dpkgArch##*-}" in \
       amd64) ARCH='x64' OPENSSL_ARCH='linux-x86_64';; \
       ppc64el) ARCH='ppc64le' OPENSSL_ARCH='linux-ppc64le';; \
@@ -63,6 +62,11 @@ RUN set -eux && \
       arm64) ARCH='arm64' OPENSSL_ARCH='linux-aarch64';; \
       *) echo "unsupported architecture"; exit 1 ;; \
     esac \
+    && set -eux \
+    && NODE_RUNTIME_VERSION=24.19.0 \
+    && NODE_RUNTIME_ROOT=/opt/devbox/runtimes/node/24 \
+    && NODE_ARCHIVE_URL="https://nodejs.org/dist/v${NODE_RUNTIME_VERSION}/node-v${NODE_RUNTIME_VERSION}-linux-${ARCH}.tar.xz" \
+    && NODE_CHECKSUMS_URL="https://nodejs.org/dist/v${NODE_RUNTIME_VERSION}/SHASUMS256.txt.asc" \
     && mkdir -p "$NODE_RUNTIME_ROOT" /tmp/node-source \
     && cd /tmp/node-source \
     # use pre-existing gpg directory
@@ -82,7 +86,7 @@ RUN set -eux && \
       { gpg --batch --no-options --keyserver hkps://keys.openpgp.org --recv-keys "$key" && gpg --batch --no-options --fingerprint "$key"; } || \
       { gpg --batch --no-options --keyserver keyserver.ubuntu.com --recv-keys "$key" && gpg --batch --no-options --fingerprint "$key"; }; \
     done \
-    && archive="node-v${NODE_VERSION}-linux-${ARCH}.tar.xz" \
+    && archive="node-v${NODE_RUNTIME_VERSION}-linux-${ARCH}.tar.xz" \
     && curl -fsSL --retry 3 -o "$archive" "$NODE_ARCHIVE_URL" \
     && curl -fsSL --retry 3 -o SHASUMS256.txt.asc "$NODE_CHECKSUMS_URL" \
     && gpg --batch --no-options --decrypt --output SHASUMS256.txt SHASUMS256.txt.asc \
@@ -97,12 +101,16 @@ RUN set -eux && \
     && rm "$archive" SHASUMS256.txt.asc SHASUMS256.txt "$archive.sha256" \
     # Remove unused OpenSSL headers to save ~34MB. See this NodeJS issue: https://github.com/nodejs/node/issues/46451
     && find "$NODE_RUNTIME_ROOT/include/node/openssl/archs" -mindepth 1 -maxdepth 1 ! -name "$OPENSSL_ARCH" -exec rm -rf {} \; \
+    && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
     && export PATH="$NODE_RUNTIME_ROOT/bin:$PATH" \
     && "$NODE_RUNTIME_ROOT/bin/node" --version \
     && "$NODE_RUNTIME_ROOT/bin/npm" --version \
     && rm -rf /tmp/node-source
 
-ENV PATH="${NODE_RUNTIME_ROOT}/bin:${PATH}"
+# Select an installed Node.js runtime at container startup.
+COPY prototype/node/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
 
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 WORKDIR /workspace
 CMD ["node", "--version"]
