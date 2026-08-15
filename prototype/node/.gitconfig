@@ -1,0 +1,51 @@
+[user]
+	name = Lucas Yang
+	email = yangchenshin77@gmail.com
+[core]
+	autocrlf = input
+	fileMode = false
+	pager = less -r
+	quotepath = false
+[init]
+	defaultBranch = main
+[color]
+	diff = auto
+	status = auto
+	branch = auto
+[help]
+	autocorrect = 30
+[alias]
+	cf = config
+	cfl = config --list
+	s = status
+	a = add .
+	l = log --oneline --graph
+	la = log --oneline --graph --all
+	last = log -1 HEAD
+	c = commit
+	cm = commit -m
+	ca = commit --amend -m
+	can = commit --amend --no-edit
+	co = checkout
+	cp = cherry-pick
+	b = branch
+	m = merge
+	mnf = merge --no-ff
+	rs = reset
+	rs0h = reset HEAD --hard
+	rs1 = reset HEAD~1
+	rs1h = reset HEAD~1 --hard
+	rb = rebase
+	rbo = rebase --onto
+	rbi = rebase -i
+	rbc = rebase --continue
+	rba = rebase --abort
+	rm = remote
+	r = remote -v
+	ra = remote add
+	rr = remote remove
+	rp = remote prune
+	f = fetch
+	fp = fetch --prune
+	p = push
+	pl = pull
