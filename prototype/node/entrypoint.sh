@@ -1,6 +1,7 @@
 #!/bin/sh
 set -eu
 
+# Set the Node.js release line to use
 NODE_VERSION="${NODE_VERSION:-}"
 case "$NODE_VERSION" in
   ''|*[!0-9]*)
@@ -17,5 +18,9 @@ fi
 
 export NODE_RUNTIME_ROOT
 export PATH="$NODE_RUNTIME_ROOT/bin:$PATH"
+
+# Link shared Agent Skills
+ln -sfn ../.agents/skills /home/devbox/.claude/skills
+ln -sfn ../../.agents/skills /home/devbox/.gemini/antigravity-cli/skills
 
 exec "$@"

@@ -184,12 +184,18 @@ RUN mkdir -p /home/devbox/.codex \
     && curl -fsSL https://chatgpt.com/codex/install.sh | sh
 
 # Install Antigravity CLI
-RUN mkdir -p /home/devbox/.gemini \
+RUN mkdir -p /home/devbox/.gemini/antigravity-cli \
     && curl -fsSL https://antigravity.google/cli/install.sh | bash
 
 # Install OMP
 RUN mkdir -p /home/devbox/.omp \
     && curl -fsSL https://omp.sh/install | sh
+
+# Install Agent Skills
+RUN set -eux \
+    && mkdir -p /home/devbox/.agents/skills \
+    && export PATH="/opt/devbox/runtimes/node/24/bin:$PATH" \
+    && npx -y skills add ycs77/skills -g -a claude-code -a codex -s '*' -y
 
 USER root
 
