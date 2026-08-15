@@ -21,6 +21,7 @@ docker volume create --name devbox-agy
 docker volume create --name devbox-omp
 docker run --rm -it \
   -u devbox \
+  -e TERM="xterm-256color" \
   -v "$PWD:/workspace" \
   -v ./prototype/node/data/claude:/home/devbox/.claude \
   -v ./prototype/node/data/.claude.json:/home/devbox/.claude.json \
