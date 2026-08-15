@@ -13,12 +13,6 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 # Install the Base profile packages and build tools
 RUN set -eux \
     && apt-get update && apt-get upgrade -y \
-    && apt-get install -y --no-install-recommends ca-certificates \
-    && sed -i 's|^URIs: http://|URIs: https://|' /etc/apt/sources.list.d/ubuntu.sources \
-    && if [ -f /etc/apt/sources.list ]; then \
-      sed -i 's|^deb http://|deb https://|' /etc/apt/sources.list; \
-    fi \
-    && apt-get update \
     && apt-get install -y --no-install-recommends \
       ca-certificates \
       curl \
@@ -29,6 +23,7 @@ RUN set -eux \
       unzip \
       jq \
       less \
+      vim \
       ripgrep \
       fd-find \
       procps \
