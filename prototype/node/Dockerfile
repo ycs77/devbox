@@ -175,18 +175,21 @@ RUN mkdir -p /home/devbox/.config/pnpm /home/devbox/.pnpm-store \
     && chown devbox:devbox /home/devbox/.config/pnpm/config.yaml
 
 # Install Claude Code
-RUN curl -fsSL https://claude.ai/install.sh | bash
+RUN mkdir -p /home/devbox/.claude \
+    && echo '{}' > /home/devbox/.claude.json \
+    && curl -fsSL https://claude.ai/install.sh | bash
 
 # Install Codex CLI
-RUN curl -fsSL https://chatgpt.com/codex/install.sh | sh
+RUN mkdir -p /home/devbox/.codex \
+    && curl -fsSL https://chatgpt.com/codex/install.sh | sh
 
 # Install OMP
-RUN curl -fsSL https://omp.sh/install | sh \
-    && mkdir -p /home/devbox/.omp
+RUN mkdir -p /home/devbox/.omp \
+    && curl -fsSL https://omp.sh/install | sh
 
 USER root
 
-# Set the PATH for the devbox user to include local binaries
+# Set the PATH for the devbox user to include AI tools
 ENV PATH="/home/devbox/.local/bin:${PATH}"
 
 # Select an installed Node.js runtime at container startup

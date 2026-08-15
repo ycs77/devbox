@@ -17,4 +17,5 @@ fi
 
 export NODE_RUNTIME_ROOT
 export PATH="$NODE_RUNTIME_ROOT/bin:$PATH"
+
 exec "$@"
