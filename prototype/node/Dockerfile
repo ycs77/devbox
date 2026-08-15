@@ -34,6 +34,7 @@ RUN set -eux \
       rsync \
       tree \
       tzdata \
+      bubblewrap \
       build-essential \
       python3 \
       python-is-python3 \
