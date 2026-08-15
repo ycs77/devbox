@@ -167,28 +167,23 @@ RUN ARCH= OPENSSL_ARCH= && dpkgArch="$(dpkg --print-architecture)" \
     && rm -rf /tmp/node-source
 
 WORKDIR /workspace
+USER devbox
 
 # Configure pnpm for the non-root Sandbox user
-USER devbox
 RUN mkdir -p /home/devbox/.config/pnpm /home/devbox/.pnpm-store \
     && printf 'storeDir: /home/devbox/.pnpm-store\n' > /home/devbox/.config/pnpm/config.yaml \
     && chown devbox:devbox /home/devbox/.config/pnpm/config.yaml
-USER root
 
 # Install Claude Code
-USER devbox
 RUN curl -fsSL https://claude.ai/install.sh | bash
-USER root
 
 # Install Codex CLI
-USER devbox
 RUN curl -fsSL https://chatgpt.com/codex/install.sh | sh
-USER root
 
 # Install OMP
-USER devbox
 RUN curl -fsSL https://omp.sh/install | sh \
     && mkdir -p /home/devbox/.omp
+
 USER root
 
 # Set the PATH for the devbox user to include local binaries
