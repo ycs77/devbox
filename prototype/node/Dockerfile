@@ -199,16 +199,22 @@ RUN set -eux \
 
 USER root
 
-# Set the PATH for the devbox user to include AI tools
+# Set the PATH to include AI tools
 ENV PATH="/home/devbox/.local/bin:${PATH}"
 
-# Copy the dotfiles for the devbox user is opinionated settings
+# Copy dotfiles
 COPY prototype/node/.bash_aliases /home/devbox/.bash_aliases
 COPY prototype/node/.gitconfig /home/devbox/.gitconfig
 RUN chown devbox:devbox /home/devbox/.bash_aliases \
     && chown devbox:devbox /home/devbox/.gitconfig
 
-# Select an installed Node.js runtime at container startup
+# Copy AI dotfiles
+COPY prototype/node/.claude/settings.json /home/devbox/.claude/settings.json
+COPY prototype/node/.omp/agent/config.yml /home/devbox/.omp/agent/config.yml
+RUN chown devbox:devbox /home/devbox/.claude/settings.json \
+    && chown devbox:devbox /home/devbox/.omp/agent \
+    && chown devbox:devbox /home/devbox/.omp/agent/config.yml
+
 COPY prototype/node/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

@@ -1,0 +1,19 @@
+setupVersion: 1
+
+# Basic
+modelRoles:
+  default: openai-codex/gpt-5.6-terra:high
+  smol: openai-codex/gpt-5.6-luna:high
+  slow: openai-codex/gpt-5.6-sol:max
+  plan: openai-codex/gpt-5.6-sol:max
+symbolPreset: unicode
+
+# Theme
+theme:
+  dark: titanium
+  light: light
+
+# Auto QA
+dev:
+  autoqa: false
+  autoqaConsent: denied

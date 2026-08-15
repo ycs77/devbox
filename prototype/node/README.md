@@ -16,10 +16,10 @@ Create the some AI directory for the devbox user with:
 
 ```bash
 echo '{}' > ./prototype/node/data/.claude.json
-docker volume create --name devbox-claude
-docker volume create --name devbox-codex
-docker volume create --name devbox-agy
-docker volume create --name devbox-omp
+docker volume create devbox-claude
+docker volume create devbox-codex
+docker volume create devbox-agy
+docker volume create devbox-omp
 docker run --rm -it \
   -u devbox \
   -e TERM="xterm-256color" \
