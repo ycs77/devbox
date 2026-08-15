@@ -15,7 +15,8 @@ docker run --rm -it -u devbox -e NODE_VERSION=22 -v "$PWD:/workspace" devbox:lat
 Create the some AI directory for the devbox user with:
 
 ```bash
-mkdir -p ./prototype/node/data/claude && echo '{}' > ./prototype/node/data/.claude.json
+echo '{}' > ./prototype/node/data/.claude.json
+docker volume create --name devbox-claude
 docker volume create --name devbox-codex
 docker volume create --name devbox-agy
 docker volume create --name devbox-omp
@@ -23,7 +24,7 @@ docker run --rm -it \
   -u devbox \
   -e TERM="xterm-256color" \
   -v "$PWD:/workspace" \
-  -v ./prototype/node/data/claude:/home/devbox/.claude \
+  -v devbox-claude:/home/devbox/.claude \
   -v ./prototype/node/data/.claude.json:/home/devbox/.claude.json \
   -v devbox-codex:/home/devbox/.codex \
   -v devbox-agy:/home/devbox/.gemini \
