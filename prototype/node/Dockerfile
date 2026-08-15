@@ -183,6 +183,10 @@ RUN mkdir -p /home/devbox/.claude \
 RUN mkdir -p /home/devbox/.codex \
     && curl -fsSL https://chatgpt.com/codex/install.sh | sh
 
+# Install Antigravity CLI
+RUN mkdir -p /home/devbox/.gemini \
+    && curl -fsSL https://antigravity.google/cli/install.sh | bash
+
 # Install OMP
 RUN mkdir -p /home/devbox/.omp \
     && curl -fsSL https://omp.sh/install | sh

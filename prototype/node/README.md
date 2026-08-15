@@ -17,6 +17,7 @@ Create the some AI directory for the devbox user with:
 ```bash
 mkdir -p ./prototype/node/data/claude && echo '{}' > ./prototype/node/data/.claude.json
 docker volume create --name devbox-codex
+docker volume create --name devbox-agy
 docker volume create --name devbox-omp
 docker run --rm -it \
   -u devbox \
@@ -24,6 +25,7 @@ docker run --rm -it \
   -v ./prototype/node/data/claude:/home/devbox/.claude \
   -v ./prototype/node/data/.claude.json:/home/devbox/.claude.json \
   -v devbox-codex:/home/devbox/.codex \
+  -v devbox-agy:/home/devbox/.gemini \
   -v devbox-omp:/home/devbox/.omp \
   devbox:latest
 ```
