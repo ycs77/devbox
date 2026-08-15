@@ -42,6 +42,7 @@ RUN set -eux \
       gnupg \
       dirmngr \
       xz-utils \
+      pulseaudio-utils \
       sudo \
     && rm -rf /var/lib/apt/lists/*
 

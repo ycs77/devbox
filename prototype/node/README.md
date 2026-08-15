@@ -31,3 +31,14 @@ docker run --rm -it \
   -v devbox-omp:/home/devbox/.omp \
   devbox:latest
 ```
+
+Pass through the audio interface for WSL:
+
+```bash
+docker run --rm -it \
+  -u devbox \
+  -e PULSE_SERVER=unix:/tmp/pulse-socket \
+  -v "$PWD:/workspace" \
+  -v /mnt/wslg/runtime-dir/pulse/native:/tmp/pulse-socket \
+  devbox:latest
+```
