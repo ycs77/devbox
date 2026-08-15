@@ -2,11 +2,9 @@ alias ..='cd ..'
 alias ...='cd ../..'
 alias c='clear'
 alias g='git'
-alias ccc='claude'
-alias cccyolo='claude --dangerously-skip-permissions'
-alias ccx='codex'
-alias ccxyolo='codex --sandbox workspace-write --ask-for-approval never'
-alias ggg='agy'
+alias ccc='claude --dangerously-skip-permissions'
+alias ccx='codex --sandbox workspace-write --ask-for-approval never'
+alias ggg='agy --dangerously-skip-permissions'
 
 function mkcd() {
   mkdir "$1"
