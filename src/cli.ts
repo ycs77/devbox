@@ -2,9 +2,7 @@
 
 import type { CAC } from 'cac'
 import type { GlobalConfiguration, LocalConfiguration } from './configuration.js'
-import { realpathSync } from 'node:fs'
 import { createInterface } from 'node:readline/promises'
-import { pathToFileURL } from 'node:url'
 import { cac } from 'cac'
 import {
   cleanupMissingProjects,
@@ -13,35 +11,11 @@ import {
   initializeProject,
   InterruptedError,
   removeProject,
-  type CleanupMissingProjectsInput,
-  type CleanupMissingProjectsResult,
   type ConfigurationPrompter,
-  type ConfigureGlobalInput,
-  type ConfigureGlobalResult,
-  type ConfigureLocalInput,
-  type ConfigureLocalResult,
-  type InitializeProjectInput,
-  type InitializeProjectResult,
-  type RemoveProjectInput,
-  type RemoveProjectResult,
 } from './project.js'
 import { failure, success, type Result } from './result.js'
 
-interface CliDependencies {
-  readonly initializeProject?: (input: InitializeProjectInput) => Promise<InitializeProjectResult>
-  readonly configureLocalProject?: (input: ConfigureLocalInput) => Promise<ConfigureLocalResult>
-  readonly configureGlobal?: (input: ConfigureGlobalInput) => Promise<ConfigureGlobalResult>
-  readonly removeProject?: (input: RemoveProjectInput) => Promise<RemoveProjectResult>
-  readonly cleanupMissingProjects?: (
-    input: CleanupMissingProjectsInput,
-  ) => Promise<CleanupMissingProjectsResult>
-  readonly isInteractive?: () => boolean
-  readonly prompt?: ConfigurationPrompter
-}
-
 interface CliSuccess {
-  readonly projectRoot?: string
-  readonly created?: boolean
   readonly message?: string
 }
 
@@ -58,20 +32,7 @@ interface PromptHandle {
   readonly close: () => void
 }
 
-function createCli(
-  dependencies: Required<
-    Pick<
-      CliDependencies,
-      | 'initializeProject'
-      | 'configureLocalProject'
-      | 'configureGlobal'
-      | 'removeProject'
-      | 'cleanupMissingProjects'
-    >
-  >,
-  signal: AbortSignal,
-  interactive: boolean,
-): CAC {
+function createCli(signal: AbortSignal, interactive: boolean): CAC {
   const cli = cac('devbox')
   cli.usage('<command> [options]')
 
@@ -84,15 +45,11 @@ function createCli(
           'Run devbox init from a TTY before it writes Project state.',
         )
       }
-      const result = await runWithPrompt(dependencies, prompt =>
-        dependencies.initializeProject({ signal, prompt }),
-      )
+      const result = await runWithPrompt(prompt => initializeProject({ signal, prompt }))
       if (!result.ok) {
         return result
       }
       return success({
-        projectRoot: result.value.root,
-        created: result.value.created,
         message: result.value.created
           ? `Registered Project: ${result.value.root}`
           : result.value.confirmed === false
@@ -112,9 +69,7 @@ function createCli(
         )
       }
       if (options.global) {
-        const result = await runWithPrompt(dependencies, prompt =>
-          dependencies.configureGlobal({ signal, prompt }),
-        )
+        const result = await runWithPrompt(prompt => configureGlobal({ signal, prompt }))
         if (!result.ok) {
           return result
         }
@@ -125,14 +80,11 @@ function createCli(
         })
       }
 
-      const result = await runWithPrompt(dependencies, prompt =>
-        dependencies.configureLocalProject({ signal, prompt }),
-      )
+      const result = await runWithPrompt(prompt => configureLocalProject({ signal, prompt }))
       if (!result.ok) {
         return result
       }
       return success({
-        projectRoot: result.value.root,
         message: result.value.changed
           ? 'Local configuration updated.'
           : 'Local configuration was not changed.',
@@ -149,14 +101,13 @@ function createCli(
           'Run devbox rm from a TTY, or pass --yes to confirm removal.',
         )
       }
-      const result = await runWithPrompt(dependencies, prompt =>
-        dependencies.removeProject({ signal, confirm: prompt.confirm, yes: options.yes }),
+      const result = await runWithPrompt(prompt =>
+        removeProject({ signal, confirm: prompt.confirm, yes: options.yes }),
       )
       if (!result.ok) {
         return result
       }
       return success({
-        projectRoot: result.value.root,
         message: result.value.removed
           ? `Removed Project: ${result.value.root}`
           : 'Project removal was not changed.',
@@ -182,8 +133,8 @@ function createCli(
           'Run devbox cleanup --missing-projects from a TTY, or pass --yes to confirm removal.',
         )
       }
-      const result = await runWithPrompt(dependencies, prompt =>
-        dependencies.cleanupMissingProjects({ signal, confirm: prompt.confirm, yes: options.yes }),
+      const result = await runWithPrompt(prompt =>
+        cleanupMissingProjects({ signal, confirm: prompt.confirm, yes: options.yes }),
       )
       if (!result.ok) {
         return result
@@ -200,101 +151,52 @@ function createCli(
     .usage('<command> [options]')
     .action(() => cli.globalCommand.outputHelp())
 
-  cli.help(sections => {
-    const commandSection = sections.find(section => section.title === 'Commands')
-    if (commandSection) {
-      commandSection.body = commandSection.body.trimEnd()
-    }
-    return sections
-  })
+  cli.help()
+
   return cli
 }
 
-interface TerminalOutput {
-  readonly stdout: { write(message: string): unknown }
-  readonly stderr: { write(message: string): unknown }
-}
-
-export function present(result: CliResult, output: TerminalOutput = process): number {
+function present(result: CliResult): number {
   if (!result.ok) {
-    output.stderr.write(`${result.error.observed}\n${result.error.nextAction}\n`)
+    process.stderr.write(`${result.error.observed}\n${result.error.nextAction}\n`)
     return result.error.kind === 'usage' ? 2 : 1
   }
 
   if (result.value.message !== undefined) {
-    output.stdout.write(`${result.value.message}\n`)
-  } else if (result.value.created !== undefined && result.value.projectRoot !== undefined) {
-    output.stdout.write(
-      result.value.created
-        ? `Registered Project: ${result.value.projectRoot}\n`
-        : `Project is already registered: ${result.value.projectRoot}\n`,
-    )
+    process.stdout.write(`${result.value.message}\n`)
   }
   return 0
 }
 
-function isCacError(error: unknown): error is Error {
-  return error instanceof Error && error.name === 'CACError'
-}
-
-export async function main(
-  args: readonly string[] = process.argv.slice(2),
-  dependencies?: CliDependencies,
-  output: TerminalOutput = process,
-): Promise<number> {
+async function main(): Promise<number> {
   const abortController = new AbortController()
   const interrupt = () => abortController.abort()
   process.once('SIGINT', interrupt)
 
-  const interactive =
-    dependencies?.isInteractive?.() ??
-    (process.stdin.isTTY === true && process.stdout.isTTY === true)
-  const cliDependencies = {
-    initializeProject:
-      dependencies?.initializeProject ??
-      ((input: InitializeProjectInput) => initializeProject(input)),
-    configureLocalProject:
-      dependencies?.configureLocalProject ??
-      ((input: ConfigureLocalInput) => configureLocalProject(input)),
-    configureGlobal:
-      dependencies?.configureGlobal ?? ((input: ConfigureGlobalInput) => configureGlobal(input)),
-    removeProject:
-      dependencies?.removeProject ?? ((input: RemoveProjectInput) => removeProject(input)),
-    cleanupMissingProjects:
-      dependencies?.cleanupMissingProjects ??
-      ((input: CleanupMissingProjectsInput) => cleanupMissingProjects(input)),
-  }
-  const cli = createCli(cliDependencies, abortController.signal, interactive)
+  const cli = createCli(
+    abortController.signal,
+    process.stdin.isTTY === true && process.stdout.isTTY === true,
+  )
 
   try {
-    cli.parse(['node', 'devbox', ...args], { run: false })
+    cli.parse(process.argv, { run: false })
     const result = (await cli.runMatchedCommand()) as CliResult | undefined
-    return result === undefined ? 0 : present(result, output)
+    return result === undefined ? 0 : present(result)
   } catch (error) {
     if (error instanceof InterruptedError || abortController.signal.aborted) {
-      output.stderr.write('Devbox command interrupted.\n')
+      process.stderr.write('Devbox command interrupted.\n')
       return 130
     }
 
-    if (isCacError(error)) {
-      output.stderr.write(`${error.message}\n`)
-      return 1
-    }
-
-    output.stderr.write('Devbox encountered an unexpected failure. Run devbox init again.\n')
-    return 1
+    throw error
   } finally {
     process.off('SIGINT', interrupt)
   }
 }
 
 async function runWithPrompt<T>(
-  dependencies: CliDependencies,
   callback: (prompt: ConfigurationPrompter) => Promise<T>,
 ): Promise<T> {
-  if (dependencies.prompt !== undefined) {
-    return callback(dependencies.prompt)
-  }
   const handle = createPrompt()
   try {
     return await callback(handle.prompt)
@@ -377,9 +279,4 @@ function interactiveFailure(observed: string, nextAction: string): Result<never>
   })
 }
 
-if (
-  process.argv[1] !== undefined &&
-  import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href
-) {
-  process.exitCode = await main()
-}
+process.exitCode = await main()
