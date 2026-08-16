@@ -9,7 +9,7 @@
     "url": "git+https://github.com/ycs77/devbox.git"
   },
   "bin": {
-    "devbox": "./dist/cli.js"
+    "devbox": "./dist/cli.mjs"
   },
   "files": [
     "dist"
