@@ -190,7 +190,7 @@ RUN mkdir -p /home/devbox/.codex \
     && curl -fsSL https://chatgpt.com/codex/install.sh | sh
 
 # Install Antigravity CLI
-RUN mkdir -p /home/devbox/.gemini/antigravity-cli \
+RUN mkdir -p /home/devbox/.gemini \
     && curl -fsSL https://antigravity.google/cli/install.sh | bash
 
 # Install OMP
@@ -220,6 +220,17 @@ COPY prototype/node/.omp/agent/config.yml /home/devbox/.omp/agent/config.yml
 RUN chown devbox:devbox /home/devbox/.claude/settings.json \
     && chown devbox:devbox /home/devbox/.omp/agent \
     && chown devbox:devbox /home/devbox/.omp/agent/config.yml
+
+# Install Agent Notification Plugins
+USER devbox
+RUN set -eux \
+    && claude plugin marketplace add ycs77/claude-code-notifications \
+    && claude plugin install notification-basic-wsl@ycs77-notifications \
+    && codex plugin marketplace add ycs77/codex-notifications \
+    && codex plugin add notification-basic-wsl@ycs77-notifications \
+    && omp plugin marketplace add ycs77/omp-notifications \
+    && omp plugin install notification-basic@ycs77-notifications
+USER root
 
 COPY prototype/node/entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY prototype/node/supervisord.conf /etc/supervisor/conf.d/supervisord.conf

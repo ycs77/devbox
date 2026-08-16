@@ -20,21 +20,9 @@ export NODE_RUNTIME_ROOT
 export PATH="$NODE_RUNTIME_ROOT/bin:$PATH"
 
 # Link shared Agent Skills
-ln -sfn ../.agents/skills /home/devbox/.claude/skills
-ln -sfn ../../.agents/skills /home/devbox/.gemini/antigravity-cli/skills
-
-# Install Agent Notification Plugins
-if ! claude plugin marketplace list | grep -q 'ycs77-notifications'; then
-  claude plugin marketplace add ycs77/claude-code-notifications
-  claude plugin install notification-basic-wsl@ycs77-notifications
-fi
-if ! codex plugin marketplace list | grep -q 'ycs77-notifications'; then
-  codex plugin marketplace add ycs77/codex-notifications
-  codex plugin add notification-basic-wsl@ycs77-notifications
-fi
-if ! omp plugin marketplace list | grep -q 'ycs77-notifications'; then
-  omp plugin marketplace add ycs77/omp-notifications
-  omp plugin install notification-basic@ycs77-notifications
+if [ ! -L "/home/devbox/.gemini/skills" ]; then
+  ln -sfn /home/devbox/.agents/skills /home/devbox/.gemini/skills
+  chown -h devbox:devbox /home/devbox/.gemini/skills
 fi
 
 if [ $# -gt 0 ]; then

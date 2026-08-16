@@ -12,7 +12,15 @@ printf '{}\n' > prototype/node/data/.claude.json
 Start the devbox container with:
 
 ```bash
-docker compose -f prototype/node/compose.yaml run --rm -it devbox bash
+docker compose -f prototype/node/compose.yaml up -d
+docker compose -f prototype/node/compose.yaml exec -it -u devbox devbox bash
+docker compose -f prototype/node/compose.yaml down
+```
+
+Or just run the devbox container with:
+
+```bash
+docker compose -f prototype/node/compose.yaml run --rm -it -u devbox devbox bash
 ```
 
 ## Docker Run
