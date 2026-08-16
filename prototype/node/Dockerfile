@@ -107,8 +107,9 @@ RUN ARCH= OPENSSL_ARCH= && dpkgArch="$(dpkg --print-architecture)" \
     && find "$NODE_RUNTIME_ROOT/include/node/openssl/archs" -mindepth 1 -maxdepth 1 ! -name "$OPENSSL_ARCH" -exec rm -rf {} \; \
     && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
     && export PATH="$NODE_RUNTIME_ROOT/bin:$PATH" \
-    && echo "Node runtime installed to $NODE_RUNTIME_ROOT" \
-    && npm install -g npm@latest corepack@latest @antfu/ni@latest \
+    && npm config set allow-scripts=yarn --location=user \
+    && npm install -g npm@latest yarn pnpm @antfu/ni \
+    && npm uninstall -g corepack \
     && "$NODE_RUNTIME_ROOT/bin/node" --version \
     && "$NODE_RUNTIME_ROOT/bin/npm" --version \
     && corepack enable pnpm \
@@ -165,7 +166,9 @@ RUN ARCH= OPENSSL_ARCH= && dpkgArch="$(dpkg --print-architecture)" \
     && find "$NODE_RUNTIME_ROOT/include/node/openssl/archs" -mindepth 1 -maxdepth 1 ! -name "$OPENSSL_ARCH" -exec rm -rf {} \; \
     && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
     && export PATH="$NODE_RUNTIME_ROOT/bin:$PATH" \
-    && npm install -g npm@latest corepack@latest @antfu/ni@latest \
+    && npm config set allow-scripts=yarn --location=user \
+    && npm install -g npm@latest yarn pnpm @antfu/ni \
+    && npm uninstall -g corepack \
     && "$NODE_RUNTIME_ROOT/bin/node" --version \
     && "$NODE_RUNTIME_ROOT/bin/npm" --version \
     && corepack enable pnpm \
