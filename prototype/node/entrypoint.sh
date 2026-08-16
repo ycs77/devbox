@@ -37,4 +37,8 @@ if ! omp plugin marketplace list | grep -q 'ycs77-notifications'; then
   omp plugin install notification-basic@ycs77-notifications
 fi
 
-exec "$@"
+if [ $# -gt 0 ]; then
+  exec gosu devbox "$@"
+else
+  exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
+fi

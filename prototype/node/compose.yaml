@@ -1,0 +1,28 @@
+name: devbox-node
+
+services:
+  devbox:
+    build:
+      context: ../..
+      dockerfile: prototype/node/Dockerfile
+    image: devbox:latest
+    container_name: devbox
+    hostname: devbox
+    environment:
+      NODE_VERSION: ${NODE_VERSION:-24}
+      TERM: xterm-256color
+      PULSE_SERVER: unix:/tmp/pulse-socket
+    volumes:
+      - ${DEVBOX_WORKSPACE:-../..}:/workspace
+      - devbox-claude:/home/devbox/.claude
+      - ./data/.claude.json:/home/devbox/.claude.json
+      - devbox-codex:/home/devbox/.codex
+      - devbox-agy:/home/devbox/.gemini
+      - devbox-omp:/home/devbox/.omp
+      - /mnt/wslg/runtime-dir/pulse/native:/tmp/pulse-socket:ro
+
+volumes:
+  devbox-claude:
+  devbox-codex:
+  devbox-agy:
+  devbox-omp:

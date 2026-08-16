@@ -1,10 +1,31 @@
 # Devbox Node Docker Prototype
 
+## Docker Compose
+
+Before the first start, create the local Claude Code configuration file:
+
+```bash
+mkdir -p prototype/node/data
+printf '{}\n' > prototype/node/data/.claude.json
+```
+
+Start the devbox container with:
+
+```bash
+docker compose -f prototype/node/compose.yaml run --rm -it devbox bash
+```
+
+## Docker Run
+
+### Default Node.js 24
+
 Enter the prototype image with the default Node.js 24 runtime:
 
 ```bash
 docker run --rm -it -u devbox -v "$PWD:/workspace" devbox:latest
 ```
+
+### Node.js 22
 
 Switch to Node.js 22 with:
 
@@ -12,10 +33,12 @@ Switch to Node.js 22 with:
 docker run --rm -it -u devbox -e NODE_VERSION=22 -v "$PWD:/workspace" devbox:latest
 ```
 
-Create the some AI directory for the devbox user with:
+### Persist AI tool data
+
+Create the AI tool configuration file and persistent volumes for the `devbox` user:
 
 ```bash
-echo '{}' > ./prototype/node/data/.claude.json
+printf '{}\n' > prototype/node/data/.claude.json
 docker volume create devbox-claude
 docker volume create devbox-codex
 docker volume create devbox-agy
@@ -32,7 +55,9 @@ docker run --rm -it \
   devbox:latest
 ```
 
-Pass through the audio interface for WSL:
+### WSL audio passthrough
+
+Pass through the WSL audio interface:
 
 ```bash
 docker run --rm -it \

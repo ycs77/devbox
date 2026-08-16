@@ -18,6 +18,7 @@ RUN set -eux \
       curl \
       wget \
       git \
+      supervisor \
       openssh-client \
       zip \
       unzip \
@@ -44,6 +45,9 @@ RUN set -eux \
       xz-utils \
       pulseaudio-utils \
       sudo \
+      gosu \
+    && apt-get -y autoremove \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 # Create the devbox user and group
@@ -218,7 +222,7 @@ RUN chown devbox:devbox /home/devbox/.claude/settings.json \
     && chown devbox:devbox /home/devbox/.omp/agent/config.yml
 
 COPY prototype/node/entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY prototype/node/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 RUN chmod +x /usr/local/bin/entrypoint.sh
-ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 
-CMD ["/bin/bash"]
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
