@@ -1,9 +1,8 @@
 #!/usr/bin/env node
 
 import type { CAC } from 'cac'
-import type { GlobalConfiguration, LocalConfiguration } from './configuration.js'
-import { createInterface } from 'node:readline/promises'
 import { cac } from 'cac'
+import { createConfigurationPrompter } from './configuration-prompter.js'
 import {
   cleanupMissingProjects,
   configureGlobal,
@@ -11,7 +10,6 @@ import {
   initializeProject,
   InterruptedError,
   removeProject,
-  type ConfigurationPrompter,
 } from './project.js'
 import { failure, success, type Result } from './result.js'
 
@@ -27,13 +25,9 @@ interface CommandOptions {
   readonly missingProjects?: boolean
 }
 
-interface PromptHandle {
-  readonly prompt: ConfigurationPrompter
-  readonly close: () => void
-}
-
 function createCli(signal: AbortSignal, interactive: boolean): CAC {
   const cli = cac('devbox')
+  const prompt = createConfigurationPrompter({ signal })
   cli.usage('<command> [options]')
 
   cli
@@ -45,7 +39,7 @@ function createCli(signal: AbortSignal, interactive: boolean): CAC {
           'Run devbox init from a TTY before it writes Project state.',
         )
       }
-      const result = await runWithPrompt(prompt => initializeProject({ signal, prompt }))
+      const result = await initializeProject({ signal, prompt })
       if (!result.ok) {
         return result
       }
@@ -69,7 +63,7 @@ function createCli(signal: AbortSignal, interactive: boolean): CAC {
         )
       }
       if (options.global) {
-        const result = await runWithPrompt(prompt => configureGlobal({ signal, prompt }))
+        const result = await configureGlobal({ signal, prompt })
         if (!result.ok) {
           return result
         }
@@ -80,7 +74,7 @@ function createCli(signal: AbortSignal, interactive: boolean): CAC {
         })
       }
 
-      const result = await runWithPrompt(prompt => configureLocalProject({ signal, prompt }))
+      const result = await configureLocalProject({ signal, prompt })
       if (!result.ok) {
         return result
       }
@@ -101,9 +95,7 @@ function createCli(signal: AbortSignal, interactive: boolean): CAC {
           'Run devbox rm from a TTY, or pass --yes to confirm removal.',
         )
       }
-      const result = await runWithPrompt(prompt =>
-        removeProject({ signal, confirm: prompt.confirm, yes: options.yes }),
-      )
+      const result = await removeProject({ signal, confirm: prompt.confirm, yes: options.yes })
       if (!result.ok) {
         return result
       }
@@ -133,9 +125,11 @@ function createCli(signal: AbortSignal, interactive: boolean): CAC {
           'Run devbox cleanup --missing-projects from a TTY, or pass --yes to confirm removal.',
         )
       }
-      const result = await runWithPrompt(prompt =>
-        cleanupMissingProjects({ signal, confirm: prompt.confirm, yes: options.yes }),
-      )
+      const result = await cleanupMissingProjects({
+        signal,
+        confirm: prompt.confirm,
+        yes: options.yes,
+      })
       if (!result.ok) {
         return result
       }
@@ -191,82 +185,6 @@ async function main(): Promise<number> {
     throw error
   } finally {
     process.off('SIGINT', interrupt)
-  }
-}
-
-async function runWithPrompt<T>(
-  callback: (prompt: ConfigurationPrompter) => Promise<T>,
-): Promise<T> {
-  const handle = createPrompt()
-  try {
-    return await callback(handle.prompt)
-  } finally {
-    handle.close()
-  }
-}
-
-function createPrompt(): PromptHandle {
-  const readline = createInterface({ input: process.stdin, output: process.stdout })
-  const ask = (question: string, defaultValue: string): Promise<string> =>
-    readline
-      .question(`${question}${defaultValue === '' ? '' : ` [${defaultValue}]`}: `)
-      .then(value => {
-        return value.trim()
-      })
-
-  return {
-    prompt: {
-      confirm: async message => {
-        const answer = (await ask(`${message} [Y/n]`, 'y')).toLowerCase()
-        return answer === '' || answer === 'y' || answer === 'yes'
-      },
-      editGlobal: async (configuration, catalog): Promise<GlobalConfiguration> => {
-        const runtimes: Record<string, readonly string[]> = {}
-        for (const [family, entries] of Object.entries(catalog.runtimes)) {
-          const current = configuration.runtimes[family]?.join(',') ?? ''
-          const answer = await ask(
-            `Configured ${family} release lines (${entries.join(', ')}, empty for none)`,
-            current,
-          )
-          runtimes[family] =
-            answer === '' || answer === '-' ? [] : answer.split(',').map(entry => entry.trim())
-        }
-        const agents = await ask(
-          `Configured Agents (${catalog.agents.join(', ')}, empty for none)`,
-          configuration.agents.join(','),
-        )
-        return {
-          version: 1,
-          runtimes,
-          agents:
-            agents === '' || agents === '-' ? [] : agents.split(',').map(agent => agent.trim()),
-        }
-      },
-      editLocal: async (configuration, catalog): Promise<LocalConfiguration> => {
-        const toolchain: Record<string, string | null> = {}
-        for (const family of Object.keys(catalog.runtimes)) {
-          const current = configuration.toolchain[family] ?? ''
-          const answer = await ask(`Selected ${family} release line (empty for none)`, current)
-          toolchain[family] = answer === '' || answer === '-' ? null : answer
-        }
-        const currentPorts = configuration.ports
-          .map(port => `${port.host}:${port.container}`)
-          .join(',')
-        const portsAnswer = await ask(
-          'Ports (host:container, comma-separated, empty for none)',
-          currentPorts,
-        )
-        const ports =
-          portsAnswer === '' || portsAnswer === '-'
-            ? []
-            : portsAnswer.split(',').map(port => {
-                const [host, container] = port.split(':', 2)
-                return { host: Number(host), container: Number(container) }
-              })
-        return { version: 1, toolchain, ports }
-      },
-    },
-    close: () => readline.close(),
   }
 }
 

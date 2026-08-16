@@ -39,8 +39,18 @@ export interface DevboxPaths {
   readonly projects: string
 }
 
+export interface ConfirmationDetails {
+  readonly title: string
+  readonly content: string
+}
+
+export type ConfirmationHandler = (
+  message: string,
+  details?: ConfirmationDetails,
+) => Promise<boolean>
+
 export interface ConfigurationPrompter {
-  readonly confirm: (message: string) => Promise<boolean>
+  readonly confirm: ConfirmationHandler
   readonly editGlobal?: (
     configuration: GlobalConfiguration,
     catalog: RuntimeCatalog,
@@ -48,6 +58,7 @@ export interface ConfigurationPrompter {
   readonly editLocal?: (
     configuration: LocalConfiguration,
     catalog: RuntimeCatalog,
+    globalConfiguration: GlobalConfiguration,
   ) => Promise<LocalConfiguration>
 }
 
@@ -58,7 +69,7 @@ export interface InitializeProjectInput {
   readonly signal?: AbortSignal
   readonly catalog?: RuntimeCatalog
   readonly prompt?: ConfigurationPrompter
-  readonly confirm?: (message: string) => Promise<boolean>
+  readonly confirm?: ConfirmationHandler
   readonly initialGlobalConfiguration?: GlobalConfiguration
   readonly initialLocalConfiguration?: LocalConfiguration
 }
@@ -69,7 +80,7 @@ export interface ConfigureLocalInput {
   readonly signal?: AbortSignal
   readonly catalog?: RuntimeCatalog
   readonly prompt?: ConfigurationPrompter
-  readonly confirm?: (message: string) => Promise<boolean>
+  readonly confirm?: ConfirmationHandler
   readonly nextConfiguration?: LocalConfiguration
 }
 
@@ -78,7 +89,7 @@ export interface ConfigureGlobalInput {
   readonly signal?: AbortSignal
   readonly catalog?: RuntimeCatalog
   readonly prompt?: ConfigurationPrompter
-  readonly confirm?: (message: string) => Promise<boolean>
+  readonly confirm?: ConfirmationHandler
   readonly nextConfiguration?: GlobalConfiguration
 }
 
@@ -86,14 +97,14 @@ export interface RemoveProjectInput {
   readonly root?: string
   readonly devboxHome?: string
   readonly signal?: AbortSignal
-  readonly confirm?: (message: string) => Promise<boolean>
+  readonly confirm?: ConfirmationHandler
   readonly yes?: boolean
 }
 
 export interface CleanupMissingProjectsInput {
   readonly devboxHome?: string
   readonly signal?: AbortSignal
-  readonly confirm?: (message: string) => Promise<boolean>
+  readonly confirm?: ConfirmationHandler
   readonly yes?: boolean
 }
 
@@ -331,7 +342,11 @@ async function initializeProjectUnlocked(
   } else {
     localConfiguration = defaultLocalConfiguration(globalConfiguration, catalog)
     if (input.prompt?.editLocal) {
-      const editedLocal = await input.prompt.editLocal(localConfiguration, catalog)
+      const editedLocal = await input.prompt.editLocal(
+        localConfiguration,
+        catalog,
+        globalConfiguration,
+      )
       const checkedLocal = validateLocalObject(editedLocal, globalConfiguration, catalog)
       if (!checkedLocal.ok) {
         return checkedLocal
@@ -468,7 +483,7 @@ async function configureLocalProjectUnlocked(
 
   let nextConfiguration = input.nextConfiguration ?? localCheck.value
   if (input.nextConfiguration === undefined && input.prompt?.editLocal) {
-    nextConfiguration = await input.prompt.editLocal(localCheck.value, catalog)
+    nextConfiguration = await input.prompt.editLocal(localCheck.value, catalog, globalCheck.value)
   }
   const nextCheck = validateLocalObject(nextConfiguration, globalCheck.value, catalog)
   if (!nextCheck.ok) {
@@ -479,8 +494,13 @@ async function configureLocalProjectUnlocked(
   }
 
   const confirm = input.confirm ?? input.prompt?.confirm ?? (async () => true)
-  const changeSummary = `\nCurrent: ${serializeLocalConfiguration(localCheck.value).trim()}\nNext: ${serializeLocalConfiguration(nextCheck.value).trim()}\n`
-  if (!(await confirm(`Save Local configuration for ${projectRoot}?${changeSummary}`))) {
+  const changeSummary = `Current: ${serializeLocalConfiguration(localCheck.value).trim()}\nNext: ${serializeLocalConfiguration(nextCheck.value).trim()}`
+  if (
+    !(await confirm(`Save Local configuration for ${projectRoot}?`, {
+      title: 'Local configuration changes',
+      content: changeSummary,
+    }))
+  ) {
     return success({ scope: 'local', root: projectRoot, changed: false })
   }
   if (input.signal?.aborted) {
@@ -604,8 +624,13 @@ async function configureGlobalUnlocked(
   }
 
   const confirm = input.confirm ?? input.prompt?.confirm ?? (async () => true)
-  const changeSummary = `\nCurrent: ${serializeGlobalConfiguration(currentConfiguration).trim()}\nNext: ${serializeGlobalConfiguration(nextCheck.value).trim()}\n`
-  if (!(await confirm(`Save Global configuration?${changeSummary}`))) {
+  const changeSummary = `Current: ${serializeGlobalConfiguration(currentConfiguration).trim()}\nNext: ${serializeGlobalConfiguration(nextCheck.value).trim()}`
+  if (
+    !(await confirm('Save Global configuration?', {
+      title: 'Global configuration changes',
+      content: changeSummary,
+    }))
+  ) {
     return success({ scope: 'global', changed: false })
   }
   if (input.signal?.aborted) {
