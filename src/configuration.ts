@@ -15,19 +15,14 @@ export const DEFAULT_RUNTIME_CATALOG: RuntimeCatalog = {
 
 export interface GlobalConfiguration {
   readonly version: 1
-  readonly runtimes: Readonly<Record<string, readonly string[]>>
-  readonly agents: readonly string[]
-}
-
-export interface PortMapping {
-  readonly host: number
-  readonly container: number
+  readonly node: readonly string[]
+  readonly agent: readonly string[]
+  readonly agent_notifications: boolean
 }
 
 export interface LocalConfiguration {
   readonly version: 1
-  readonly toolchain: Readonly<Record<string, string | null>>
-  readonly ports: readonly PortMapping[]
+  readonly node: string | null
 }
 
 export function normalizeCatalog(
@@ -67,32 +62,18 @@ export function normalizeCatalog(
 export function defaultGlobalConfiguration(
   catalog: RuntimeCatalog = DEFAULT_RUNTIME_CATALOG,
 ): GlobalConfiguration {
-  const runtimes: Record<string, readonly string[]> = {}
-  for (const [family, entries] of Object.entries(catalog.runtimes)) {
-    if (entries[0] !== undefined) {
-      runtimes[family] = [entries[0]]
-    }
+  return {
+    version: 1,
+    node: catalog.runtimes.node?.[0] === undefined ? [] : [catalog.runtimes.node[0]],
+    agent: [],
+    agent_notifications: true,
   }
-  return { version: 1, runtimes, agents: [] }
 }
 
 export function defaultLocalConfiguration(
   globalConfiguration: GlobalConfiguration,
-  catalog: RuntimeCatalog = DEFAULT_RUNTIME_CATALOG,
 ): LocalConfiguration {
-  const toolchain: Record<string, string | null> = {}
-  for (const family of Object.keys(catalog.runtimes)) {
-    toolchain[family] = globalConfiguration.runtimes[family]?.[0] ?? null
-  }
-
-  const ports: PortMapping[] = []
-  if (toolchain.php !== null && toolchain.php !== undefined) {
-    ports.push({ host: 8000, container: 8000 })
-  }
-  if (toolchain.node !== null && toolchain.node !== undefined) {
-    ports.push({ host: 5173, container: 5173 })
-  }
-  return { version: 1, toolchain, ports }
+  return { version: 1, node: globalConfiguration.node[0] ?? null }
 }
 
 export function parseGlobalConfiguration(
@@ -105,7 +86,10 @@ export function parseGlobalConfiguration(
   }
 
   const document = parsed.value
-  if (!isRecord(document) || !hasExactKeys(document, ['version', 'runtimes', 'agents'])) {
+  if (
+    !isRecord(document) ||
+    !hasExactKeys(document, ['version', 'node', 'agent', 'agent_notifications'])
+  ) {
     return invalid(
       'invalid-global-configuration',
       'Global configuration contains unknown or missing fields.',
@@ -114,52 +98,46 @@ export function parseGlobalConfiguration(
   if (document.version !== 1) {
     return invalid('invalid-global-configuration', 'Global configuration must use version: 1.')
   }
-  if (!isRecord(document.runtimes) || !Array.isArray(document.agents)) {
+  if (!Array.isArray(document.node) || !Array.isArray(document.agent)) {
     return invalid('invalid-global-configuration', 'Global configuration has invalid values.')
   }
-
-  const runtimes: Record<string, readonly string[]> = {}
-  for (const [family, value] of Object.entries(document.runtimes)) {
-    const catalogEntries = catalog.runtimes[family]
-    if (catalogEntries === undefined || !Array.isArray(value)) {
-      return invalid('invalid-global-configuration', `Runtime family is not supported: ${family}.`)
-    }
-
-    const entries: string[] = []
-    for (const rawEntry of value) {
-      const entry = runtimeLine(rawEntry)
-      if (entry === undefined || !catalogEntries.includes(entry)) {
-        return invalid(
-          'invalid-global-configuration',
-          `Runtime entry is not in the packaged catalog: ${family}/${String(rawEntry)}.`,
-        )
-      }
-      if (entries.includes(entry)) {
-        return invalid(
-          'invalid-global-configuration',
-          `Runtime entry is duplicated: ${family}/${entry}.`,
-        )
-      }
-      entries.push(entry)
-    }
-    runtimes[family] = entries
+  if (typeof document.agent_notifications !== 'boolean') {
+    return invalid(
+      'invalid-global-configuration',
+      'Global configuration agent_notifications must be true or false.',
+    )
   }
 
-  const agents: string[] = []
-  for (const rawAgent of document.agents) {
+  const node: string[] = []
+  for (const rawEntry of document.node) {
+    const entry = runtimeLine(rawEntry)
+    if (entry === undefined || !catalog.runtimes.node?.includes(entry)) {
+      return invalid(
+        'invalid-global-configuration',
+        `Node Runtime is not in the packaged catalog: ${String(rawEntry)}.`,
+      )
+    }
+    if (node.includes(entry)) {
+      return invalid('invalid-global-configuration', `Node Runtime is duplicated: ${entry}.`)
+    }
+    node.push(entry)
+  }
+
+  const agent: string[] = []
+  for (const rawAgent of document.agent) {
     if (typeof rawAgent !== 'string' || !catalog.agents.includes(rawAgent)) {
       return invalid(
         'invalid-global-configuration',
         `Agent is not in the packaged catalog: ${String(rawAgent)}.`,
       )
     }
-    if (agents.includes(rawAgent)) {
+    if (agent.includes(rawAgent)) {
       return invalid('invalid-global-configuration', `Agent is duplicated: ${rawAgent}.`)
     }
-    agents.push(rawAgent)
+    agent.push(rawAgent)
   }
 
-  return success({ version: 1, runtimes, agents })
+  return success({ version: 1, node, agent, agent_notifications: document.agent_notifications })
 }
 
 export function parseLocalConfiguration(
@@ -173,7 +151,7 @@ export function parseLocalConfiguration(
   }
 
   const document = parsed.value
-  if (!isRecord(document) || !hasExactKeys(document, ['version', 'toolchain', 'ports'])) {
+  if (!isRecord(document) || !hasExactKeys(document, ['version', 'node'])) {
     return invalid(
       'invalid-local-configuration',
       'Local configuration contains unknown or missing fields.',
@@ -182,96 +160,41 @@ export function parseLocalConfiguration(
   if (document.version !== 1) {
     return invalid('invalid-local-configuration', 'Local configuration must use version: 1.')
   }
-  if (!isRecord(document.toolchain) || !Array.isArray(document.ports)) {
-    return invalid('invalid-local-configuration', 'Local configuration has invalid values.')
-  }
-  const catalogFamilies = Object.keys(catalog.runtimes)
-  const configuredFamilies = Object.keys(document.toolchain)
-  if (
-    configuredFamilies.length !== catalogFamilies.length ||
-    configuredFamilies.some(family => !catalogFamilies.includes(family))
-  ) {
+
+  const node = runtimeLineOrNull(document.node)
+  if (node === undefined) {
     return invalid(
       'invalid-local-configuration',
-      'Local configuration must select every packaged Runtime family, using null for none.',
+      `Node Runtime is invalid: ${String(document.node)}.`,
+    )
+  }
+  if (node !== null && !catalog.runtimes.node?.includes(node)) {
+    return invalid(
+      'invalid-local-configuration',
+      `Node Runtime is not in the packaged catalog: ${String(document.node)}.`,
+    )
+  }
+  if (node !== null && !globalConfiguration.node.includes(node)) {
+    return invalid(
+      'unconfigured-runtime-selection',
+      `Local configuration selects a Node Runtime that is not configured globally: ${node}.`,
     )
   }
 
-  const toolchain: Record<string, string | null> = {}
-  for (const [family, rawEntry] of Object.entries(document.toolchain)) {
-    const catalogEntries = catalog.runtimes[family]
-    if (catalogEntries === undefined) {
-      return invalid('invalid-local-configuration', `Runtime family is not supported: ${family}.`)
-    }
-
-    const entry = runtimeLineOrNull(rawEntry)
-    if (entry === undefined) {
-      return invalid(
-        'invalid-local-configuration',
-        `Runtime entry is invalid: ${family}/${String(rawEntry)}.`,
-      )
-    }
-    if (entry !== null && !catalogEntries.includes(entry)) {
-      return invalid(
-        'invalid-local-configuration',
-        `Runtime entry is not in the packaged catalog: ${family}/${String(rawEntry)}.`,
-      )
-    }
-    if (entry !== null && !globalConfiguration.runtimes[family]?.includes(entry)) {
-      return invalid(
-        'unconfigured-runtime-selection',
-        `Local configuration selects a Runtime that is not configured globally: ${family}/${entry}.`,
-      )
-    }
-    toolchain[family] = entry
-  }
-
-  const ports: PortMapping[] = []
-  const hosts = new Set<number>()
-  const containers = new Set<number>()
-  for (const rawPort of document.ports) {
-    if (!isRecord(rawPort) || !hasExactKeys(rawPort, ['host', 'container'])) {
-      return invalid(
-        'invalid-local-configuration',
-        'Each port must contain only host and container.',
-      )
-    }
-    if (!isPort(rawPort.host) || !isPort(rawPort.container)) {
-      return invalid(
-        'invalid-local-configuration',
-        'Project ports must be integers from 1 through 65535.',
-      )
-    }
-    if (hosts.has(rawPort.host) || containers.has(rawPort.container)) {
-      return invalid(
-        'invalid-local-configuration',
-        'Project ports must not repeat host or container ports.',
-      )
-    }
-    hosts.add(rawPort.host)
-    containers.add(rawPort.container)
-    ports.push({ host: rawPort.host, container: rawPort.container })
-  }
-
-  return success({ version: 1, toolchain, ports })
+  return success({ version: 1, node })
 }
 
 export function serializeGlobalConfiguration(configuration: GlobalConfiguration): string {
   return stringify({
     version: 1,
-    runtimes: Object.fromEntries(
-      Object.entries(configuration.runtimes).map(([family, entries]) => [family, [...entries]]),
-    ),
-    agents: [...configuration.agents],
+    node: [...configuration.node],
+    agent: [...configuration.agent],
+    agent_notifications: configuration.agent_notifications,
   })
 }
 
 export function serializeLocalConfiguration(configuration: LocalConfiguration): string {
-  return stringify({
-    version: 1,
-    toolchain: Object.fromEntries(Object.entries(configuration.toolchain)),
-    ports: configuration.ports.map(port => ({ host: port.host, container: port.container })),
-  })
+  return stringify({ version: 1, node: configuration.node })
 }
 
 export function configurationsEqual(
@@ -311,14 +234,10 @@ function runtimeLine(value: unknown): string | undefined {
 }
 
 function runtimeLineOrNull(value: unknown): string | null | undefined {
-  if (value === null || value === undefined || value === '') {
+  if (value === null) {
     return null
   }
   return runtimeLine(value)
-}
-
-function isPort(value: unknown): value is number {
-  return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 65535
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

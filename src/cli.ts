@@ -18,7 +18,6 @@ interface CliSuccess {
 type CliResult = Result<CliSuccess>
 
 interface CommandOptions {
-  readonly global?: boolean
   readonly yes?: boolean
   readonly missingProjects?: boolean
 }
@@ -53,16 +52,16 @@ function createCli(signal: AbortSignal, interactive: boolean): CAC {
     })
 
   cli
-    .command('config', 'Edit Local or Global configuration.')
-    .option('-g, --global', 'Edit Global configuration instead of the current Project.')
-    .action(async (options: CommandOptions = {}): Promise<CliResult> => {
+    .command('config', 'Edit Global or Local configuration for the current Project.')
+    .action(async (): Promise<CliResult> => {
       if (!interactive) {
         return interactiveFailure(
           'devbox config requires an interactive terminal.',
           'Run devbox config from a TTY, or edit the supported Global or Local YAML directly.',
         )
       }
-      if (options.global) {
+      const scope = await prompt.selectConfigurationScope()
+      if (scope === 'global') {
         const result = await configureGlobal({ signal, prompt })
         if (!result.ok) {
           return result

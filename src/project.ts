@@ -23,7 +23,7 @@ import {
   type ProjectRegistry,
 } from './registry.js'
 import { failure, success, type Result } from './result.js'
-import { withStateLocks } from './state-lock.js'
+import { withStateLocks, type StateLockContext } from './state-lock.js'
 
 export interface RegisteredProject {
   readonly root: string
@@ -91,6 +91,7 @@ export interface ConfigureGlobalInput {
   readonly prompt?: ConfigurationPrompter
   readonly confirm?: ConfirmationHandler
   readonly nextConfiguration?: GlobalConfiguration
+  readonly nextLocalConfigurations?: Readonly<Record<string, LocalConfiguration>>
 }
 
 export interface RemoveProjectInput {
@@ -340,7 +341,7 @@ async function initializeProjectUnlocked(
     }
     localConfiguration = parsedLocal.value
   } else {
-    localConfiguration = defaultLocalConfiguration(globalConfiguration, catalog)
+    localConfiguration = defaultLocalConfiguration(globalConfiguration)
     if (input.prompt?.editLocal) {
       const editedLocal = await input.prompt.editLocal(
         localConfiguration,
@@ -523,12 +524,13 @@ export async function configureGlobal(
       projectRoots: [],
       signal: input.signal,
     },
-    () => configureGlobalUnlocked(input),
+    context => configureGlobalUnlocked(input, context),
   )
 }
 
 async function configureGlobalUnlocked(
   input: ConfigureGlobalInput = {},
+  locks: StateLockContext,
 ): Promise<Result<ConfigurationOperation>> {
   if (input.signal?.aborted) {
     throw new InterruptedError()
@@ -555,15 +557,6 @@ async function configureGlobalUnlocked(
     currentConfiguration = defaultGlobalConfiguration(catalog)
   }
 
-  let nextConfiguration = input.nextConfiguration ?? currentConfiguration
-  if (input.nextConfiguration === undefined && input.prompt?.editGlobal) {
-    nextConfiguration = await input.prompt.editGlobal(currentConfiguration, catalog)
-  }
-  const nextCheck = validateGlobalObject(nextConfiguration, catalog)
-  if (!nextCheck.ok) {
-    return nextCheck
-  }
-
   const registryState = await readOptionalFile(paths.projectRegistry)
   if (!registryState.ok) {
     return registryState
@@ -575,7 +568,19 @@ async function configureGlobalUnlocked(
     return registryCheck
   }
 
+  await locks.acquireProjectScopes(Object.keys(registryCheck.value.projects))
+
+  let nextConfiguration = input.nextConfiguration ?? currentConfiguration
+  if (input.nextConfiguration === undefined && input.prompt?.editGlobal) {
+    nextConfiguration = await input.prompt.editGlobal(currentConfiguration, catalog)
+  }
+  const nextCheck = validateGlobalObject(nextConfiguration, catalog)
+  if (!nextCheck.ok) {
+    return nextCheck
+  }
+
   const localConfigurations = new Map<string, LocalConfiguration>()
+  const localConfigurationSources = new Map<string, string>()
   for (const [root, stateDirectoryName] of Object.entries(registryCheck.value.projects)) {
     const localPath = join(paths.projects, stateDirectoryName, 'config.yaml')
     const localState = await readOptionalFile(localPath)
@@ -594,37 +599,57 @@ async function configureGlobalUnlocked(
       return localCheck
     }
     localConfigurations.set(root, localCheck.value)
+    localConfigurationSources.set(root, localState.value.content)
   }
 
-  const removedRuntime = new Set<string>()
-  for (const [family, entries] of Object.entries(currentConfiguration.runtimes)) {
-    for (const entry of entries) {
-      if (!nextCheck.value.runtimes[family]?.includes(entry)) {
-        removedRuntime.add(`${family}/${entry}`)
-      }
+  const removedNode = new Set(
+    currentConfiguration.node.filter(entry => !nextCheck.value.node.includes(entry)),
+  )
+  const replacementConfigurations = new Map<string, LocalConfiguration>()
+  for (const [root, localConfiguration] of localConfigurations) {
+    if (localConfiguration.node === null || !removedNode.has(localConfiguration.node)) {
+      continue
     }
-  }
-  if (removedRuntime.size > 0) {
-    for (const [root, localConfiguration] of localConfigurations) {
-      for (const [family, entry] of Object.entries(localConfiguration.toolchain)) {
-        if (entry !== null && removedRuntime.has(`${family}/${entry}`)) {
-          return failure({
-            kind: 'validation',
-            code: 'runtime-still-selected',
-            observed: `Global Runtime ${family}/${entry} is still selected by Project ${root}.`,
-            nextAction: `Run devbox config in ${root} and remove that Local Runtime selection first.`,
-          })
-        }
-      }
+
+    let replacement = input.nextLocalConfigurations?.[root]
+    if (replacement === undefined && input.prompt?.editLocal) {
+      replacement = await input.prompt.editLocal(localConfiguration, catalog, nextCheck.value)
     }
+    if (replacement === undefined) {
+      return failure({
+        kind: 'validation',
+        code: 'node-replacement-required',
+        observed: `Global Node Runtime ${localConfiguration.node} is selected by Project ${root}.`,
+        nextAction: `Select a replacement Node Runtime or none for Project ${root}.`,
+      })
+    }
+    const replacementCheck = validateLocalObject(replacement, nextCheck.value, catalog)
+    if (!replacementCheck.ok) {
+      return replacementCheck
+    }
+    replacementConfigurations.set(root, replacementCheck.value)
   }
 
-  if (globalState.value.exists && configurationsEqual(currentConfiguration, nextCheck.value)) {
+  const globalChanged =
+    !globalState.value.exists || !configurationsEqual(currentConfiguration, nextCheck.value)
+  if (!globalChanged && replacementConfigurations.size === 0) {
     return success({ scope: 'global', changed: false })
   }
 
   const confirm = input.confirm ?? input.prompt?.confirm ?? (async () => true)
-  const changeSummary = `Current: ${serializeGlobalConfiguration(currentConfiguration).trim()}\nNext: ${serializeGlobalConfiguration(nextCheck.value).trim()}`
+  const localChangeSummary = [...replacementConfigurations]
+    .map(
+      ([root, configuration]) =>
+        `Project ${root}:\nCurrent: ${serializeLocalConfiguration(localConfigurations.get(root)!).trim()}\nNext: ${serializeLocalConfiguration(configuration).trim()}`,
+    )
+    .join('\n\n')
+  const changeSummary = [
+    `Current Global:\n${serializeGlobalConfiguration(currentConfiguration).trim()}`,
+    `Next Global:\n${serializeGlobalConfiguration(nextCheck.value).trim()}`,
+    localChangeSummary,
+  ]
+    .filter(Boolean)
+    .join('\n\n')
   if (
     !(await confirm('Save Global configuration?', {
       title: 'Global configuration changes',
@@ -636,10 +661,29 @@ async function configureGlobalUnlocked(
   if (input.signal?.aborted) {
     throw new InterruptedError()
   }
-  const written = await writeAtomically(
-    paths.globalConfiguration,
-    serializeGlobalConfiguration(nextCheck.value),
-  )
+  if (replacementConfigurations.size === 0) {
+    const written = await writeAtomically(
+      paths.globalConfiguration,
+      serializeGlobalConfiguration(nextCheck.value),
+    )
+    if (!written.ok) {
+      return written
+    }
+    return success({ scope: 'global', changed: true })
+  }
+
+  const written = await writeConfigurationTransaction([
+    {
+      path: paths.globalConfiguration,
+      content: serializeGlobalConfiguration(nextCheck.value),
+      previous: globalState.value,
+    },
+    ...[...replacementConfigurations].map(([root, configuration]) => ({
+      path: join(paths.projects, registryCheck.value.projects[root]!, 'config.yaml'),
+      content: serializeLocalConfiguration(configuration),
+      previous: { exists: true, content: localConfigurationSources.get(root)! },
+    })),
+  ])
   if (!written.ok) {
     return written
   }
@@ -963,19 +1007,94 @@ async function readOptionalFile(
 }
 
 async function writeAtomically(path: string, content: string): Promise<Result<void>> {
+  const staged = await stageStateWrite(path, content, 'tmp')
+  if (!staged.ok) {
+    return staged
+  }
+  try {
+    await rename(staged.value, path)
+    return success(undefined)
+  } catch {
+    await rm(staged.value, { force: true }).catch(() => undefined)
+    return failure({
+      kind: 'operational',
+      code: 'state-write-failed',
+      observed: `Devbox could not atomically write state file: ${path}.`,
+      nextAction: 'Check write access to ~/.devbox and run the command again.',
+    })
+  }
+}
+
+async function stageStateWrite(
+  path: string,
+  content: string,
+  suffix: string,
+): Promise<Result<string>> {
   const directory = dirname(path)
-  const temporaryPath = join(directory, `.${basename(path)}-${process.pid}-${randomUUID()}.tmp`)
+  const temporaryPath = join(
+    directory,
+    `.${basename(path)}-${process.pid}-${randomUUID()}.${suffix}`,
+  )
   try {
     await mkdir(directory, { recursive: true, mode: 0o700 })
     await writeFile(temporaryPath, content, { encoding: 'utf8', flag: 'wx', mode: 0o600 })
-    await rename(temporaryPath, path)
-    return success(undefined)
+    return success(temporaryPath)
   } catch {
     await rm(temporaryPath, { force: true }).catch(() => undefined)
     return failure({
       kind: 'operational',
       code: 'state-write-failed',
       observed: `Devbox could not atomically write state file: ${path}.`,
+      nextAction: 'Check write access to ~/.devbox and run the command again.',
+    })
+  }
+}
+
+interface StateWrite {
+  readonly path: string
+  readonly content: string
+  readonly previous: { readonly exists: boolean; readonly content: string }
+}
+
+async function writeConfigurationTransaction(writes: readonly StateWrite[]): Promise<Result<void>> {
+  const staged: Array<{ readonly write: StateWrite; readonly path: string }> = []
+  for (const write of writes) {
+    const stagedWrite = await stageStateWrite(write.path, write.content, 'transaction.tmp')
+    if (!stagedWrite.ok) {
+      await Promise.all(staged.map(stage => rm(stage.path, { force: true }).catch(() => undefined)))
+      return stagedWrite
+    }
+    staged.push({ write, path: stagedWrite.value })
+  }
+
+  const published: StateWrite[] = []
+  try {
+    for (const stage of staged) {
+      await rename(stage.path, stage.write.path)
+      published.push(stage.write)
+    }
+    return success(undefined)
+  } catch {
+    let restored = true
+    for (const write of published.reverse()) {
+      if (write.previous.exists) {
+        const restoredWrite = await writeAtomically(write.path, write.previous.content)
+        restored &&= restoredWrite.ok
+      } else {
+        try {
+          await rm(write.path, { force: true })
+        } catch {
+          restored = false
+        }
+      }
+    }
+    await Promise.all(staged.map(stage => rm(stage.path, { force: true }).catch(() => undefined)))
+    return failure({
+      kind: 'operational',
+      code: 'state-write-failed',
+      observed: restored
+        ? 'Devbox could not publish configuration changes; the previous configuration was restored.'
+        : 'Devbox could not publish configuration changes or restore the previous configuration.',
       nextAction: 'Check write access to ~/.devbox and run the command again.',
     })
   }

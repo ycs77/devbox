@@ -2,7 +2,12 @@ import { mkdir, readFile, rename } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fs, vol } from 'memfs'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { configureLocalProject, initializeProject, projectStateDirectory } from '../src/project.js'
+import {
+  configureGlobal,
+  configureLocalProject,
+  initializeProject,
+  projectStateDirectory,
+} from '../src/project.js'
 import { success } from '../src/result.js'
 
 vi.mock('node:fs/promises', async () => {
@@ -71,7 +76,7 @@ describe('Project filesystem failures', () => {
     const result = await configureLocalProject({
       root: projectRoot,
       devboxHome,
-      nextConfiguration: { version: 1, toolchain: { node: null }, ports: [] },
+      nextConfiguration: { version: 1, node: null },
       confirm: async () => true,
     })
 
@@ -80,5 +85,51 @@ describe('Project filesystem failures', () => {
       error: { kind: 'operational', code: 'state-write-failed' },
     })
     await expect(readFile(localPath, 'utf8')).resolves.toBe(before)
+  })
+
+  it('restores all configuration when publication fails after an affected Local write', async () => {
+    const { devboxHome, projectRoot } = await createProjectState()
+    const secondProjectRoot = '/workspace/second-project'
+    await mkdir(secondProjectRoot, { recursive: true })
+    const secondProject = await initializeProject({
+      root: secondProjectRoot,
+      devboxHome,
+      validateHost: async () => success(undefined),
+      confirm: async () => true,
+    })
+    expect(secondProject).toMatchObject({ ok: true, value: { created: true } })
+    if (!secondProject.ok) {
+      throw new Error('Second Project initialization failed.')
+    }
+    const stateDirectory = projectStateDirectory(projectRoot, devboxHome)
+    const globalPath = join(devboxHome, 'config.yaml')
+    const localPath = join(stateDirectory, 'config.yaml')
+    const secondLocalPath = join(secondProject.value.stateDirectory, 'config.yaml')
+    const globalBefore = await readFile(globalPath, 'utf8')
+    const localBefore = await readFile(localPath, 'utf8')
+    const secondLocalBefore = await readFile(secondLocalPath, 'utf8')
+    vi.mocked(rename)
+      .mockImplementationOnce(memfsRename)
+      .mockImplementationOnce(memfsRename)
+      .mockRejectedValueOnce(new Error('disk full'))
+      .mockImplementation(memfsRename)
+
+    const result = await configureGlobal({
+      devboxHome,
+      nextConfiguration: { version: 1, node: [], agent: [], agent_notifications: true },
+      nextLocalConfigurations: {
+        [projectRoot]: { version: 1, node: null },
+        [secondProjectRoot]: { version: 1, node: null },
+      },
+      confirm: async () => true,
+    })
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: { kind: 'operational', code: 'state-write-failed' },
+    })
+    await expect(readFile(globalPath, 'utf8')).resolves.toBe(globalBefore)
+    await expect(readFile(localPath, 'utf8')).resolves.toBe(localBefore)
+    await expect(readFile(secondLocalPath, 'utf8')).resolves.toBe(secondLocalBefore)
   })
 })

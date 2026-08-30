@@ -32,7 +32,7 @@ describe('createConfigurationPrompter', () => {
       output,
     })
     const editing = prompt.editGlobal!(
-      { version: 1, runtimes: { node: ['24'] }, agents: ['codex'] },
+      { version: 1, node: ['24'], agent: ['codex'], agent_notifications: true },
       { runtimes: { node: ['24', '22'] }, agents: ['codex'] },
     )
 
@@ -41,15 +41,34 @@ describe('createConfigurationPrompter', () => {
     await new Promise<void>(resolve => setImmediate(resolve))
     input.emit('keypress', '', { name: 'space' })
     input.emit('keypress', '', { name: 'return' })
+    await new Promise<void>(resolve => setImmediate(resolve))
+    input.emit('keypress', '', { name: 'return' })
 
     await expect(editing).resolves.toEqual({
       version: 1,
-      runtimes: { node: [] },
-      agents: [],
+      node: [],
+      agent: [],
+      agent_notifications: true,
     })
   })
 
-  it('validates Local ports before returning the configuration', async () => {
+  it('selects the Global configuration scope', async () => {
+    const input = new PromptInput()
+    const output = new PromptOutput()
+    const prompt = createConfigurationPrompter({
+      signal: new AbortController().signal,
+      input,
+      output,
+    })
+    const selection = prompt.selectConfigurationScope()
+
+    input.emit('keypress', '', { name: 'down' })
+    input.emit('keypress', '', { name: 'return' })
+
+    await expect(selection).resolves.toBe('global')
+  })
+
+  it('selects the configured Node Runtime for Local configuration', async () => {
     const input = new PromptInput()
     const output = new PromptOutput()
     const prompt = createConfigurationPrompter({
@@ -58,27 +77,15 @@ describe('createConfigurationPrompter', () => {
       output,
     })
     const editing = prompt.editLocal!(
-      { version: 1, toolchain: { node: null }, ports: [] },
+      { version: 1, node: null },
       { runtimes: { node: ['24', '22'] }, agents: [] },
-      { version: 1, runtimes: { node: ['24'] }, agents: [] },
+      { version: 1, node: ['24'], agent: [], agent_notifications: true },
     )
 
-    input.emit('keypress', '', { name: 'return' })
-    await new Promise<void>(resolve => setImmediate(resolve))
-    input.emit('keypress', '1', { name: '1' })
-    input.emit('keypress', '', { name: 'return' })
-    input.emit('keypress', ':', { name: ':' })
-    input.emit('keypress', '1', { name: '1' })
+    input.emit('keypress', '', { name: 'down' })
     input.emit('keypress', '', { name: 'return' })
 
-    await expect(editing).resolves.toEqual({
-      version: 1,
-      toolchain: { node: null },
-      ports: [{ host: 1, container: 1 }],
-    })
-    expect(output.chunks.join('')).toContain(
-      'Enter host:container pairs with ports from 1 to 65535.',
-    )
+    await expect(editing).resolves.toEqual({ version: 1, node: '24' })
   })
 
   it('renders confirmation details before asking for approval', async () => {

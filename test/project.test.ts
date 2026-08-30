@@ -134,14 +134,14 @@ describe('initializeProject', () => {
     })
     expect(parse(await readFile(join(devboxHome, 'config.yaml'), 'utf8'))).toMatchObject({
       version: 1,
-      runtimes: { node: ['24'] },
-      agents: [],
+      node: ['24'],
+      agent: [],
+      agent_notifications: true,
     })
     expect(parse(await readFile(join(result.stateDirectory, 'config.yaml'), 'utf8'))).toMatchObject(
       {
         version: 1,
-        toolchain: { node: '24' },
-        ports: [{ host: 5173, container: 5173 }],
+        node: '24',
       },
     )
   })
@@ -179,10 +179,10 @@ describe('initializeProject', () => {
     }
     expect(new Set(Object.values(registry.projects)).size).toBe(2)
     await expect(readFile(join(first.stateDirectory, 'config.yaml'), 'utf8')).resolves.toContain(
-      'toolchain:',
+      'node:',
     )
     await expect(readFile(join(second.stateDirectory, 'config.yaml'), 'utf8')).resolves.toContain(
-      'toolchain:',
+      'node:',
     )
   })
 
@@ -221,6 +221,63 @@ describe('initializeProject', () => {
     expect(result).toMatchObject({ ok: false, error: { code: 'invalid-project-registry' } })
     await expect(stat(join(devboxHome, 'config.yaml'))).rejects.toMatchObject({ code: 'ENOENT' })
   })
+  it('configures Global state before Local state only when Global state is absent', async () => {
+    const sandbox = await temporaryDirectory()
+    const firstRoot = join(sandbox, 'first')
+    const secondRoot = join(sandbox, 'second')
+    const devboxHome = join(sandbox, 'user-state', '.devbox')
+    await Promise.all([mkdir(firstRoot), mkdir(secondRoot)])
+    const firstResult = await initializeProject({
+      root: firstRoot,
+      devboxHome,
+      validateHost: async () => success(undefined),
+      prompt: {
+        confirm: async () => true,
+        editGlobal: async () => ({
+          version: 1,
+          node: ['22'],
+          agent: [],
+          agent_notifications: false,
+        }),
+        editLocal: async (_configuration, _catalog, globalConfiguration) => ({
+          version: 1,
+          node: globalConfiguration.node[0] ?? null,
+        }),
+      },
+    })
+
+    const secondResult = await initializeProject({
+      root: secondRoot,
+      devboxHome,
+      validateHost: async () => success(undefined),
+      prompt: {
+        confirm: async () => true,
+        editGlobal: async () => {
+          throw new Error('Global configuration prompt must not run when Global state exists.')
+        },
+        editLocal: async (_configuration, _catalog, globalConfiguration) => ({
+          version: 1,
+          node: globalConfiguration.node[0] ?? null,
+        }),
+      },
+    })
+
+    expect(firstResult).toMatchObject({ ok: true, value: { created: true } })
+    expect(secondResult).toMatchObject({ ok: true, value: { created: true } })
+    if (!firstResult.ok || !secondResult.ok) {
+      throw new Error('Project initialization failed.')
+    }
+    expect(parse(await readFile(join(devboxHome, 'config.yaml'), 'utf8'))).toMatchObject({
+      node: ['22'],
+      agent_notifications: false,
+    })
+    expect(
+      parse(await readFile(join(firstResult.value.stateDirectory, 'config.yaml'), 'utf8')),
+    ).toMatchObject({ node: '22' })
+    expect(
+      parse(await readFile(join(secondResult.value.stateDirectory, 'config.yaml'), 'utf8')),
+    ).toMatchObject({ node: '22' })
+  })
 })
 
 describe('configuration boundaries', () => {
@@ -238,7 +295,7 @@ describe('configuration boundaries', () => {
     const result = await configureLocalProject({
       root: projectRoot,
       devboxHome,
-      nextConfiguration: { version: 1, toolchain: { node: null }, ports: [] },
+      nextConfiguration: { version: 1, node: null },
       prompt: { confirm: async () => true },
     })
 
@@ -251,6 +308,45 @@ describe('configuration boundaries', () => {
     await expect(readFile(join(project.stateDirectory, 'config.yaml'), 'utf8')).resolves.toContain(
       'node: null',
     )
+  })
+
+  it('locks every registered Project before changing Global configuration', async () => {
+    const sandbox = await temporaryDirectory()
+    const projectRoot = join(sandbox, 'project')
+    const devboxHome = join(sandbox, 'user-state', '.devbox')
+    await mkdir(projectRoot)
+    await createProjectState(projectRoot, devboxHome)
+    const entered = deferred()
+    const release = deferred()
+    const running = withStateLocks(
+      { devboxHome, global: false, projectRoots: [projectRoot] },
+      async () => {
+        entered.resolve()
+        await release.promise
+        return success(undefined)
+      },
+    )
+    await entered.promise
+
+    try {
+      const result = await configureGlobal({
+        devboxHome,
+        prompt: {
+          confirm: async () => true,
+          editGlobal: async () => {
+            throw new Error('Global configuration prompt must not run while a Project is locked.')
+          },
+        },
+      })
+
+      expect(result).toMatchObject({
+        ok: false,
+        error: { code: 'command-lock-busy', observed: expect.stringContaining('Project') },
+      })
+    } finally {
+      release.resolve()
+      await running
+    }
   })
 
   it('fails closed when a registered Project Local configuration is missing', async () => {
@@ -286,7 +382,7 @@ describe('configuration boundaries', () => {
     const result = await configureLocalProject({
       root: projectRoot,
       devboxHome,
-      nextConfiguration: { version: 1, toolchain: { node: null }, ports: [] },
+      nextConfiguration: { version: 1, node: null },
       confirm: async () => false,
     })
 
@@ -304,13 +400,13 @@ describe('configuration boundaries', () => {
     await mkdir(projectRoot)
     const project = await createProjectState(projectRoot, devboxHome)
     const localPath = join(project.stateDirectory, 'config.yaml')
-    await writeFile(localPath, 'version: 1\ntoolchain:\n  node: 24\nports: []\nunknown: true\n')
+    await writeFile(localPath, 'version: 1\nnode: "24"\nunknown: true\n')
     const invalidBefore = await readFile(localPath, 'utf8')
 
     const result = await configureLocalProject({
       root: projectRoot,
       devboxHome,
-      nextConfiguration: { version: 1, toolchain: { node: null }, ports: [] },
+      nextConfiguration: { version: 1, node: null },
       prompt: { confirm: async () => true },
     })
 
@@ -333,7 +429,12 @@ describe('configuration boundaries', () => {
       devboxHome,
       prompt: {
         confirm: async () => true,
-        editGlobal: async () => ({ version: 1, runtimes: { node: ['26'] }, agents: [] }),
+        editGlobal: async () => ({
+          version: 1,
+          node: ['26'],
+          agent: [],
+          agent_notifications: true,
+        }),
       },
     })
     const localResult = await configureLocalProject({
@@ -341,7 +442,7 @@ describe('configuration boundaries', () => {
       devboxHome,
       prompt: {
         confirm: async () => true,
-        editLocal: async () => ({ version: 1, toolchain: { node: '26' }, ports: [] }),
+        editLocal: async () => ({ version: 1, node: '26' }),
       },
     })
 
@@ -357,23 +458,31 @@ describe('configuration boundaries', () => {
     await expect(readFile(localPath, 'utf8')).resolves.toBe(localBefore)
   })
 
-  it('rejects Global Runtime removal selected by a Missing-root Project', async () => {
+  it('replaces a Missing-root Project Selected Node Runtime before removing it globally', async () => {
     const sandbox = await temporaryDirectory()
     const projectRoot = join(sandbox, 'project')
     const devboxHome = join(sandbox, 'user-state', '.devbox')
     await mkdir(projectRoot)
-    await createProjectState(projectRoot, devboxHome)
+    const project = await createProjectState(projectRoot, devboxHome)
     await rm(projectRoot, { recursive: true, force: true })
 
     const result = await configureGlobal({
       devboxHome,
-      nextConfiguration: { version: 1, runtimes: { node: [] }, agents: [] },
-      prompt: { confirm: async () => true },
+      nextConfiguration: { version: 1, node: [], agent: [], agent_notifications: true },
+      prompt: {
+        confirm: async () => true,
+        editLocal: async () => ({ version: 1, node: null }),
+      },
     })
 
-    expect(result).toMatchObject({ ok: false, error: { code: 'runtime-still-selected' } })
+    expect(result).toEqual({ ok: true, value: { scope: 'global', changed: true } })
     expect(parse(await readFile(join(devboxHome, 'config.yaml'), 'utf8'))).toMatchObject({
-      runtimes: { node: ['24'] },
+      node: [],
+    })
+    expect(
+      parse(await readFile(join(project.stateDirectory, 'config.yaml'), 'utf8')),
+    ).toMatchObject({
+      node: null,
     })
   })
 })
