@@ -1,5 +1,3 @@
-#!/usr/bin/env node
-
 import type { CAC } from 'cac'
 import { cac } from 'cac'
 import { createConfigurationPrompter } from './configuration-prompter.js'
