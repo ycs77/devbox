@@ -2,9 +2,14 @@ import { isAbsolute } from 'node:path'
 import { parseDocument, stringify } from 'yaml'
 import { failure, success, type Result } from './result.js'
 
+export interface ProjectRegistration {
+  readonly identity: string
+  readonly name: string
+}
+
 export interface ProjectRegistry {
   readonly version: 1
-  readonly projects: Readonly<Record<string, string>>
+  readonly projects: Readonly<Record<string, ProjectRegistration>>
 }
 
 export function parseProjectRegistry(source: string): Result<ProjectRegistry> {
@@ -28,23 +33,32 @@ export function parseProjectRegistry(source: string): Result<ProjectRegistry> {
     return invalid('Project registry must contain only version: 1 and projects.')
   }
 
-  const projects: Record<string, string> = {}
+  const projects: Record<string, ProjectRegistration> = {}
+  const assignedIdentities = new Set<string>()
   const assignedNames = new Set<string>()
-  for (const [root, stateDirectoryName] of Object.entries(document.projects)) {
+  for (const [root, registration] of Object.entries(document.projects)) {
     if (!isAbsolute(root)) {
       return invalid(`Project root must be an exact absolute path: ${root}.`)
     }
     if (
-      typeof stateDirectoryName !== 'string' ||
-      !isSafeStateDirectoryName(stateDirectoryName) ||
-      assignedNames.has(stateDirectoryName)
+      !isPlainObject(registration) ||
+      !hasExactKeys(registration, ['identity', 'name']) ||
+      typeof registration.identity !== 'string' ||
+      !isSafeStateDirectoryName(registration.identity) ||
+      assignedIdentities.has(registration.identity)
     ) {
-      return invalid(
-        `Project state directory assignment is invalid: ${String(stateDirectoryName)}.`,
-      )
+      return invalid('Sandbox identity assignment is invalid.')
     }
-    assignedNames.add(stateDirectoryName)
-    projects[root] = stateDirectoryName
+    if (
+      typeof registration.name !== 'string' ||
+      !isSafeSandboxName(registration.name) ||
+      assignedNames.has(registration.name)
+    ) {
+      return invalid('Sandbox name assignment is invalid.')
+    }
+    assignedIdentities.add(registration.identity)
+    assignedNames.add(registration.name)
+    projects[root] = { identity: registration.identity, name: registration.name }
   }
 
   return success({ version: 1, projects })
@@ -62,6 +76,10 @@ export function serializeProjectRegistry(registry: ProjectRegistry): string {
 
 export function isSafeStateDirectoryName(name: string): boolean {
   return /^(?:[A-Za-z0-9_%~-]+)(?:-[2-9][0-9]*)?$/.test(name) && name !== '.' && name !== '..'
+}
+
+export function isSafeSandboxName(name: string): boolean {
+  return /^[a-z0-9][a-z0-9_-]+$/.test(name)
 }
 
 function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {

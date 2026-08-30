@@ -17,6 +17,7 @@ import {
 } from './configuration.js'
 import { validateSupportedHost } from './host.js'
 import {
+  isSafeSandboxName,
   isSafeStateDirectoryName,
   parseProjectRegistry,
   serializeProjectRegistry,
@@ -28,6 +29,7 @@ import { withStateLocks, type StateLockContext } from './state-lock.js'
 export interface RegisteredProject {
   readonly root: string
   readonly stateDirectory: string
+  readonly sandboxName: string
   readonly created: boolean
   readonly confirmed?: boolean
 }
@@ -139,7 +141,7 @@ export function devboxPaths(devboxHome = join(homedir(), '.devbox')): DevboxPath
   }
 }
 
-export function projectStateDirectory(projectRoot: string, devboxHome: string): string {
+export function sandboxIdentity(projectRoot: string): string {
   const root = parse(projectRoot).root
   const pathWithinRoot = relative(root, projectRoot)
 
@@ -151,9 +153,25 @@ export function projectStateDirectory(projectRoot: string, devboxHome: string): 
     throw new TypeError('Project root must be an absolute path.')
   }
 
-  const mirrorName =
-    pathWithinRoot === '' ? 'root' : pathWithinRoot.split(sep).map(escapePathSegment).join('-')
-  return join(devboxHome, 'projects', mirrorName)
+  return pathWithinRoot === '' ? 'root' : pathWithinRoot.split(sep).map(escapePathSegment).join('-')
+}
+
+export function projectStateDirectory(sandboxIdentity: string, devboxHome: string): string {
+  if (!isSafeStateDirectoryName(sandboxIdentity)) {
+    throw new TypeError('Sandbox identity must be a safe state directory name.')
+  }
+
+  return join(devboxHome, 'projects', sandboxIdentity)
+}
+
+export function sandboxName(projectRoot: string): string {
+  const normalized = basename(projectRoot)
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^[^a-z0-9]+/, '')
+    .replace(/-+$/, '')
+
+  return normalized.length < 2 ? `project-${normalized || 'root'}` : normalized
 }
 
 export function escapePathSegment(segment: string): string {
@@ -253,19 +271,26 @@ async function initializeProjectUnlocked(
     return registryCheck
   }
   const registry = registryCheck.value
-  const assignedName = registry.projects[projectRoot]
-  let stateDirectoryName: string
-  if (assignedName !== undefined) {
-    stateDirectoryName = assignedName
+  const registration = registry.projects[projectRoot]
+  let identity: string
+  let name: string
+  if (registration !== undefined) {
+    identity = registration.identity
+    name = registration.name
   } else {
-    const allocatedName = await allocateStateDirectoryName(projectRoot, paths, registry)
+    const allocatedIdentity = await allocateSandboxIdentity(projectRoot, paths, registry)
+    if (!allocatedIdentity.ok) {
+      return allocatedIdentity
+    }
+    const allocatedName = allocateSandboxName(projectRoot, registry)
     if (!allocatedName.ok) {
       return allocatedName
     }
-    stateDirectoryName = allocatedName.value
+    identity = allocatedIdentity.value
+    name = allocatedName.value
   }
-  const stateDirectory = join(paths.projects, stateDirectoryName)
-  const registered = assignedName !== undefined
+  const stateDirectory = projectStateDirectory(identity, paths.home)
+  const registered = registration !== undefined
 
   const globalState = await readOptionalFile(paths.globalConfiguration)
   if (!globalState.ok) {
@@ -361,6 +386,7 @@ async function initializeProjectUnlocked(
     return success({
       root: projectRoot,
       stateDirectory,
+      sandboxName: name,
       created: false,
       confirmed: true,
     })
@@ -371,6 +397,7 @@ async function initializeProjectUnlocked(
     return success({
       root: projectRoot,
       stateDirectory,
+      sandboxName: name,
       created: false,
       confirmed: false,
     })
@@ -402,7 +429,7 @@ async function initializeProjectUnlocked(
 
   const nextRegistry: ProjectRegistry = {
     version: 1,
-    projects: { ...registry.projects, [projectRoot]: stateDirectoryName },
+    projects: { ...registry.projects, [projectRoot]: { identity, name } },
   }
   const writtenRegistry = await writeAtomically(
     paths.projectRegistry,
@@ -415,6 +442,7 @@ async function initializeProjectUnlocked(
   return success({
     root: projectRoot,
     stateDirectory,
+    sandboxName: name,
     created: true,
     confirmed: true,
   })
@@ -451,8 +479,8 @@ async function configureLocalProjectUnlocked(
   if (!registryCheck.ok) {
     return registryCheck
   }
-  const stateDirectoryName = registryCheck.value.projects[projectRoot]
-  if (stateDirectoryName === undefined) {
+  const registration = registryCheck.value.projects[projectRoot]
+  if (registration === undefined) {
     return notRegistered(projectRoot)
   }
 
@@ -468,7 +496,7 @@ async function configureLocalProjectUnlocked(
     return globalCheck
   }
 
-  const stateDirectory = join(paths.projects, stateDirectoryName)
+  const stateDirectory = projectStateDirectory(registration.identity, paths.home)
   const localPath = join(stateDirectory, 'config.yaml')
   const localState = await readOptionalFile(localPath)
   if (!localState.ok) {
@@ -581,8 +609,8 @@ async function configureGlobalUnlocked(
 
   const localConfigurations = new Map<string, LocalConfiguration>()
   const localConfigurationSources = new Map<string, string>()
-  for (const [root, stateDirectoryName] of Object.entries(registryCheck.value.projects)) {
-    const localPath = join(paths.projects, stateDirectoryName, 'config.yaml')
+  for (const [root, registration] of Object.entries(registryCheck.value.projects)) {
+    const localPath = join(paths.projects, registration.identity, 'config.yaml')
     const localState = await readOptionalFile(localPath)
     if (!localState.ok) {
       return localState
@@ -679,7 +707,7 @@ async function configureGlobalUnlocked(
       previous: globalState.value,
     },
     ...[...replacementConfigurations].map(([root, configuration]) => ({
-      path: join(paths.projects, registryCheck.value.projects[root]!, 'config.yaml'),
+      path: join(paths.projects, registryCheck.value.projects[root]!.identity, 'config.yaml'),
       content: serializeLocalConfiguration(configuration),
       previous: { exists: true, content: localConfigurationSources.get(root)! },
     })),
@@ -720,8 +748,8 @@ async function removeProjectUnlocked(
   if (!registryCheck.ok) {
     return registryCheck
   }
-  const stateDirectoryName = registryCheck.value.projects[projectRoot]
-  if (stateDirectoryName === undefined) {
+  const registration = registryCheck.value.projects[projectRoot]
+  if (registration === undefined) {
     return notRegistered(projectRoot)
   }
   if (!input.yes) {
@@ -734,7 +762,7 @@ async function removeProjectUnlocked(
   if (input.signal?.aborted) {
     throw new InterruptedError()
   }
-  const stateDirectory = join(paths.projects, stateDirectoryName)
+  const stateDirectory = projectStateDirectory(registration.identity, paths.home)
   try {
     await rm(stateDirectory, { recursive: true, force: true })
   } catch {
@@ -862,12 +890,15 @@ async function cleanupMissingProjectsUnlocked(
     if (rootExists) {
       continue
     }
-    const stateDirectoryName = projects[root]
-    if (stateDirectoryName === undefined) {
+    const registration = projects[root]
+    if (registration === undefined) {
       continue
     }
     try {
-      await rm(join(discovery.paths.projects, stateDirectoryName), { recursive: true, force: true })
+      await rm(projectStateDirectory(registration.identity, discovery.paths.home), {
+        recursive: true,
+        force: true,
+      })
     } catch {
       return failure({
         kind: 'operational',
@@ -941,22 +972,22 @@ async function readRegistry(path: string): Promise<Result<ProjectRegistry>> {
   return parseProjectRegistry(state.value.content)
 }
 
-async function allocateStateDirectoryName(
+async function allocateSandboxIdentity(
   projectRoot: string,
   paths: DevboxPaths,
   registry: ProjectRegistry,
 ): Promise<Result<string>> {
-  const baseName = basename(projectStateDirectory(projectRoot, paths.home))
+  const identity = sandboxIdentity(projectRoot)
   for (let suffix = 1; suffix < 1000000; suffix += 1) {
-    const candidate = suffix === 1 ? baseName : `${baseName}-${suffix}`
+    const candidate = suffix === 1 ? identity : `${identity}-${suffix}`
     if (
       !isSafeStateDirectoryName(candidate) ||
-      Object.values(registry.projects).includes(candidate)
+      Object.values(registry.projects).some(entry => entry.identity === candidate)
     ) {
       continue
     }
     try {
-      await lstat(join(paths.projects, candidate))
+      await lstat(projectStateDirectory(candidate, paths.home))
     } catch (error) {
       if (isMissingFileError(error)) {
         return success(candidate)
@@ -964,7 +995,7 @@ async function allocateStateDirectoryName(
       return failure({
         kind: 'operational',
         code: 'state-directory-observation-failed',
-        observed: `Devbox could not inspect Project state directory: ${join(paths.projects, candidate)}.`,
+        observed: `Devbox could not inspect Project state directory: ${projectStateDirectory(candidate, paths.home)}.`,
         nextAction: 'Check write access to ~/.devbox and run devbox init again.',
       })
     }
@@ -973,6 +1004,25 @@ async function allocateStateDirectoryName(
     kind: 'operational',
     code: 'state-directory-allocation-failed',
     observed: `Devbox could not allocate a unique Project state directory for ${projectRoot}.`,
+    nextAction: 'Remove stale Devbox state only through its supported command and try again.',
+  })
+}
+
+function allocateSandboxName(projectRoot: string, registry: ProjectRegistry): Result<string> {
+  const name = sandboxName(projectRoot)
+  for (let suffix = 1; suffix < 1000000; suffix += 1) {
+    const candidate = suffix === 1 ? name : `${name}-${suffix}`
+    if (
+      isSafeSandboxName(candidate) &&
+      !Object.values(registry.projects).some(entry => entry.name === candidate)
+    ) {
+      return success(candidate)
+    }
+  }
+  return failure({
+    kind: 'operational',
+    code: 'sandbox-name-allocation-failed',
+    observed: `Devbox could not allocate a unique Sandbox name for ${projectRoot}.`,
     nextAction: 'Remove stale Devbox state only through its supported command and try again.',
   })
 }

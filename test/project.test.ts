@@ -7,10 +7,12 @@ import {
   cleanupMissingProjects,
   configureGlobal,
   configureLocalProject,
+  escapePathSegment,
   initializeProject,
   projectStateDirectory,
   removeProject,
-  escapePathSegment,
+  sandboxIdentity,
+  sandboxName,
   unescapePathSegment,
 } from '../src/project.js'
 import { success } from '../src/result.js'
@@ -126,11 +128,14 @@ describe('initializeProject', () => {
 
     const result = await createProjectState(projectRoot, devboxHome)
     const registry = parse(await readFile(join(devboxHome, 'projects.yaml'), 'utf8')) as {
-      projects: Record<string, string>
+      projects: Record<string, { identity: string; name: string }>
     }
 
     expect(registry.projects).toEqual({
-      [projectRoot]: basename(result.stateDirectory),
+      [projectRoot]: {
+        identity: basename(result.stateDirectory),
+        name: 'nested-directory',
+      },
     })
     expect(parse(await readFile(join(devboxHome, 'config.yaml'), 'utf8'))).toMatchObject({
       version: 1,
@@ -160,7 +165,7 @@ describe('initializeProject', () => {
     expect(source.indexOf(secondRoot)).toBeLessThan(source.indexOf(firstRoot))
   })
 
-  it('allocates distinct state directories for colliding path-derived names', async () => {
+  it('assigns colliding path-derived identities independently from Sandbox names', async () => {
     const sandbox = await temporaryDirectory()
     const firstRoot = join(sandbox, 'a-b', 'c')
     const secondRoot = join(sandbox, 'a', 'b-c')
@@ -175,9 +180,11 @@ describe('initializeProject', () => {
 
     expect(second.stateDirectory).toBe(`${first.stateDirectory}-2`)
     const registry = parse(await readFile(join(devboxHome, 'projects.yaml'), 'utf8')) as {
-      projects: Record<string, string>
+      projects: Record<string, { identity: string; name: string }>
     }
-    expect(new Set(Object.values(registry.projects)).size).toBe(2)
+    expect(registry.projects[firstRoot]).toMatchObject({ name: 'project-c' })
+    expect(registry.projects[secondRoot]).toMatchObject({ name: 'b-c' })
+    expect(registry.projects[firstRoot]!.identity).not.toBe(registry.projects[secondRoot]!.identity)
     await expect(readFile(join(first.stateDirectory, 'config.yaml'), 'utf8')).resolves.toContain(
       'node:',
     )
@@ -186,11 +193,33 @@ describe('initializeProject', () => {
     )
   })
 
+  it('assigns colliding Sandbox names independently from path-derived identities', async () => {
+    const sandbox = await temporaryDirectory()
+    const firstRoot = join(sandbox, 'first-parent', 'shared project')
+    const secondRoot = join(sandbox, 'second-parent', 'shared project')
+    const devboxHome = join(sandbox, 'user-state', '.devbox')
+    await Promise.all([
+      mkdir(firstRoot, { recursive: true }),
+      mkdir(secondRoot, { recursive: true }),
+    ])
+
+    const first = await createProjectState(firstRoot, devboxHome)
+    const second = await createProjectState(secondRoot, devboxHome)
+
+    expect(first.stateDirectory).not.toBe(second.stateDirectory)
+    const registry = parse(await readFile(join(devboxHome, 'projects.yaml'), 'utf8')) as {
+      projects: Record<string, { identity: string; name: string }>
+    }
+    expect(registry.projects[firstRoot]).toMatchObject({ name: 'shared-project' })
+    expect(registry.projects[secondRoot]).toMatchObject({ name: 'shared-project-2' })
+    expect(registry.projects[firstRoot]!.identity).not.toBe(registry.projects[secondRoot]!.identity)
+  })
+
   it('does not adopt an unregistered residual state directory', async () => {
     const sandbox = await temporaryDirectory()
     const projectRoot = join(sandbox, 'project')
     const devboxHome = join(sandbox, 'user-state', '.devbox')
-    const residual = projectStateDirectory(projectRoot, devboxHome)
+    const residual = projectStateDirectory(sandboxIdentity(projectRoot), devboxHome)
     await mkdir(projectRoot)
     await mkdir(residual, { recursive: true })
     await writeFile(join(residual, 'sentinel'), 'keep me\n')
@@ -201,7 +230,7 @@ describe('initializeProject', () => {
     await expect(readFile(join(residual, 'sentinel'), 'utf8')).resolves.toBe('keep me\n')
   })
 
-  it('fails closed on an invalid machine-owned registry without writing state', async () => {
+  it('fails closed on a legacy registry entry without writing state', async () => {
     const sandbox = await temporaryDirectory()
     const projectRoot = join(sandbox, 'project')
     const devboxHome = join(sandbox, 'user-state', '.devbox')
@@ -209,7 +238,7 @@ describe('initializeProject', () => {
     await mkdir(devboxHome, { recursive: true })
     await writeFile(
       join(devboxHome, 'projects.yaml'),
-      'version: 1\nprojects:\n  relative/path: unsafe\n',
+      `version: 1\nprojects:\n  ${projectRoot}: legacy-identity\n`,
     )
 
     const result = await initializeProject({
@@ -220,6 +249,46 @@ describe('initializeProject', () => {
 
     expect(result).toMatchObject({ ok: false, error: { code: 'invalid-project-registry' } })
     await expect(stat(join(devboxHome, 'config.yaml'))).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('rejects a persisted Sandbox name with a line terminator', async () => {
+    const sandbox = await temporaryDirectory()
+    const projectRoot = join(sandbox, 'project')
+    const devboxHome = join(sandbox, 'user-state', '.devbox')
+    await mkdir(projectRoot)
+    await mkdir(devboxHome, { recursive: true })
+    await writeFile(
+      join(devboxHome, 'projects.yaml'),
+      `version: 1\nprojects:\n  ${projectRoot}:\n    identity: valid-identity\n    name: "project\\n"\n`,
+    )
+
+    const result = await initializeProject({
+      root: projectRoot,
+      devboxHome,
+      validateHost: async () => success(undefined),
+    })
+
+    expect(result).toMatchObject({ ok: false, error: { code: 'invalid-project-registry' } })
+  })
+
+  it('rejects a one-character persisted Sandbox name', async () => {
+    const sandbox = await temporaryDirectory()
+    const projectRoot = join(sandbox, 'project')
+    const devboxHome = join(sandbox, 'user-state', '.devbox')
+    await mkdir(projectRoot)
+    await mkdir(devboxHome, { recursive: true })
+    await writeFile(
+      join(devboxHome, 'projects.yaml'),
+      `version: 1\nprojects:\n  ${projectRoot}:\n    identity: valid-identity\n    name: a\n`,
+    )
+
+    const result = await initializeProject({
+      root: projectRoot,
+      devboxHome,
+      validateHost: async () => success(undefined),
+    })
+
+    expect(result).toMatchObject({ ok: false, error: { code: 'invalid-project-registry' } })
   })
   it('configures Global state before Local state only when Global state is absent', async () => {
     const sandbox = await temporaryDirectory()
@@ -508,10 +577,10 @@ describe('Project removal and Missing-root cleanup', () => {
       isDirectory: expect.any(Function),
     })
     const registry = parse(await readFile(join(devboxHome, 'projects.yaml'), 'utf8')) as {
-      projects: Record<string, string>
+      projects: Record<string, { identity: string; name: string }>
     }
     expect(registry.projects[firstRoot]).toBeUndefined()
-    expect(registry.projects[secondRoot]).toBe(basename(second.stateDirectory))
+    expect(registry.projects[secondRoot]!.identity).toBe(basename(second.stateDirectory))
   })
 
   it('cleans Missing-root registrations but preserves unregistered residual state', async () => {
@@ -579,10 +648,10 @@ describe('Project removal and Missing-root cleanup', () => {
         isDirectory: expect.any(Function),
       })
       const registry = parse(await readFile(join(devboxHome, 'projects.yaml'), 'utf8')) as {
-        projects: Record<string, string>
+        projects: Record<string, { identity: string; name: string }>
       }
-      expect(registry.projects[firstRoot]).toBe(basename(first.stateDirectory))
-      expect(registry.projects[secondRoot]).toBe(basename(second.stateDirectory))
+      expect(registry.projects[firstRoot]!.identity).toBe(basename(first.stateDirectory))
+      expect(registry.projects[secondRoot]!.identity).toBe(basename(second.stateDirectory))
     } finally {
       release.resolve()
       await running
@@ -590,16 +659,20 @@ describe('Project removal and Missing-root cleanup', () => {
   })
 })
 
-describe('Project path mirror encoding', () => {
-  it('maps an absolute Project root to one flat state directory', () => {
-    expect(
-      projectStateDirectory(
-        '/home/lucas/dev/testing/devbox/test-results/package-smoke-fixed/project',
-        '/home/lucas/.devbox',
-      ),
-    ).toBe(
+describe('Sandbox identity encoding', () => {
+  it('maps an absolute Project root to a safe flat identity and state directory', () => {
+    const identity = sandboxIdentity(
+      '/home/lucas/dev/testing/devbox/test-results/package-smoke-fixed/project',
+    )
+
+    expect(identity).toBe('home-lucas-dev-testing-devbox-test-results-package-smoke-fixed-project')
+    expect(projectStateDirectory(identity, '/home/lucas/.devbox')).toBe(
       '/home/lucas/.devbox/projects/home-lucas-dev-testing-devbox-test-results-package-smoke-fixed-project',
     )
+  })
+
+  it('normalizes one-character Project basenames to Docker-safe Sandbox names', () => {
+    expect(sandboxName('/workspace/a')).toBe('project-a')
   })
 
   it('round-trips unsafe path segments without opaque hashes', () => {

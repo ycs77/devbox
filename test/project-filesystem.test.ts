@@ -7,6 +7,7 @@ import {
   configureLocalProject,
   initializeProject,
   projectStateDirectory,
+  sandboxIdentity,
 } from '../src/project.js'
 import { success } from '../src/result.js'
 
@@ -69,7 +70,10 @@ describe('Project filesystem failures', () => {
 
   it('returns a state-write failure and preserves the previous Local configuration', async () => {
     const { devboxHome, projectRoot } = await createProjectState()
-    const localPath = join(projectStateDirectory(projectRoot, devboxHome), 'config.yaml')
+    const localPath = join(
+      projectStateDirectory(sandboxIdentity(projectRoot), devboxHome),
+      'config.yaml',
+    )
     const before = await readFile(localPath, 'utf8')
     vi.mocked(rename).mockRejectedValueOnce(new Error('disk full'))
 
@@ -101,7 +105,7 @@ describe('Project filesystem failures', () => {
     if (!secondProject.ok) {
       throw new Error('Second Project initialization failed.')
     }
-    const stateDirectory = projectStateDirectory(projectRoot, devboxHome)
+    const stateDirectory = projectStateDirectory(sandboxIdentity(projectRoot), devboxHome)
     const globalPath = join(devboxHome, 'config.yaml')
     const localPath = join(stateDirectory, 'config.yaml')
     const secondLocalPath = join(secondProject.value.stateDirectory, 'config.yaml')
