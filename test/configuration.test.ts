@@ -18,6 +18,22 @@ describe('configuration schemas', () => {
     })
   })
 
+  it('accepts packaged Antigravity and OMP Agents', () => {
+    expect(
+      parseGlobalConfiguration(
+        'version: 1\nnode:\n  - "24"\nagent:\n  - agy\n  - omp\nagent_notifications: true\n',
+      ),
+    ).toEqual({
+      ok: true,
+      value: {
+        version: 1,
+        node: ['24'],
+        agent: ['agy', 'omp'],
+        agent_notifications: true,
+      },
+    })
+  })
+
   it('rejects superseded Global and Local fields', () => {
     expect(
       parseGlobalConfiguration('version: 1\nruntimes:\n  node:\n    - "24"\nagents: []\n'),

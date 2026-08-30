@@ -1,16 +1,10 @@
 import { parseDocument, stringify } from 'yaml'
+import { PACKAGED_RUNTIME_CATALOG } from './packaged-catalog.js'
 import { failure, success, type Result } from './result.js'
 
 export interface RuntimeCatalog {
   readonly runtimes: Readonly<Record<string, readonly string[]>>
   readonly agents: readonly string[]
-}
-
-export const DEFAULT_RUNTIME_CATALOG: RuntimeCatalog = {
-  runtimes: {
-    node: ['24', '22'],
-  },
-  agents: ['claude-code', 'codex'],
 }
 
 export interface GlobalConfiguration {
@@ -26,7 +20,7 @@ export interface LocalConfiguration {
 }
 
 export function normalizeCatalog(
-  catalog: RuntimeCatalog = DEFAULT_RUNTIME_CATALOG,
+  catalog: RuntimeCatalog = PACKAGED_RUNTIME_CATALOG,
 ): Result<RuntimeCatalog> {
   if (!isRecord(catalog.runtimes) || !Array.isArray(catalog.agents)) {
     return invalid('invalid-runtime-catalog', 'The packaged Runtime catalog is invalid.')
@@ -60,7 +54,7 @@ export function normalizeCatalog(
 }
 
 export function defaultGlobalConfiguration(
-  catalog: RuntimeCatalog = DEFAULT_RUNTIME_CATALOG,
+  catalog: RuntimeCatalog = PACKAGED_RUNTIME_CATALOG,
 ): GlobalConfiguration {
   return {
     version: 1,
@@ -78,7 +72,7 @@ export function defaultLocalConfiguration(
 
 export function parseGlobalConfiguration(
   source: string,
-  catalog: RuntimeCatalog = DEFAULT_RUNTIME_CATALOG,
+  catalog: RuntimeCatalog = PACKAGED_RUNTIME_CATALOG,
 ): Result<GlobalConfiguration> {
   const parsed = parseYaml(source)
   if (!parsed.ok) {
@@ -143,7 +137,7 @@ export function parseGlobalConfiguration(
 export function parseLocalConfiguration(
   source: string,
   globalConfiguration: GlobalConfiguration,
-  catalog: RuntimeCatalog = DEFAULT_RUNTIME_CATALOG,
+  catalog: RuntimeCatalog = PACKAGED_RUNTIME_CATALOG,
 ): Result<LocalConfiguration> {
   const parsed = parseYaml(source)
   if (!parsed.ok) {

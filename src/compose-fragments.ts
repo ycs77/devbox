@@ -1,3 +1,5 @@
+import { PACKAGED_AGENTS } from './packaged-catalog.js'
+
 export interface NodeComposeFragment {
   readonly environment: {
     readonly NODE_VERSION: string
@@ -14,12 +16,10 @@ export interface AgentComposeFragment {
 }
 
 export interface NotificationComposeFragment {
-  readonly environment: {
-    readonly PULSE_SERVER: 'unix:/tmp/pulse-socket'
-  }
+  readonly environment: Record<string, string>
   readonly volume: {
-    readonly source: '/mnt/wslg/runtime-dir/pulse/native'
-    readonly target: '/tmp/pulse-socket'
+    readonly source: string
+    readonly target: string
     readonly readOnly: true
   }
 }
@@ -34,31 +34,6 @@ export interface ComposeFragments {
   readonly node: NodeComposeFragment | undefined
   readonly agents: readonly AgentComposeFragment[]
   readonly notification: NotificationComposeFragment | undefined
-}
-
-const AGENT_FRAGMENTS: Readonly<Record<string, AgentComposeFragment>> = {
-  'claude-code': {
-    agent: 'claude-code',
-    volume: { name: 'devbox-claude', target: '/home/devbox/.claude', external: true },
-  },
-  codex: {
-    agent: 'codex',
-    volume: { name: 'devbox-codex', target: '/home/devbox/.codex', external: true },
-  },
-  agy: {
-    agent: 'agy',
-    volume: { name: 'devbox-agy', target: '/home/devbox/.gemini', external: true },
-  },
-  omp: {
-    agent: 'omp',
-    volume: { name: 'devbox-omp', target: '/home/devbox/.omp', external: true },
-  },
-}
-
-const NOTIFICATION_AGENTS: Readonly<Record<string, true>> = {
-  'claude-code': true,
-  codex: true,
-  omp: true,
 }
 
 const NOTIFICATION_FRAGMENT: NotificationComposeFragment = {
@@ -78,11 +53,18 @@ export function selectComposeFragments({
   const agents: AgentComposeFragment[] = []
   let hasNotificationAgent = false
   for (const agent of configuredAgents) {
-    const fragment = AGENT_FRAGMENTS[agent]
-    if (fragment !== undefined) {
-      agents.push(fragment)
+    const packagedAgent = PACKAGED_AGENTS[agent]
+    if (packagedAgent !== undefined) {
+      agents.push({
+        agent,
+        volume: {
+          name: packagedAgent.home.volumeName,
+          target: packagedAgent.home.target,
+          external: true,
+        },
+      })
+      hasNotificationAgent ||= packagedAgent.supportsNotifications
     }
-    hasNotificationAgent ||= NOTIFICATION_AGENTS[agent] === true
   }
 
   return {
