@@ -39,6 +39,7 @@ export interface DevboxPaths {
   readonly globalConfiguration: string
   readonly projectRegistry: string
   readonly projects: string
+  readonly buildContext: string
 }
 
 export interface ConfirmationDetails {
@@ -138,6 +139,7 @@ export function devboxPaths(devboxHome = join(homedir(), '.devbox')): DevboxPath
     globalConfiguration: join(devboxHome, 'config.yaml'),
     projectRegistry: join(devboxHome, 'projects.yaml'),
     projects: join(devboxHome, 'projects'),
+    buildContext: join(devboxHome, 'build'),
   }
 }
 

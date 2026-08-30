@@ -1,5 +1,6 @@
 import type { CAC } from 'cac'
 import { cac } from 'cac'
+import { buildWorkspace } from './build.js'
 import { createConfigurationPrompter } from './configuration-prompter.js'
 import {
   cleanupMissingProjects,
@@ -82,6 +83,16 @@ function createCli(signal: AbortSignal, interactive: boolean): CAC {
           ? 'Local configuration updated.'
           : 'Local configuration was not changed.',
       })
+    })
+
+  cli
+    .command('build', 'Build the shared Workspace image from Global configuration.')
+    .action(async (): Promise<CliResult> => {
+      const result = await buildWorkspace({ signal })
+      if (!result.ok) {
+        return result
+      }
+      return success({ message: `Built Workspace image: ${result.value.image}` })
     })
 
   cli

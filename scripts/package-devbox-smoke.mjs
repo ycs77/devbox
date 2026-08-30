@@ -37,6 +37,7 @@ try {
 
   const help = await run(join(prefix, 'bin', 'devbox'), ['--help'])
   assert.match(help, /devbox init/)
+  assert.match(help, /devbox build/)
 } finally {
   await rm(workspace, { recursive: true, force: true })
 }
