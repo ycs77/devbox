@@ -7,7 +7,9 @@ export interface RuntimeCatalog {
 }
 
 export const DEFAULT_RUNTIME_CATALOG: RuntimeCatalog = {
-  runtimes: { node: ['24', '22'] },
+  runtimes: {
+    node: ['24', '22'],
+  },
   agents: ['claude-code', 'codex'],
 }
 

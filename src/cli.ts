@@ -26,9 +26,11 @@ interface CommandOptions {
 }
 
 function createCli(signal: AbortSignal, interactive: boolean): CAC {
-  const cli = cac('devbox')
   const prompt = createConfigurationPrompter({ signal })
-  cli.usage('<command> [options]')
+
+  const cli = cac('devbox')
+
+  cli.command('').action(() => cli.outputHelp())
 
   cli
     .command('init', 'Register the current directory as a Devbox Project.')
@@ -139,11 +141,6 @@ function createCli(signal: AbortSignal, interactive: boolean): CAC {
           : 'No Missing-root Projects were removed.',
       })
     })
-
-  cli
-    .command('', '')
-    .usage('<command> [options]')
-    .action(() => cli.globalCommand.outputHelp())
 
   cli.help()
 
