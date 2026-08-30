@@ -49,9 +49,15 @@ The authentication material stored in an Agent home, shared across Devbox projec
 **Agent home**:
 A Devbox-managed user-scope home for one AI Agent's credentials, configuration, and mutable state, shared read-write across every Project Sandbox and kept separate from the developer's normal host Agent home. Every Sandbox-user process can read or modify every mounted Agent home. It is retained as user data independently of Agent availability, Project registration, Sandbox lifecycle, and Cleanup.
 
+**Shared Agent volume**:
+The fixed-name external Docker volume that provides one Agent home to every Sandbox where that AI Agent is available. It is retained as user data independently of Project registration and Sandbox lifecycle.
+
 **Sandbox**:
 The Project-scoped execution environment with its own container, workspace mount, process space, Compose network, writable layer, and lifecycle. Its writable boundary includes the current Project workspace and shared Agent homes but excludes the rest of the developer's machine by default. It protects the host environment, not Project contents or one Project's Agent credentials and state from another Project.
 
+
+**Sandbox lifecycle command**:
+A Project-scoped CLI command that invokes an already generated Sandbox Compose definition without changing configuration, building a Workspace image, or rendering a replacement definition.
 
 **Sandbox user**:
 The non-root account that runs interactive shells, commands, project tools, and available AI Agents inside a Sandbox after its UID and GID are aligned with the developer invoking Devbox.
@@ -85,6 +91,17 @@ One project root directory registered with Devbox; separate subdirectories, clon
 **Project registry**:
 The machine-owned user-scope record that is the sole authority for which exact Project roots are registered with Devbox.
 _Avoid_: Project index
+
+**Sandbox identity**:
+The machine-derived identity of a Project Sandbox, calculated from its exact absolute Project root and used to assign its Project state directory.
+_Avoid_: Sandbox name
+
+**Project state directory**:
+The Devbox-owned directory holding one Project's Local configuration and generated Compose definition. It is derived from that Project's Sandbox identity.
+
+**Sandbox name**:
+The Docker-safe name calculated from a Project basename and persisted by the Project registry. It identifies the Project's Compose project, Sandbox container, and workspace path inside that Sandbox.
+_Avoid_: Sandbox identity, Project state directory
 
 **Missing-root Project registration**:
 A retained Project registration whose exact absolute Project root cannot be found at observation time. It does not imply that the root was permanently deleted or relocated.
