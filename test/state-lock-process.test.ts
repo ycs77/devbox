@@ -69,7 +69,7 @@ if (processMode === 'hold') {
     if (!result.ok) {
       throw new Error(result.error.observed)
     }
-  })
+  }, 30_000)
 } else if (processMode === 'contend') {
   it('reports the result of a competing process', async () => {
     const devboxHome = process.env.DEVBOX_LOCK_HOME
@@ -92,6 +92,7 @@ if (processMode === 'hold') {
   interface LockHolder {
     readonly child: ChildProcess
     readonly releasePath: string
+    readonly completion: Promise<[number | null, NodeJS.Signals | null]>
   }
 
   afterEach(async () => {
@@ -147,8 +148,9 @@ if (processMode === 'hold') {
       },
       stdio: 'ignore',
     })
+    const completion = once(child, 'close') as Promise<[number | null, NodeJS.Signals | null]>
     await waitForFile(readyPath)
-    return { child, releasePath }
+    return { child, releasePath, completion }
   }
 
   describe('cross-process command markers', () => {
@@ -181,10 +183,7 @@ if (processMode === 'hold') {
         })
 
         await writeFile(holder.releasePath, 'release\n')
-        const [code, signal] = (await once(holder.child, 'close')) as [
-          number | null,
-          NodeJS.Signals | null,
-        ]
+        const [code, signal] = await holder.completion
         expect(code).toBe(0)
         expect(signal).toBeNull()
         expect(await runContender(devboxHome, [firstProject], false)).toEqual({
@@ -194,7 +193,7 @@ if (processMode === 'hold') {
       } finally {
         if (holder.child.exitCode === null && holder.child.signalCode === null) {
           process.kill(-holder.child.pid!, 'SIGTERM')
-          await once(holder.child, 'close')
+          await holder.completion
         }
       }
     }, 15_000)
