@@ -16,8 +16,9 @@ import {
 import { devboxPaths, InterruptedError } from './project.js'
 import { failure, success, type Result } from './result.js'
 import { withStateLocks } from './state-lock.js'
+import { WORKSPACE_IMAGE } from './workspace.js'
 
-export const WORKSPACE_IMAGE = 'devbox-workspace:latest'
+export { WORKSPACE_IMAGE } from './workspace.js'
 
 export interface DockerBuildInvocation {
   readonly context: string

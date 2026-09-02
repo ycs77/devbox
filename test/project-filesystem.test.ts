@@ -68,14 +68,16 @@ describe('Project filesystem failures', () => {
     })
   })
 
-  it('returns a state-write failure and preserves the previous Local configuration', async () => {
+  it('preserves the retained Compose definition when Local publication fails', async () => {
     const { devboxHome, projectRoot } = await createProjectState()
-    const localPath = join(
-      projectStateDirectory(sandboxIdentity(projectRoot), devboxHome),
-      'config.yaml',
-    )
-    const before = await readFile(localPath, 'utf8')
-    vi.mocked(rename).mockRejectedValueOnce(new Error('disk full'))
+    const stateDirectory = projectStateDirectory(sandboxIdentity(projectRoot), devboxHome)
+    const localPath = join(stateDirectory, 'config.yaml')
+    const composePath = join(stateDirectory, 'compose.yaml')
+    const localBefore = await readFile(localPath, 'utf8')
+    const composeBefore = await readFile(composePath, 'utf8')
+    vi.mocked(rename)
+      .mockImplementationOnce(memfsRename)
+      .mockRejectedValueOnce(new Error('disk full'))
 
     const result = await configureLocalProject({
       root: projectRoot,
@@ -88,7 +90,8 @@ describe('Project filesystem failures', () => {
       ok: false,
       error: { kind: 'operational', code: 'state-write-failed' },
     })
-    await expect(readFile(localPath, 'utf8')).resolves.toBe(before)
+    await expect(readFile(localPath, 'utf8')).resolves.toBe(localBefore)
+    await expect(readFile(composePath, 'utf8')).resolves.toBe(composeBefore)
   })
 
   it('restores all configuration when publication fails after an affected Local write', async () => {

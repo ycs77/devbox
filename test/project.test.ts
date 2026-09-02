@@ -151,6 +151,111 @@ describe('initializeProject', () => {
     )
   })
 
+  it('publishes a static Compose definition for the registered Sandbox', async () => {
+    const sandbox = await temporaryDirectory()
+    const projectRoot = join(sandbox, 'project')
+    const devboxHome = join(sandbox, 'user-state', '.devbox')
+    await mkdir(projectRoot)
+
+    const project = await initializeProject({
+      root: projectRoot,
+      devboxHome,
+      validateHost: async () => success(undefined),
+      confirm: async () => true,
+      initialGlobalConfiguration: {
+        version: 1,
+        node: ['24', '22'],
+        agent: ['claude-code', 'agy'],
+        agent_notifications: true,
+      },
+      initialLocalConfiguration: { version: 1, node: '22' },
+    })
+
+    expect(project).toMatchObject({ ok: true, value: { created: true } })
+    if (!project.ok) {
+      throw new Error(project.error.observed)
+    }
+    expect(
+      parse(await readFile(join(project.value.stateDirectory, 'compose.yaml'), 'utf8')),
+    ).toEqual({
+      name: 'project',
+      'x-devbox': {
+        version: 1,
+        project_root: projectRoot,
+        compose_name: 'project',
+        sandbox_service: 'devbox',
+      },
+      services: {
+        devbox: {
+          image: 'devbox-workspace:latest',
+          container_name: 'project',
+          working_dir: '/workspace/project',
+          environment: {
+            NODE_VERSION: '22',
+            PULSE_SERVER: 'unix:/tmp/pulse-socket',
+          },
+          volumes: [
+            {
+              type: 'bind',
+              source: projectRoot,
+              target: '/workspace/project',
+            },
+            {
+              type: 'volume',
+              source: 'devbox-claude',
+              target: '/home/devbox/.claude',
+            },
+            {
+              type: 'volume',
+              source: 'devbox-agy',
+              target: '/home/devbox/.gemini',
+            },
+            {
+              type: 'bind',
+              source: '/mnt/wslg/runtime-dir/pulse/native',
+              target: '/tmp/pulse-socket',
+              read_only: true,
+            },
+          ],
+        },
+      },
+      volumes: {
+        'devbox-claude': { name: 'devbox-claude', external: true },
+        'devbox-agy': { name: 'devbox-agy', external: true },
+      },
+    })
+  })
+
+  it('regenerates a retained definition from registered configuration', async () => {
+    const sandbox = await temporaryDirectory()
+    const projectRoot = join(sandbox, 'project')
+    const devboxHome = join(sandbox, 'user-state', '.devbox')
+    await mkdir(projectRoot)
+    const project = await createProjectState(projectRoot, devboxHome)
+    await rm(join(project.stateDirectory, 'compose.yaml'))
+
+    const result = await initializeProject({
+      root: projectRoot,
+      devboxHome,
+      validateHost: async () => success(undefined),
+      confirm: async () => true,
+      initialGlobalConfiguration: {
+        version: 1,
+        node: ['22'],
+        agent: ['codex'],
+        agent_notifications: false,
+      },
+      initialLocalConfiguration: { version: 1, node: '22' },
+    })
+
+    expect(result).toMatchObject({ ok: true, value: { created: false } })
+    expect(
+      parse(await readFile(join(project.stateDirectory, 'compose.yaml'), 'utf8')),
+    ).toMatchObject({
+      services: { devbox: { environment: { NODE_VERSION: '24' } } },
+    })
+  })
+
   it('serializes registry roots in exact root order', async () => {
     const sandbox = await temporaryDirectory()
     const firstRoot = join(sandbox, 'z-project')
@@ -305,6 +410,7 @@ describe('initializeProject', () => {
         editGlobal: async () => ({
           version: 1,
           node: ['22'],
+
           agent: [],
           agent_notifications: false,
         }),
@@ -376,6 +482,54 @@ describe('configuration boundaries', () => {
     await expect(readFile(registryPath, 'utf8')).resolves.toBe(registryBefore)
     await expect(readFile(join(project.stateDirectory, 'config.yaml'), 'utf8')).resolves.toContain(
       'node: null',
+    )
+    expect(
+      parse(await readFile(join(project.stateDirectory, 'compose.yaml'), 'utf8')),
+    ).not.toHaveProperty('services.devbox.environment.NODE_VERSION')
+  })
+  it('regenerates every affected Project definition after a Global change', async () => {
+    const sandbox = await temporaryDirectory()
+    const firstRoot = join(sandbox, 'first-project')
+    const secondRoot = join(sandbox, 'second-project')
+    const devboxHome = join(sandbox, 'user-state', '.devbox')
+    await Promise.all([mkdir(firstRoot), mkdir(secondRoot)])
+    const first = await createProjectState(firstRoot, devboxHome)
+    const second = await createProjectState(secondRoot, devboxHome)
+
+    const result = await configureGlobal({
+      devboxHome,
+      nextConfiguration: {
+        version: 1,
+        node: ['24'],
+        agent: ['codex'],
+        agent_notifications: false,
+      },
+      confirm: async () => true,
+    })
+
+    expect(result).toEqual({ ok: true, value: { scope: 'global', changed: true } })
+    await Promise.all(
+      [first, second].map(async project => {
+        expect(
+          parse(await readFile(join(project.stateDirectory, 'compose.yaml'), 'utf8')),
+        ).toMatchObject({
+          services: {
+            devbox: {
+              environment: { NODE_VERSION: '24' },
+              volumes: expect.arrayContaining([
+                {
+                  type: 'volume',
+                  source: 'devbox-codex',
+                  target: '/home/devbox/.codex',
+                },
+              ]),
+            },
+          },
+          volumes: {
+            'devbox-codex': { name: 'devbox-codex', external: true },
+          },
+        })
+      }),
     )
   })
 
