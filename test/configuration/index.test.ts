@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseGlobalConfiguration, parseLocalConfiguration } from '../src/configuration.js'
+import { parseGlobalConfiguration, parseLocalConfiguration } from '../../src/configuration/index.js'
 
 describe('configuration schemas', () => {
   it('accepts the Global configuration boundary', () => {

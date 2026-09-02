@@ -2,9 +2,13 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { buildWorkspace, type DockerBuildInvocation, WORKSPACE_IMAGE } from '../src/build.js'
-import { failure, success } from '../src/result.js'
-import { withStateLocks } from '../src/state-lock.js'
+import { failure, success } from '../../src/result.js'
+import { withStateLocks } from '../../src/state-lock/index.js'
+import {
+  buildWorkspace,
+  type DockerBuildInvocation,
+  WORKSPACE_IMAGE,
+} from '../../src/workspace/build.js'
 
 const temporaryDirectories: string[] = []
 

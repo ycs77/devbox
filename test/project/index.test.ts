@@ -14,9 +14,9 @@ import {
   sandboxIdentity,
   sandboxName,
   unescapePathSegment,
-} from '../src/project.js'
-import { success } from '../src/result.js'
-import { withStateLocks } from '../src/state-lock.js'
+} from '../../src/project/index.js'
+import { success } from '../../src/result.js'
+import { withStateLocks } from '../../src/state-lock/index.js'
 
 const temporaryDirectories: string[] = []
 

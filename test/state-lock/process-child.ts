@@ -1,7 +1,7 @@
 import { access, writeFile } from 'node:fs/promises'
 import { setTimeout as delay } from 'node:timers/promises'
 import { success } from '../../src/result.js'
-import { withStateLocks } from '../../src/state-lock.js'
+import { withStateLocks } from '../../src/state-lock/index.js'
 
 const waitTimeoutMs = 5_000
 const pollIntervalMs = 25

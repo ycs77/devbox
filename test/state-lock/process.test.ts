@@ -7,9 +7,7 @@ import { setTimeout as delay } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 
-const childScriptPath = fileURLToPath(
-  new URL('./fixtures/state-lock-process-child.ts', import.meta.url),
-)
+const childScriptPath = fileURLToPath(new URL('./process-child.ts', import.meta.url))
 const coordinationTimeoutMs = 5_000
 const pollIntervalMs = 25
 const temporaryDirectories: string[] = []

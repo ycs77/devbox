@@ -2,8 +2,8 @@ import { mkdtemp, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { success } from '../src/result.js'
-import { StateLockInterruptedError, withStateLocks } from '../src/state-lock.js'
+import { success } from '../../src/result.js'
+import { StateLockInterruptedError, withStateLocks } from '../../src/state-lock/index.js'
 
 const temporaryDirectories: string[] = []
 

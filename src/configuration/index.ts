@@ -1,6 +1,6 @@
 import { parseDocument, stringify } from 'yaml'
-import { PACKAGED_RUNTIME_CATALOG } from './packaged-catalog.js'
-import { failure, success, type Result } from './result.js'
+import { PACKAGED_RUNTIME_CATALOG } from '../catalog/index.js'
+import { failure, success, type Result } from '../result.js'
 
 export interface RuntimeCatalog {
   readonly runtimes: Readonly<Record<string, readonly string[]>>

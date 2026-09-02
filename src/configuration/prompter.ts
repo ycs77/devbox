@@ -1,6 +1,6 @@
 import type { Readable, Writable } from 'node:stream'
 import * as p from '@clack/prompts'
-import { InterruptedError, type ConfigurationPrompter } from './project.js'
+import { InterruptedError, type ConfigurationPrompter } from '../project/index.js'
 
 export interface ConfigurationPrompterOptions {
   readonly signal: AbortSignal

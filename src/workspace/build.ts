@@ -4,21 +4,21 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import {
-  normalizeCatalog,
-  parseGlobalConfiguration,
-  type GlobalConfiguration,
-} from './configuration.js'
-import {
   PACKAGED_NODE_RECIPES,
   PACKAGED_SKILL_AGENTS,
   type NodeRuntimeRecipe,
-} from './packaged-catalog.js'
-import { devboxPaths, InterruptedError } from './project.js'
-import { failure, success, type Result } from './result.js'
-import { withStateLocks } from './state-lock.js'
-import { WORKSPACE_IMAGE } from './workspace.js'
+} from '../catalog/index.js'
+import {
+  normalizeCatalog,
+  parseGlobalConfiguration,
+  type GlobalConfiguration,
+} from '../configuration/index.js'
+import { devboxPaths, InterruptedError } from '../project/index.js'
+import { failure, success, type Result } from '../result.js'
+import { withStateLocks } from '../state-lock/index.js'
+import { WORKSPACE_IMAGE } from './image.js'
 
-export { WORKSPACE_IMAGE } from './workspace.js'
+export { WORKSPACE_IMAGE } from './image.js'
 
 export interface DockerBuildInvocation {
   readonly context: string

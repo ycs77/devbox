@@ -1,7 +1,7 @@
 import { Readable, Writable } from 'node:stream'
 import { describe, expect, it } from 'vitest'
-import { createConfigurationPrompter } from '../src/configuration-prompter.js'
-import { InterruptedError } from '../src/project.js'
+import { createConfigurationPrompter } from '../../src/configuration/prompter.js'
+import { InterruptedError } from '../../src/project/index.js'
 
 class PromptInput extends Readable {
   _read(): void {}

@@ -1,7 +1,6 @@
 import type { CAC } from 'cac'
 import { cac } from 'cac'
-import { buildWorkspace } from './build.js'
-import { createConfigurationPrompter } from './configuration-prompter.js'
+import { createConfigurationPrompter } from './configuration/prompter.js'
 import {
   cleanupMissingProjects,
   configureGlobal,
@@ -9,8 +8,9 @@ import {
   initializeProject,
   InterruptedError,
   removeProject,
-} from './project.js'
+} from './project/index.js'
 import { failure, success, type Result } from './result.js'
+import { buildWorkspace } from './workspace/build.js'
 
 interface CliSuccess {
   readonly message?: string

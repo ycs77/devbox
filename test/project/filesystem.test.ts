@@ -8,8 +8,8 @@ import {
   initializeProject,
   projectStateDirectory,
   sandboxIdentity,
-} from '../src/project.js'
-import { success } from '../src/result.js'
+} from '../../src/project/index.js'
+import { success } from '../../src/result.js'
 
 vi.mock('node:fs/promises', async () => {
   // The mock factory runs before static imports, so memfs must load inside it.

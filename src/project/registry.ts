@@ -1,6 +1,6 @@
 import { isAbsolute } from 'node:path'
 import { parseDocument, stringify } from 'yaml'
-import { failure, success, type Result } from './result.js'
+import { failure, success, type Result } from '../result.js'
 
 export interface ProjectRegistration {
   readonly identity: string

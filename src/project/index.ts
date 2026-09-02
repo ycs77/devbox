@@ -14,9 +14,11 @@ import {
   type GlobalConfiguration,
   type LocalConfiguration,
   type RuntimeCatalog,
-} from './configuration.js'
-import { validateSupportedHost } from './host.js'
-import { renderProjectCompose } from './project-compose.js'
+} from '../configuration/index.js'
+import { validateSupportedHost } from '../host.js'
+import { failure, success, type Result } from '../result.js'
+import { withStateLocks, type StateLockContext } from '../state-lock/index.js'
+import { renderProjectCompose } from './compose.js'
 import {
   isSafeSandboxName,
   isSafeStateDirectoryName,
@@ -24,8 +26,6 @@ import {
   serializeProjectRegistry,
   type ProjectRegistry,
 } from './registry.js'
-import { failure, success, type Result } from './result.js'
-import { withStateLocks, type StateLockContext } from './state-lock.js'
 
 export interface RegisteredProject {
   readonly root: string

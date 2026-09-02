@@ -1,4 +1,4 @@
-import { PACKAGED_AGENTS } from './packaged-catalog.js'
+import { PACKAGED_AGENTS } from './catalog/index.js'
 
 export interface NodeComposeFragment {
   readonly environment: {

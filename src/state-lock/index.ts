@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { lstat, mkdir, rm, rmdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import { failure, type Result } from './result.js'
+import { failure, type Result } from '../result.js'
 
 export interface StateLockInput {
   readonly devboxHome: string
