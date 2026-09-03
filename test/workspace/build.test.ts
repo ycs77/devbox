@@ -134,9 +134,33 @@ describe('buildWorkspace', () => {
     expect(dockerfile).toContain('NODE_RUNTIME_VERSION=22.23.2')
     expect(dockerfile).toContain('NODE_RUNTIME_VERSION=24.19.0')
     expect(dockerfile).toContain('export PATH="/opt/devbox/runtimes/node/24/bin:$PATH"')
-    expect(dockerfile).toContain("npx -y skills add ycs77/skills -g -a claude-code -s '*' -y")
-    expect(dockerfile).toContain("npx -y skills add ycs77/skills -g -a codex -s '*' -y")
+    expect(dockerfile).toContain(
+      "npx -y skills add ycs77/skills -g -a claude-code -a codex -s '*' -y",
+    )
     expect(dockerfile).not.toContain(' -a agy ')
+  })
+
+  it('omits skill installation when configured agents do not support it', async () => {
+    const sandbox = await temporaryDirectory()
+    const devboxHome = join(sandbox, '.devbox')
+    await writeGlobalConfiguration(devboxHome, {
+      node: ['24'],
+      agent: ['agy', 'omp'],
+    })
+    let dockerfile = ''
+
+    const result = await buildWorkspace({
+      devboxHome,
+      executeDockerBuild: async input => {
+        dockerfile = await readFile(join(input.context, 'Dockerfile'), 'utf8')
+        return success(undefined)
+      },
+    })
+
+    expect(result).toEqual({ ok: true, value: { image: WORKSPACE_IMAGE } })
+    expect(dockerfile).toContain('NODE_RUNTIME_VERSION=24.19.0')
+    expect(dockerfile).not.toContain('Install Agent Skills')
+    expect(dockerfile).not.toContain('skills add')
   })
 
   it('omits skills and Node stages when no Node Runtime is configured', async () => {

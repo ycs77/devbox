@@ -4,6 +4,7 @@ export interface PackagedAgent {
     readonly target: string
   }
   readonly supportsNotifications: boolean
+  readonly supportsSkillInstallation: boolean
 }
 
 export interface NodeRuntimeRecipe {
@@ -40,26 +41,28 @@ export const PACKAGED_NODE_RECIPES: Readonly<Record<string, NodeRuntimeRecipe>> 
   },
 }
 
-export const PACKAGED_SKILL_AGENTS = ['claude-code', 'codex'] as const
-
 export const PACKAGED_NODE_RELEASE_LINES = ['24', '22'] as const
 
 export const PACKAGED_AGENTS: Readonly<Record<string, PackagedAgent>> = {
   'claude-code': {
     home: { volumeName: 'devbox-claude', target: '/home/devbox/.claude' },
     supportsNotifications: true,
+    supportsSkillInstallation: true,
   },
   codex: {
     home: { volumeName: 'devbox-codex', target: '/home/devbox/.codex' },
     supportsNotifications: true,
+    supportsSkillInstallation: true,
   },
   agy: {
     home: { volumeName: 'devbox-agy', target: '/home/devbox/.gemini' },
     supportsNotifications: false,
+    supportsSkillInstallation: false,
   },
   omp: {
     home: { volumeName: 'devbox-omp', target: '/home/devbox/.omp' },
     supportsNotifications: true,
+    supportsSkillInstallation: false,
   },
 }
 
