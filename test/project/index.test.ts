@@ -298,6 +298,42 @@ describe('initializeProject', () => {
     )
   })
 
+  it('uses the persisted Sandbox name rather than state-directory naming when regenerating Compose', async () => {
+    const sandbox = await temporaryDirectory()
+    const firstRoot = join(sandbox, 'first-parent', 'shared project')
+    const secondRoot = join(sandbox, 'second-parent', 'shared project')
+    const devboxHome = join(sandbox, 'user-state', '.devbox')
+    await Promise.all([
+      mkdir(firstRoot, { recursive: true }),
+      mkdir(secondRoot, { recursive: true }),
+    ])
+
+    await createProjectState(firstRoot, devboxHome)
+    const second = await createProjectState(secondRoot, devboxHome)
+    await rm(join(second.stateDirectory, 'compose.yaml'))
+
+    const regenerated = await initializeProject({
+      root: secondRoot,
+      devboxHome,
+      validateHost: async () => success(undefined),
+      confirm: async () => true,
+    })
+
+    expect(regenerated).toMatchObject({ ok: true, value: { created: false } })
+    expect(basename(second.stateDirectory)).not.toBe('shared-project-2')
+    expect(
+      parse(await readFile(join(second.stateDirectory, 'compose.yaml'), 'utf8')),
+    ).toMatchObject({
+      name: 'shared-project-2',
+      services: {
+        devbox: {
+          container_name: 'shared-project-2',
+          working_dir: '/workspace/shared-project-2',
+        },
+      },
+    })
+  })
+
   it('assigns colliding Sandbox names independently from path-derived identities', async () => {
     const sandbox = await temporaryDirectory()
     const firstRoot = join(sandbox, 'first-parent', 'shared project')
@@ -395,6 +431,7 @@ describe('initializeProject', () => {
 
     expect(result).toMatchObject({ ok: false, error: { code: 'invalid-project-registry' } })
   })
+
   it('configures Global state before Local state only when Global state is absent', async () => {
     const sandbox = await temporaryDirectory()
     const firstRoot = join(sandbox, 'first')
@@ -487,6 +524,7 @@ describe('configuration boundaries', () => {
       parse(await readFile(join(project.stateDirectory, 'compose.yaml'), 'utf8')),
     ).not.toHaveProperty('services.devbox.environment.NODE_VERSION')
   })
+
   it('regenerates every affected Project definition after a Global change', async () => {
     const sandbox = await temporaryDirectory()
     const firstRoot = join(sandbox, 'first-project')

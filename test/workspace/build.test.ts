@@ -53,6 +53,7 @@ afterEach(async () => {
       .map(directory => rm(directory, { recursive: true, force: true })),
   )
 })
+
 describe('buildWorkspace', () => {
   it('replaces stale Build context contents and leaves configuration untouched on success', async () => {
     const sandbox = await temporaryDirectory()
