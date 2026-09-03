@@ -1,5 +1,5 @@
 import { parse, stringify } from 'yaml'
-import { selectComposeFragments, type ComposeFragmentSelectionInput } from '../compose-fragments.js'
+import { selectComposeFragments, type ComposeFragmentSelectionInput } from './compose-fragments.js'
 import { failure, success, type Result } from '../result.js'
 import { WORKSPACE_IMAGE } from '../workspace/image.js'
 

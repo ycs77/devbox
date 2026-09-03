@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { selectComposeFragments } from '../src/compose-fragments.js'
+import { selectComposeFragments } from '../../src/project/compose-fragments.js'
 
 describe('selectComposeFragments', () => {
   it('selects static Node, Agent, and notification fragments', () => {

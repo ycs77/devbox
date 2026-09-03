@@ -1,5 +1,5 @@
-import { PACKAGED_AGENTS } from './catalog/index.js'
-import { currentHostEnvironment, type HostEnvironment } from './host.js'
+import { PACKAGED_AGENTS } from '../catalog/index.js'
+import { currentHostEnvironment, type HostEnvironment } from '../host.js'
 
 export async function ensureSharedAgentVolumes(
   configuredAgents: readonly string[],

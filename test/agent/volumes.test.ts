@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { ensureSharedAgentVolumes } from '../src/shared-agent-volumes.js'
+import { ensureSharedAgentVolumes } from '../../src/agent/volumes.js'
 
 describe('ensureSharedAgentVolumes', () => {
   it('creates only Shared Agent volumes for the Configured Agent set', async () => {
