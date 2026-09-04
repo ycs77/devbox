@@ -25,7 +25,6 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest",
     "check": "pnpm lint && pnpm fmt --check && pnpm typecheck && pnpm test --run",
-    "pack:cli": "pnpm pack",
     "smoke:cli": "node scripts/package-devbox-smoke.mjs",
     "release": "bumpp --commit \"Release v%s\"",
     "prepack": "pnpm build"
