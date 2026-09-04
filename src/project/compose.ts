@@ -1,11 +1,12 @@
 import { parse, stringify } from 'yaml'
-import { selectComposeFragments, type ComposeFragmentSelectionInput } from './compose-fragments.js'
 import { failure, success, type Result } from '../result.js'
 import { WORKSPACE_IMAGE } from '../workspace/image.js'
+import { selectComposeFragments, type ComposeFragmentSelectionInput } from './compose-fragments.js'
 
 export interface ProjectComposeInput extends ComposeFragmentSelectionInput {
   readonly projectRoot: string
   readonly sandboxName: string
+  readonly claudeHostConfiguration: string | undefined
 }
 
 interface RenderedProjectCompose {
@@ -44,6 +45,15 @@ export function renderProjectCompose(input: ProjectComposeInput): Result<string>
       source: fragment.volume.name,
       target: fragment.volume.target,
     })),
+    ...(input.claudeHostConfiguration === undefined
+      ? []
+      : [
+          {
+            type: 'bind',
+            source: input.claudeHostConfiguration,
+            target: '/home/devbox/.claude.json',
+          },
+        ]),
     ...(fragments.notification === undefined
       ? []
       : [

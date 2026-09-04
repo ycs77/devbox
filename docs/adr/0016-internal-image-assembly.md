@@ -4,7 +4,7 @@
 
 ADR-0029 supersedes per-Toolchain Workspace candidates and assembly, ADR-0030 removes the public `sync` command, ADR-0032 removes persisted Workspace identity, ADR-0034 introduces the explicit public build pipeline and removes post-build verification, and ADR-0035 folds Base materialization into that single Workspace build. Build accepts one fully resolved Platform plan, generates the machine-owned Dockerfile, and invokes Docker directly against `devbox-workspace:latest`.
 
-Devbox exposes the public global `build` command but no internal-artifact targets. `update` resolves and atomically publishes the exact Platform lock without invoking Docker; `build` alone consumes that lock, regenerates the common Workspace context, and publishes `devbox-workspace:latest`; `up` never invokes Build. AI Agent and Devbox-added Node-tool installation occurs later in the Sandbox entrypoint and never calls the Build module.
+Devbox exposes the public global `build` command but no internal-artifact targets. `update` resolves and atomically publishes the exact Platform lock without invoking Docker; `build` alone consumes that lock, regenerates the common Workspace context, installs Configured Agents, and publishes `devbox-workspace:latest`; `up` never invokes Build.
 
 The Build module accepts one immutable, fully resolved current Platform plan. It owns Workspace-context generation, Docker invocation, cancellation, and publication of `devbox-workspace:latest`, while never reading Project or Local configuration, resolving upstream versions, activating or serializing an existing Platform lock, rendering Compose, or managing Sandbox lifecycle.
 

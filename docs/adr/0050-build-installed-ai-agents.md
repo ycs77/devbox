@@ -1,0 +1,7 @@
+# Install Configured Agents in the Workspace image
+
+Devbox builds every Agent in the Configured Agent set into the shared Workspace image so a newly created or recreated Sandbox has its launchers immediately. `claude-code`, `codex`, `agy`, and `omp` use their packaged official `curl | bash` or `curl | sh` installer recipes as the non-root `devbox` user; the image exposes `/home/devbox/.local/bin` through `PATH`. Agent installation is independent of Configured Runtimes, while Agent Skills remain Node-dependent and support Claude Code and Codex only.
+
+Build uses Docker's ordinary layer cache by default. An installer resolves upstream `latest` only when Docker executes its layer; `devbox build --no-cache` forwards Docker's full-build cache bypass. Devbox deliberately does not add pipeline hardening, download staging, command lookup, version checks, or Agent smoke tests: Docker success is the only build contract and does not guarantee every launcher is usable. Agent executables remain outside the Platform lock and no Agent version registry is retained.
+
+Agent homes remain user-scope external Docker volumes. Claude additionally uses the user-owned `~/.devbox/agents/claude/.claude.json`: when Claude is configured, Devbox creates the missing file atomically with `{}`, never overwrites an existing file, and generated Compose binds it read-write at `/home/devbox/.claude.json`. Removing Claude, removing a Project, and Cleanup retain this file.

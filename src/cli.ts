@@ -21,6 +21,7 @@ type CliResult = Result<CliSuccess>
 interface CommandOptions {
   readonly yes?: boolean
   readonly missingProjects?: boolean
+  readonly cache?: boolean
 }
 
 function createCli(signal: AbortSignal, interactive: boolean): CAC {
@@ -87,8 +88,9 @@ function createCli(signal: AbortSignal, interactive: boolean): CAC {
 
   cli
     .command('build', 'Build the shared Workspace image from Global configuration.')
-    .action(async (): Promise<CliResult> => {
-      const result = await buildWorkspace({ signal })
+    .option('--cache, --no-cache', 'Use Docker layer cache.', { default: true })
+    .action(async (options: CommandOptions = {}): Promise<CliResult> => {
+      const result = await buildWorkspace({ signal, noCache: options.cache === false })
       if (!result.ok) {
         return result
       }

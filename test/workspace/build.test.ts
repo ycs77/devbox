@@ -107,18 +107,19 @@ describe('buildWorkspace', () => {
     }
   })
 
-  it('builds the Configured Runtime set and installs skills with the Build Node Runtime', async () => {
+  it('builds the Configured Runtime and Agent sets with the Build Node Runtime', async () => {
     const sandbox = await temporaryDirectory()
     const devboxHome = join(sandbox, '.devbox')
     await writeGlobalConfiguration(devboxHome, {
       node: ['22', '24'],
-      agent: ['claude-code', 'codex', 'agy'],
+      agent: ['claude-code', 'codex', 'agy', 'omp'],
     })
     let invocation: DockerBuildInvocation | undefined
     let dockerfile = ''
 
     const result = await buildWorkspace({
       devboxHome,
+      noCache: true,
       executeDockerBuild: async input => {
         invocation = input
         dockerfile = await readFile(join(input.context, 'Dockerfile'), 'utf8')
@@ -130,17 +131,24 @@ describe('buildWorkspace', () => {
     expect(invocation).toMatchObject({
       context: join(devboxHome, 'build'),
       image: WORKSPACE_IMAGE,
+      noCache: true,
     })
     expect(dockerfile).toContain('NODE_RUNTIME_VERSION=22.23.2')
     expect(dockerfile).toContain('NODE_RUNTIME_VERSION=24.19.0')
     expect(dockerfile).toContain('export PATH="/opt/devbox/runtimes/node/24/bin:$PATH"')
+    expect(dockerfile).toContain('curl -fsSL https://claude.ai/install.sh | bash')
+    expect(dockerfile).toContain('curl -fsSL https://chatgpt.com/codex/install.sh | sh')
+    expect(dockerfile).toContain('curl -fsSL https://antigravity.google/cli/install.sh | bash')
+    expect(dockerfile).toContain('curl -fsSL https://omp.sh/install | sh')
+    expect(dockerfile).toContain('ENV PATH="/home/devbox/.local/bin:${PATH}"')
     expect(dockerfile).toContain(
       "npx -y skills add ycs77/skills -g -a claude-code -a codex -s '*' -y",
     )
     expect(dockerfile).not.toContain(' -a agy ')
+    expect(dockerfile).not.toContain(' -a omp ')
   })
 
-  it('omits skill installation when configured agents do not support it', async () => {
+  it('installs Agents that do not support skills', async () => {
     const sandbox = await temporaryDirectory()
     const devboxHome = join(sandbox, '.devbox')
     await writeGlobalConfiguration(devboxHome, {
@@ -158,12 +166,13 @@ describe('buildWorkspace', () => {
     })
 
     expect(result).toEqual({ ok: true, value: { image: WORKSPACE_IMAGE } })
-    expect(dockerfile).toContain('NODE_RUNTIME_VERSION=24.19.0')
+    expect(dockerfile).toContain('curl -fsSL https://antigravity.google/cli/install.sh | bash')
+    expect(dockerfile).toContain('curl -fsSL https://omp.sh/install | sh')
     expect(dockerfile).not.toContain('Install Agent Skills')
     expect(dockerfile).not.toContain('skills add')
   })
 
-  it('omits skills and Node stages when no Node Runtime is configured', async () => {
+  it('installs Agents without Node Runtime or Agent Skills', async () => {
     const sandbox = await temporaryDirectory()
     const devboxHome = join(sandbox, '.devbox')
     await writeGlobalConfiguration(devboxHome, {
@@ -182,6 +191,8 @@ describe('buildWorkspace', () => {
 
     expect(result).toEqual({ ok: true, value: { image: WORKSPACE_IMAGE } })
     expect(dockerfile).not.toContain('NODE_RUNTIME_VERSION')
+    expect(dockerfile).toContain('curl -fsSL https://claude.ai/install.sh | bash')
+    expect(dockerfile).toContain('ENV PATH="/home/devbox/.local/bin:${PATH}"')
     expect(dockerfile).not.toContain('skills add')
     expect(dockerfile).not.toContain('/opt/devbox/runtimes')
   })

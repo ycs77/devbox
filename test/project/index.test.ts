@@ -175,6 +175,9 @@ describe('initializeProject', () => {
     if (!project.ok) {
       throw new Error(project.error.observed)
     }
+    await expect(
+      readFile(join(devboxHome, 'agents', 'claude', '.claude.json'), 'utf8'),
+    ).resolves.toBe('{}\n')
     expect(
       parse(await readFile(join(project.value.stateDirectory, 'compose.yaml'), 'utf8')),
     ).toEqual({
@@ -212,6 +215,11 @@ describe('initializeProject', () => {
             },
             {
               type: 'bind',
+              source: join(devboxHome, 'agents', 'claude', '.claude.json'),
+              target: '/home/devbox/.claude.json',
+            },
+            {
+              type: 'bind',
               source: '/mnt/wslg/runtime-dir/pulse/native',
               target: '/tmp/pulse-socket',
               read_only: true,
@@ -224,6 +232,39 @@ describe('initializeProject', () => {
         'devbox-agy': { name: 'devbox-agy', external: true },
       },
     })
+  })
+
+  it('preserves existing Claude host configuration while regenerating Compose', async () => {
+    const sandbox = await temporaryDirectory()
+    const projectRoot = join(sandbox, 'project')
+    const devboxHome = join(sandbox, 'user-state', '.devbox')
+    await mkdir(projectRoot)
+    const project = await initializeProject({
+      root: projectRoot,
+      devboxHome,
+      validateHost: async () => success(undefined),
+      confirm: async () => true,
+      initialGlobalConfiguration: {
+        version: 1,
+        node: ['24'],
+        agent: ['claude-code'],
+        agent_notifications: false,
+      },
+      initialLocalConfiguration: { version: 1, node: '24' },
+    })
+    expect(project).toMatchObject({ ok: true, value: { created: true } })
+    const configuration = join(devboxHome, 'agents', 'claude', '.claude.json')
+    await writeFile(configuration, '{"theme":"dark"}\n')
+
+    const regenerated = await initializeProject({
+      root: projectRoot,
+      devboxHome,
+      validateHost: async () => success(undefined),
+      confirm: async () => true,
+    })
+
+    expect(regenerated).toMatchObject({ ok: true, value: { created: false } })
+    await expect(readFile(configuration, 'utf8')).resolves.toBe('{"theme":"dark"}\n')
   })
 
   it('regenerates a retained definition from registered configuration', async () => {

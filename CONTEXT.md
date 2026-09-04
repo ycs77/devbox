@@ -17,7 +17,9 @@ The finite package-managed set of Runtime family and release-line pairs that Dev
 **Runtime recipe**:
 A packaged, family-owned definition of a Runtime release line, including its supported source version and the behavior needed to make that Runtime available in a Workspace image.
 **Agent catalog**:
-The finite package-managed set of AI Agents that Devbox can install through an official Runtime-independent installation path compatible with the current Base profile and runnable by the Sandbox user without elevation. An AI Agent enters the catalog only through a Devbox package update.
+The finite package-managed set of AI Agents that Devbox can install into a Workspace image through an official Runtime-independent path compatible with the current Base profile and runnable by the Sandbox user without elevation. An AI Agent enters the catalog only through a Devbox package update.
+**Agent recipe**:
+A packaged, Agent-owned definition of the official installer and command path required to make one AI Agent available in a Workspace image.
 
 **Built-in suggestions**:
 The ordered Runtime catalog entries presented as Devbox's Runtime choices. The two sets are identical, and the first entry for a family is its initialization default.
@@ -35,7 +37,7 @@ The single versioned userland ABI shared by Devbox and every compatible Runtime 
 A Base-profile-compatible, independently reusable Runtime installation placed at an isolated path and linked into Workspace images.
 
 **Workspace image**:
-An immutable image built from the Base profile and the Configured Runtime set through packaged Runtime recipes, then shared by every Project Sandbox independently of its Toolchain. Its latest successful build is used for new or recreated Sandboxes, while existing Sandbox containers may continue using an older build.
+An immutable image built from the Base profile, Configured Runtime set, and Configured Agent set through packaged recipes, then shared by every Project Sandbox independently of its Toolchain. Its latest successful build is used for new or recreated Sandboxes, while existing Sandbox containers may continue using an older build.
 
 **AI Agent**:
 An AI coding agent from the Configured Agent set that works inside every Project Sandbox with writable access to its Project workspace.
@@ -45,6 +47,9 @@ The user-scope subset of Agent catalog entries selected in Global configuration 
 
 **Agent credentials**:
 The authentication material stored in an Agent home, shared across Devbox projects but kept separate from the developer's normal host credentials.
+
+**Claude host configuration**:
+A user-owned Claude configuration file retained in Devbox user scope and mounted read-write into every Sandbox with `claude-code` configured. Devbox creates its empty default only when absent and never overwrites it.
 
 **Agent home**:
 A Devbox-managed user-scope home for one AI Agent's credentials, configuration, and mutable state, shared read-write across every Project Sandbox and kept separate from the developer's normal host Agent home. Every Sandbox-user process can read or modify every mounted Agent home. It is retained as user data independently of Agent availability, Project registration, Sandbox lifecycle, and Cleanup.

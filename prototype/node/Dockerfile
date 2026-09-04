@@ -196,6 +196,9 @@ RUN mkdir -p /home/devbox/.gemini \
 RUN mkdir -p /home/devbox/.omp \
     && curl -fsSL https://omp.sh/install | sh
 
+# Set the PATH to include AI tools
+ENV PATH="/home/devbox/.local/bin:${PATH}"
+
 # Install Agent Skills
 RUN set -eux \
     && mkdir -p /home/devbox/.agents/skills \
@@ -203,9 +206,6 @@ RUN set -eux \
     && npx -y skills add ycs77/skills -g -a claude-code -a codex -s '*' -y
 
 USER root
-
-# Set the PATH to include AI tools
-ENV PATH="/home/devbox/.local/bin:${PATH}"
 
 # Copy dotfiles
 COPY prototype/node/.bash_aliases /home/devbox/.bash_aliases

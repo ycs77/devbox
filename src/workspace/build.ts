@@ -3,7 +3,12 @@ import { once } from 'node:events'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { PACKAGED_AGENTS, PACKAGED_NODE_RECIPES, type NodeRuntimeRecipe } from '../catalog/index.js'
+import {
+  PACKAGED_AGENTS,
+  PACKAGED_NODE_RECIPES,
+  type NodeRuntimeRecipe,
+  type PackagedAgent,
+} from '../catalog/index.js'
 import {
   normalizeCatalog,
   parseGlobalConfiguration,
@@ -19,15 +24,22 @@ export { WORKSPACE_IMAGE } from './image.js'
 export interface DockerBuildInvocation {
   readonly context: string
   readonly image: string
+  readonly noCache: boolean
 }
 
 export interface BuildWorkspaceInput {
   readonly devboxHome?: string
   readonly signal?: AbortSignal
+  readonly noCache?: boolean
   readonly executeDockerBuild?: (
     invocation: DockerBuildInvocation,
     signal?: AbortSignal,
   ) => Promise<Result<void>>
+}
+
+interface ConfiguredAgent {
+  readonly name: string
+  readonly recipe: PackagedAgent
 }
 
 export interface WorkspaceBuild {
@@ -82,11 +94,14 @@ async function buildWorkspaceUnlocked(input: BuildWorkspaceInput): Promise<Build
   const dockerfile = renderBuildDockerfile({
     nodeRuntimes: globalConfiguration.node.map(releaseLine => PACKAGED_NODE_RECIPES[releaseLine]),
     buildNodeRuntime: buildNodeRuntimeRecipe(globalConfiguration),
+    agents: globalConfiguration.agent.map(name => ({
+      name,
+      recipe: PACKAGED_AGENTS[name],
+    })),
     skillAgents: globalConfiguration.agent.filter(
       agent => PACKAGED_AGENTS[agent]?.supportsSkillInstallation === true,
     ),
   })
-
   await rm(paths.buildContext, { recursive: true, force: true })
   await mkdir(paths.buildContext, { recursive: true })
   await writeFile(join(paths.buildContext, 'Dockerfile'), dockerfile)
@@ -100,10 +115,11 @@ async function buildWorkspaceUnlocked(input: BuildWorkspaceInput): Promise<Build
   }
 
   const execute = input.executeDockerBuild ?? runDockerBuild
-  const buildResult = await execute(
-    { context: paths.buildContext, image: WORKSPACE_IMAGE },
-    input.signal,
-  )
+  const buildResult = await execute({
+    context: paths.buildContext,
+    image: WORKSPACE_IMAGE,
+    noCache: input.noCache === true,
+  })
   if (!buildResult.ok) {
     return buildResult
   }
@@ -130,6 +146,7 @@ function buildNodeRuntimeRecipe(
 function renderBuildDockerfile(input: {
   readonly nodeRuntimes: readonly NodeRuntimeRecipe[]
   readonly buildNodeRuntime: NodeRuntimeRecipe | undefined
+  readonly agents: readonly ConfiguredAgent[]
   readonly skillAgents: readonly string[]
 }): string {
   const lines: string[] = [
@@ -178,21 +195,37 @@ function renderBuildDockerfile(input: {
       '    && chown devbox:devbox /home/devbox/.config/pnpm/config.yaml',
       '',
     )
-
-    if (input.skillAgents.length > 0) {
-      const skillAgentArguments = input.skillAgents.map(agent => `-a ${agent}`).join(' ')
-      lines.push(
-        '# Install Agent Skills',
-        'RUN set -eux \\',
-        '    && mkdir -p /home/devbox/.agents/skills \\',
-        `    && export PATH="${input.buildNodeRuntime.runtimeRoot}/bin:$PATH" \\`,
-        `    && npx -y skills add ycs77/skills -g ${skillAgentArguments} -s '*' -y`,
-        '',
-      )
-    }
   }
 
-  lines.push('USER root', '')
+  for (const agent of input.agents) {
+    lines.push(
+      `# Install ${agent.name}`,
+      `RUN mkdir -p ${agent.recipe.home.target} \\`,
+      `    && curl -fsSL ${agent.recipe.installation.url} | ${agent.recipe.installation.shell}`,
+      '',
+    )
+  }
+  if (input.agents.length > 0) {
+    lines.push(
+      '# Set the PATH to include AI tools',
+      'ENV PATH="/home/devbox/.local/bin:${PATH}"',
+      '',
+    )
+  }
+
+  if (input.buildNodeRuntime !== undefined && input.skillAgents.length > 0) {
+    const skillAgentArguments = input.skillAgents.map(agent => `-a ${agent}`).join(' ')
+    lines.push(
+      '# Install Agent Skills',
+      'RUN set -eux \\',
+      '    && mkdir -p /home/devbox/.agents/skills \\',
+      `    && export PATH="${input.buildNodeRuntime.runtimeRoot}/bin:$PATH" \\`,
+      `    && npx -y skills add ycs77/skills -g ${skillAgentArguments} -s '*' -y`,
+      '',
+    )
+  }
+
+  lines.push('USER root')
 
   return `${lines.join('\n')}\n`
 }
@@ -258,6 +291,7 @@ async function runDockerBuild(
     'docker',
     [
       'build',
+      ...(invocation.noCache ? ['--no-cache'] : []),
       '--tag',
       invocation.image,
       '--file',

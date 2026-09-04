@@ -1,6 +1,6 @@
 # Ship the v0.x line as a Node-only MVP
 
-ADR-0029 supersedes this decision's per-Toolchain Workspace-image shape, ADR-0030 and ADR-0031 supersede its fixed configuration and Runtime assumptions, ADR-0034 supersedes its public commands and implicit preparation flow, ADR-0037 replaces Debian with Ubuntu 24.04, and ADR-0041 adds Runtime-independent Agents and floating Node tools through Sandbox bootstrap. Only the deliberately Node-only delivery stage, WSL2 `linux/amd64` host, and deferral of PHP, Services, and other hosts remain in force until later stage decisions change them.
+ADR-0029 supersedes this decision's per-Toolchain Workspace-image shape, ADR-0030 and ADR-0031 supersede its fixed configuration and Runtime assumptions, ADR-0034 supersedes its public commands and implicit preparation flow, and ADR-0037 replaces Debian with Ubuntu 24.04. Only the deliberately Node-only delivery stage, WSL2 `linux/amd64` host, and deferral of PHP, Services, and other hosts remain in force until later stage decisions change them.
 
 ## Superseded historical MVP shape
 

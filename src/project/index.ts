@@ -41,6 +41,7 @@ export interface DevboxPaths {
   readonly projectRegistry: string
   readonly projects: string
   readonly buildContext: string
+  readonly claudeHostConfiguration: string
 }
 
 export interface ConfirmationDetails {
@@ -141,6 +142,7 @@ export function devboxPaths(devboxHome = join(homedir(), '.devbox')): DevboxPath
     projectRegistry: join(devboxHome, 'projects.yaml'),
     projects: join(devboxHome, 'projects'),
     buildContext: join(devboxHome, 'build'),
+    claudeHostConfiguration: join(devboxHome, 'agents', 'claude', '.claude.json'),
   }
 }
 
@@ -389,6 +391,7 @@ async function initializeProjectUnlocked(
     projectRoot,
     sandboxName: name,
     stateDirectory,
+    devboxHome: paths.home,
     globalConfiguration,
     localConfiguration,
   })
@@ -561,6 +564,7 @@ async function configureLocalProjectUnlocked(
     projectRoot,
     sandboxName: registration.name,
     stateDirectory,
+    devboxHome: paths.home,
     globalConfiguration: globalCheck.value,
     localConfiguration: nextCheck.value,
   })
@@ -734,6 +738,7 @@ async function configureGlobalUnlocked(
       projectRoot: root,
       sandboxName: registration.name,
       stateDirectory: projectStateDirectory(registration.identity, paths.home),
+      devboxHome: paths.home,
       globalConfiguration: nextCheck.value,
       localConfiguration: replacementConfigurations.get(root) ?? localConfigurations.get(root)!,
     })
@@ -1153,15 +1158,25 @@ async function composeStateWrite(input: {
   readonly projectRoot: string
   readonly sandboxName: string
   readonly stateDirectory: string
+  readonly devboxHome: string
   readonly globalConfiguration: GlobalConfiguration
   readonly localConfiguration: LocalConfiguration
 }): Promise<Result<StateWrite>> {
+  const claudeHostConfiguration = await ensureClaudeHostConfiguration(
+    input.devboxHome,
+    input.globalConfiguration,
+  )
+  if (!claudeHostConfiguration.ok) {
+    return claudeHostConfiguration
+  }
+
   const rendered = renderProjectCompose({
     projectRoot: input.projectRoot,
     sandboxName: input.sandboxName,
     selectedNode: input.localConfiguration.node,
     configuredAgents: input.globalConfiguration.agent,
     agentNotifications: input.globalConfiguration.agent_notifications,
+    claudeHostConfiguration: claudeHostConfiguration.value,
   })
   if (!rendered.ok) {
     return rendered
@@ -1172,6 +1187,54 @@ async function composeStateWrite(input: {
     return previous
   }
   return success({ path, content: rendered.value, previous: previous.value })
+}
+
+async function ensureClaudeHostConfiguration(
+  devboxHome: string,
+  globalConfiguration: GlobalConfiguration,
+): Promise<Result<string | undefined>> {
+  if (!globalConfiguration.agent.includes('claude-code')) {
+    return success(undefined)
+  }
+
+  const path = devboxPaths(devboxHome).claudeHostConfiguration
+  try {
+    const metadata = await lstat(path)
+    if (metadata.isFile()) {
+      return success(path)
+    }
+    return failure({
+      kind: 'operational',
+      code: 'claude-host-configuration-invalid',
+      observed: `Claude host configuration is not a regular file: ${path}.`,
+      nextAction: 'Replace it with a regular file, then run the command again.',
+    })
+  } catch (error) {
+    if (!isMissingFileError(error)) {
+      return failure({
+        kind: 'operational',
+        code: 'claude-host-configuration-unreadable',
+        observed: `Devbox could not inspect Claude host configuration: ${path}.`,
+        nextAction: 'Check access to ~/.devbox and run the command again.',
+      })
+    }
+  }
+
+  try {
+    await mkdir(dirname(path), { recursive: true, mode: 0o700 })
+    await writeFile(path, '{}\n', { encoding: 'utf8', flag: 'wx', mode: 0o600 })
+    return success(path)
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
+      return ensureClaudeHostConfiguration(devboxHome, globalConfiguration)
+    }
+    return failure({
+      kind: 'operational',
+      code: 'claude-host-configuration-write-failed',
+      observed: `Devbox could not create Claude host configuration: ${path}.`,
+      nextAction: 'Check write access to ~/.devbox and run the command again.',
+    })
+  }
 }
 
 interface StateWrite {

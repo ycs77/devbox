@@ -1,6 +1,6 @@
 # Assemble Workspace images from isolated Runtime bundles
 
-ADR-0029 supersedes this decision's per-Toolchain Workspace-image assembly, layer-chain, and unselected-Runtime behavior. ADR-0032 further removes the Workspace fingerprint and immutable fingerprint tags in favor of one identityless `devbox-workspace:latest` publication. ADR-0036 supersedes Node source-image relocation with a family-owned recipe that installs the official binary tarball directly, ADR-0037 invalidates the Trixie-specific Runtime assembly evidence below, and ADR-0041 supersedes build-time Node package-manager installation with first-start Sandbox bootstrap. Isolated Runtime contents and recipe-owned PHP, Composer, and extension responsibilities remain applicable when the deferred PHP recipe is decided.
+ADR-0029 supersedes this decision's per-Toolchain Workspace-image assembly, layer-chain, and unselected-Runtime behavior. ADR-0032 further removes the Workspace fingerprint and immutable fingerprint tags in favor of one identityless `devbox-workspace:latest` publication. ADR-0036 supersedes Node source-image relocation with a family-owned recipe that installs the official binary tarball directly, and ADR-0037 invalidates the Trixie-specific Runtime assembly evidence below. Isolated Runtime contents and recipe-owned PHP, Composer, and extension responsibilities remain applicable when the deferred PHP recipe is decided.
 
 ## Superseded historical design and evidence
 

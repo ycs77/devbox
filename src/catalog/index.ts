@@ -3,6 +3,10 @@ export interface PackagedAgent {
     readonly volumeName: string
     readonly target: string
   }
+  readonly installation: {
+    readonly url: string
+    readonly shell: 'bash' | 'sh'
+  }
   readonly supportsNotifications: boolean
   readonly supportsSkillInstallation: boolean
 }
@@ -46,21 +50,25 @@ export const PACKAGED_NODE_RELEASE_LINES = ['24', '22'] as const
 export const PACKAGED_AGENTS: Readonly<Record<string, PackagedAgent>> = {
   'claude-code': {
     home: { volumeName: 'devbox-claude', target: '/home/devbox/.claude' },
+    installation: { url: 'https://claude.ai/install.sh', shell: 'bash' },
     supportsNotifications: true,
     supportsSkillInstallation: true,
   },
   codex: {
     home: { volumeName: 'devbox-codex', target: '/home/devbox/.codex' },
+    installation: { url: 'https://chatgpt.com/codex/install.sh', shell: 'sh' },
     supportsNotifications: true,
     supportsSkillInstallation: true,
   },
   agy: {
     home: { volumeName: 'devbox-agy', target: '/home/devbox/.gemini' },
+    installation: { url: 'https://antigravity.google/cli/install.sh', shell: 'bash' },
     supportsNotifications: false,
     supportsSkillInstallation: false,
   },
   omp: {
     home: { volumeName: 'devbox-omp', target: '/home/devbox/.omp' },
+    installation: { url: 'https://omp.sh/install', shell: 'sh' },
     supportsNotifications: true,
     supportsSkillInstallation: false,
   },

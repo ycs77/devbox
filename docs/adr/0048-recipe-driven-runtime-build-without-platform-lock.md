@@ -2,7 +2,7 @@
 
 ## Status
 
-Current decision as of 2026-08-14. This ADR supersedes the Platform-lock, exact-source-resolution, and Node-tool-placement portions of ADR-0034, ADR-0035, ADR-0036, ADR-0039, ADR-0041, ADR-0043, ADR-0047, and the related Issue #16/#17 contracts. Historical ADR text remains as design history; this ADR is the current implementation direction.
+Current decision as of 2026-08-14. This ADR supersedes the Platform-lock, exact-source-resolution, and Node-tool-placement portions of ADR-0034, ADR-0035, ADR-0036, ADR-0039, ADR-0043, ADR-0047, and the related Issue #16/#17 contracts. This ADR is the current Runtime implementation direction.
 
 ## Decision
 
