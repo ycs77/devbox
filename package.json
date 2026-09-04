@@ -1,7 +1,21 @@
 {
   "name": "@ycs77/devbox",
   "version": "0.1.0",
-  "description": "Devbox Node-only MVP CLI",
+  "description": "AI-first containerized development environment for Node.js projects",
+  "keywords": [
+    "agent",
+    "agentic",
+    "ai",
+    "ai-agents",
+    "claude-code",
+    "cli",
+    "codex",
+    "container",
+    "devcontainer",
+    "development",
+    "docker",
+    "nodejs"
+  ],
   "homepage": "https://github.com/ycs77/devbox",
   "license": "MIT",
   "repository": {
