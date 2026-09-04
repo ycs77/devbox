@@ -1,7 +1,7 @@
 {
   "name": "@ycs77/devbox",
   "version": "0.2.0",
-  "description": "AI-first containerized development environment for Node.js projects",
+  "description": "A containerized devbox for AI agents",
   "keywords": [
     "agent",
     "agentic",

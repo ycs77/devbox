@@ -2,7 +2,7 @@
 
 # @ycs77/devbox
 
-**以 AI 為優先、容器化的開發環境。**
+**為 AI Agent 設計的容器化 Devbox。**
 
 [![NPM version][ico-version]][link-npm]
 [![Software License][ico-license]](LICENSE)
@@ -17,13 +17,13 @@
 
 ## 概覽
 
-Devbox 為每個專案提供隔離的 Docker 沙箱，以及 Lucas 的個人偏好開發設定。選擇 Node.js 版本與要使用的 AI Agent，即可在一致的環境中工作，無須自行設定容器。
+Devbox 為每個專案提供一個為 AI Agent 設計、簡單且隔離的 Docker 沙箱，以及 Lucas 的個人偏好開發設定。選擇 Node.js 發行線與要使用的 AI Agent，即可在一致的容器環境中工作，無須自行設定容器。
 
 ## 功能
 
-- **AI 優先工作環境：** 為 AI 輔助開發而打造，可在設定期間選擇 Claude Code、Codex 等。
-- **簡單的專案生命週期：** 透過幾個指令即可初始化、啟動、進入、停止與移除沙箱。
-- **快速切換 Node.js 版本：** 設定 Node.js 22 與 24，再為每個專案選擇版本。
+- **為 AI Agent 設計的容器環境：** 可在設定期間選擇 Claude Code、Codex 等，並在沙箱內使用。
+- **簡單的設定與專案生命週期：** 透過幾個指令即可初始化、啟動、進入、停止與移除沙箱。
+- **可彈性選擇 Node.js 環境：** 設定 Node.js 22 與 24，再為每個專案選擇版本。
 - **依選擇建置：** 只建置你選擇的 Node.js 版本與 AI Agent。
 - **不需要專案設定檔：** Devbox 設定只儲存在本機，不會寫入儲存庫。
 

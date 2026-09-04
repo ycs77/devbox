@@ -2,7 +2,7 @@
 
 # @ycs77/devbox
 
-**An AI-first, containerized development environment.**
+**A containerized devbox for AI agents.**
 
 [![NPM version][ico-version]][link-npm]
 [![Software License][ico-license]](LICENSE)
@@ -17,13 +17,13 @@ English | [繁體中文](README-zh-TW.md)
 
 ## Overview
 
-Devbox gives each project an isolated Docker sandbox with Lucas's opinionated development setup. Choose a Node.js version and the AI agents you use, then work from a consistent environment without configuring containers yourself.
+Devbox gives each project an isolated Docker sandbox designed for AI agents, with Lucas's opinionated development setup. Choose the Node.js release lines and AI agents you use, then work from a consistent container without configuring it yourself.
 
 ## Features
 
-- **AI-first workspace:** built for AI-assisted development, with Claude Code, Codex, and more available during setup.
-- **Simple project lifecycle:** initialize, start, enter, stop, and remove a sandbox with a few commands.
-- **Fast Node.js switching:** configure Node.js 22 and 24, then select a version for each project.
+- **Container environment for AI agents:** choose Claude Code, Codex, and more during setup, then use them inside the sandbox.
+- **Simple setup and project lifecycle:** initialize, start, enter, stop, and remove a sandbox with a few commands.
+- **Flexible Node.js environments:** configure Node.js 22 and 24, then select a version for each project.
 - **Selective builds:** build only the Node.js versions and AI agents you choose.
 - **No project configuration files:** keep Devbox configuration local to your machine, not in your repository.
 
