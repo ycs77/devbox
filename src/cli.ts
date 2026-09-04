@@ -1,6 +1,7 @@
 import type { CAC } from 'cac'
 import { cac } from 'cac'
 import { createConfigurationPrompter } from './configuration/prompter.js'
+import { HostCommandError } from './host.js'
 import {
   cleanupMissingProjects,
   configureGlobal,
@@ -8,6 +9,7 @@ import {
   initializeProject,
   InterruptedError,
   removeProject,
+  runSandboxLifecycle,
 } from './project/index.js'
 import { failure, success, type Result } from './result.js'
 import { buildWorkspace } from './workspace/build.js'
@@ -152,6 +154,18 @@ function createCli(signal: AbortSignal, interactive: boolean): CAC {
       })
     })
 
+  for (const [command, description] of [
+    ['up', 'Start the current Project Sandbox.'],
+    ['down', 'Stop and remove the current Project Sandbox.'],
+    ['stop', 'Stop the current Project Sandbox.'],
+    ['sh', 'Open a shell in the current Project Sandbox.'],
+  ] as const) {
+    cli.command(command, description).action(async (): Promise<CliResult> => {
+      const result = await runSandboxLifecycle(command, { signal })
+      return result.ok ? success({}) : result
+    })
+  }
+
   cli.help()
 
   return cli
@@ -187,6 +201,9 @@ async function main(): Promise<number> {
     if (error instanceof InterruptedError || abortController.signal.aborted) {
       process.stderr.write('Devbox command interrupted.\n')
       return 130
+    }
+    if (error instanceof HostCommandError) {
+      return error.exitCode
     }
 
     throw error

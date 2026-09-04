@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { lstat, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { basename, dirname, isAbsolute, join, parse, relative, sep } from 'node:path'
+import { ensureSharedAgentVolumes } from '../agent/volumes.js'
 import {
   configurationsEqual,
   defaultGlobalConfiguration,
@@ -15,7 +16,7 @@ import {
   type LocalConfiguration,
   type RuntimeCatalog,
 } from '../configuration/index.js'
-import { validateSupportedHost } from '../host.js'
+import { currentHostEnvironment, type HostEnvironment, validateSupportedHost } from '../host.js'
 import { failure, success, type Result } from '../result.js'
 import { withStateLocks, type StateLockContext } from '../state-lock/index.js'
 import { renderProjectCompose } from './compose.js'
@@ -114,6 +115,15 @@ export interface CleanupMissingProjectsInput {
   readonly yes?: boolean
 }
 
+export type SandboxLifecycleCommand = 'up' | 'down' | 'stop' | 'sh'
+
+export interface SandboxLifecycleInput {
+  readonly root?: string
+  readonly devboxHome?: string
+  readonly signal?: AbortSignal
+  readonly environment?: HostEnvironment
+}
+
 export interface ConfigurationOperation {
   readonly scope: 'global' | 'local'
   readonly root?: string
@@ -134,6 +144,7 @@ export type ConfigureLocalResult = Result<ConfigurationOperation>
 export type ConfigureGlobalResult = Result<ConfigurationOperation>
 export type RemoveProjectResult = Result<ProjectRemoval>
 export type CleanupMissingProjectsResult = Result<MissingProjectsCleanup>
+export type SandboxLifecycleResult = Result<void>
 
 export function devboxPaths(devboxHome = join(homedir(), '.devbox')): DevboxPaths {
   return {
@@ -976,6 +987,78 @@ async function cleanupMissingProjectsUnlocked(
     return written
   }
   return success({ roots: removedRoots, removed: true })
+}
+
+export async function runSandboxLifecycle(
+  command: SandboxLifecycleCommand,
+  input: SandboxLifecycleInput = {},
+): Promise<SandboxLifecycleResult> {
+  const projectRoot = input.root ?? process.cwd()
+  return withStateLocks(
+    {
+      devboxHome: input.devboxHome ?? join(homedir(), '.devbox'),
+      global: false,
+      projectRoots: [projectRoot],
+      signal: input.signal,
+    },
+    () => runSandboxLifecycleUnlocked(command, input, projectRoot),
+  )
+}
+
+async function runSandboxLifecycleUnlocked(
+  command: SandboxLifecycleCommand,
+  input: SandboxLifecycleInput,
+  projectRoot: string,
+): Promise<SandboxLifecycleResult> {
+  if (input.signal?.aborted) {
+    throw new InterruptedError()
+  }
+
+  const rootCheck = await validateProjectRoot(projectRoot)
+  if (!rootCheck.ok) {
+    return rootCheck
+  }
+
+  const paths = devboxPaths(input.devboxHome)
+  const registryCheck = await readRegistry(paths.projectRegistry)
+  if (!registryCheck.ok) {
+    return registryCheck
+  }
+  const registration = registryCheck.value.projects[projectRoot]
+  if (registration === undefined) {
+    return notRegistered(projectRoot)
+  }
+
+  const environment = input.environment ?? currentHostEnvironment()
+  if (command === 'up') {
+    const globalState = await readOptionalFile(paths.globalConfiguration)
+    if (!globalState.ok) {
+      return globalState
+    }
+    if (!globalState.value.exists) {
+      return missingConfiguration('global', paths.globalConfiguration)
+    }
+    const globalCheck = parseGlobalConfiguration(globalState.value.content)
+    if (!globalCheck.ok) {
+      return globalCheck
+    }
+    await ensureSharedAgentVolumes(globalCheck.value.agent, environment)
+  }
+
+  const composePath = join(projectStateDirectory(registration.identity, paths.home), 'compose.yaml')
+  const operation =
+    command === 'up'
+      ? ['up', '-d']
+      : command === 'sh'
+        ? ['exec', '--user', 'devbox', 'devbox', 'bash']
+        : [command]
+  await (environment.runDirect ?? environment.run)('docker', [
+    'compose',
+    '--file',
+    composePath,
+    ...operation,
+  ])
+  return success(undefined)
 }
 
 async function validateProjectRoot(projectRoot: string): Promise<Result<void>> {
