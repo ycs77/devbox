@@ -4,6 +4,7 @@ import { cac } from 'cac'
 import c from 'picocolors'
 import { createConfigurationPrompter } from './configuration/prompter.js'
 import { HostCommandError } from './host.js'
+import { showLogo } from './logo.js'
 import {
   cleanupMissingProjects,
   configureGlobal,
@@ -44,6 +45,9 @@ function createCli(signal: AbortSignal, interactive: boolean): CAC {
           'Run devbox init from a TTY before it writes Project state.',
         )
       }
+      console.log()
+      showLogo()
+      console.log()
       intro(c.bgCyan(' devbox '))
       const result = await initializeProject({ signal, prompt })
       if (!result.ok) {
