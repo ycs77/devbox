@@ -1,8 +1,8 @@
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import {
   PACKAGED_AGENTS,
   PACKAGED_NODE_RECIPES,
@@ -17,6 +17,10 @@ import {
 import { devboxPaths, InterruptedError } from '../project/index.js'
 import { failure, success, type Result } from '../result.js'
 import { withStateLocks } from '../state-lock/index.js'
+import bashAliases from './image-defaults/.bash_aliases?raw'
+import claudeSettings from './image-defaults/.claude/settings.json?raw'
+import gitconfig from './image-defaults/.gitconfig?raw'
+import ompAgentConfig from './image-defaults/.omp/agent/config.yml?raw'
 import { WORKSPACE_IMAGE } from './image.js'
 
 export { WORKSPACE_IMAGE } from './image.js'
@@ -41,6 +45,26 @@ interface ConfiguredAgent {
   readonly name: string
   readonly recipe: PackagedAgent
 }
+
+interface WorkspaceImageDefault {
+  readonly relativePath: string
+  readonly content: string
+}
+
+const BASE_WORKSPACE_IMAGE_DEFAULTS = [
+  { relativePath: '.bash_aliases', content: bashAliases },
+  { relativePath: '.gitconfig', content: gitconfig },
+] satisfies readonly WorkspaceImageDefault[]
+
+const CLAUDE_SETTINGS_DEFAULT = {
+  relativePath: '.claude/settings.json',
+  content: claudeSettings,
+} satisfies WorkspaceImageDefault
+
+const OMP_AGENT_CONFIG_DEFAULT = {
+  relativePath: '.omp/agent/config.yml',
+  content: ompAgentConfig,
+} satisfies WorkspaceImageDefault
 
 export interface WorkspaceBuild {
   readonly image: string
@@ -91,24 +115,33 @@ async function buildWorkspaceUnlocked(input: BuildWorkspaceInput): Promise<Build
   }
   const globalConfiguration: GlobalConfiguration = parsedGlobal.value
 
+  const agents = globalConfiguration.agent.map(name => ({
+    name,
+    recipe: PACKAGED_AGENTS[name],
+  }))
+  const buildContextAssets = selectBuildContextAssets(agents)
+  const nodeRuntimes = globalConfiguration.node.map(
+    releaseLine => PACKAGED_NODE_RECIPES[releaseLine],
+  )
   const dockerfile = renderBuildDockerfile({
-    nodeRuntimes: globalConfiguration.node.map(releaseLine => PACKAGED_NODE_RECIPES[releaseLine]),
+    nodeRuntimes,
     buildNodeRuntime: buildNodeRuntimeRecipe(globalConfiguration),
-    agents: globalConfiguration.agent.map(name => ({
-      name,
-      recipe: PACKAGED_AGENTS[name],
-    })),
+    agents,
     skillAgents: globalConfiguration.agent.filter(
       agent => PACKAGED_AGENTS[agent]?.supportsSkillInstallation === true,
     ),
   })
-  await rm(paths.buildContext, { recursive: true, force: true })
   await mkdir(paths.buildContext, { recursive: true })
-  await writeFile(join(paths.buildContext, 'Dockerfile'), dockerfile)
-  await writeFile(
-    join(paths.buildContext, '.dockerignore'),
-    '# Machine-owned Workspace build context\n*\n!Dockerfile\n',
-  )
+  await seedBuildContextAssets(paths.buildContext, buildContextAssets)
+  await Promise.all([
+    writeFile(join(paths.buildContext, 'Dockerfile'), dockerfile),
+    writeFile(join(paths.buildContext, '.dockerignore'), renderDockerignore(buildContextAssets)),
+    writeFile(
+      join(paths.buildContext, 'entrypoint.sh'),
+      renderEntrypoint({ nodeRuntimes, agents }),
+    ),
+    writeFile(join(paths.buildContext, 'supervisord.conf'), renderSupervisorConfiguration()),
+  ])
 
   if (input.signal?.aborted) {
     throw new InterruptedError()
@@ -225,8 +258,173 @@ function renderBuildDockerfile(input: {
     )
   }
 
-  lines.push('USER root')
+  lines.push(
+    'USER root',
+    '',
+    '# Copy dotfiles',
+    'COPY .bash_aliases /home/devbox/.bash_aliases',
+    'COPY .gitconfig /home/devbox/.gitconfig',
+    'RUN chown devbox:devbox /home/devbox/.bash_aliases \\',
+    '    && chown devbox:devbox /home/devbox/.gitconfig',
+    '',
+  )
 
+  const hasClaudeCode = input.agents.some(agent => agent.name === 'claude-code')
+  const hasOmp = input.agents.some(agent => agent.name === 'omp')
+  if (hasClaudeCode || hasOmp) {
+    const ownershipCommands: string[] = []
+    lines.push('# Copy AI dotfiles')
+    if (hasClaudeCode) {
+      lines.push('COPY .claude/settings.json /home/devbox/.claude/settings.json')
+      ownershipCommands.push('chown devbox:devbox /home/devbox/.claude/settings.json')
+    }
+    if (hasOmp) {
+      lines.push('COPY .omp/agent/config.yml /home/devbox/.omp/agent/config.yml')
+      ownershipCommands.push(
+        'chown devbox:devbox /home/devbox/.omp/agent',
+        'chown devbox:devbox /home/devbox/.omp/agent/config.yml',
+      )
+    }
+    lines.push(`RUN ${ownershipCommands.join(' \\\n    && ')}`, '')
+  }
+
+  lines.push(
+    'COPY entrypoint.sh /usr/local/bin/entrypoint.sh',
+    'COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf',
+    'RUN chmod +x /usr/local/bin/entrypoint.sh',
+    '',
+    'ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]',
+  )
+
+  return `${lines.join('\n')}\n`
+}
+
+function renderDockerignore(assets: readonly WorkspaceImageDefault[]): string {
+  const lines = [
+    '# Machine-owned Workspace build context',
+    '*',
+    '!Dockerfile',
+    '!entrypoint.sh',
+    '!supervisord.conf',
+    ...assets.map(asset => `!${asset.relativePath}`),
+  ]
+  if (assets.some(asset => asset.relativePath === '.claude/settings.json')) {
+    lines.push('!.claude', '!.claude/settings.json')
+  }
+  if (assets.some(asset => asset.relativePath === '.omp/agent/config.yml')) {
+    lines.push('!.omp', '!.omp/agent', '!.omp/agent/config.yml')
+  }
+  return `${lines.join('\n')}\n`
+}
+
+async function seedBuildContextAssets(
+  buildContext: string,
+  assets: readonly WorkspaceImageDefault[],
+): Promise<void> {
+  await Promise.all(
+    assets.map(async asset => {
+      const destination = join(buildContext, asset.relativePath)
+      await mkdir(dirname(destination), { recursive: true })
+      try {
+        await writeFile(destination, asset.content, { flag: 'wx' })
+      } catch (error) {
+        if (
+          typeof error !== 'object' ||
+          error === null ||
+          !('code' in error) ||
+          error.code !== 'EEXIST'
+        ) {
+          throw error
+        }
+      }
+    }),
+  )
+}
+
+function selectBuildContextAssets(
+  agents: readonly ConfiguredAgent[],
+): readonly WorkspaceImageDefault[] {
+  const assets: WorkspaceImageDefault[] = [...BASE_WORKSPACE_IMAGE_DEFAULTS]
+  if (agents.some(agent => agent.name === 'claude-code')) {
+    assets.push(CLAUDE_SETTINGS_DEFAULT)
+  }
+  if (agents.some(agent => agent.name === 'omp')) {
+    assets.push(OMP_AGENT_CONFIG_DEFAULT)
+  }
+  return assets
+}
+
+function renderEntrypoint(input: {
+  readonly nodeRuntimes: readonly NodeRuntimeRecipe[]
+  readonly agents: readonly ConfiguredAgent[]
+}): string {
+  const lines = ['#!/bin/sh', 'set -eu', '']
+
+  if (input.nodeRuntimes.length > 0) {
+    lines.push(
+      '# Set the Node.js release line to use',
+      'NODE_VERSION="${NODE_VERSION:-}"',
+      'if [ -n "$NODE_VERSION" ]; then',
+      '  case "$NODE_VERSION" in',
+      '    *[!0-9]*)',
+      '      echo "NODE_VERSION must be a numeric release line: $NODE_VERSION" >&2',
+      '      exit 1',
+      '      ;;',
+      '  esac',
+      '',
+      '  NODE_RUNTIME_ROOT="/opt/devbox/runtimes/node/$NODE_VERSION"',
+      '  if [ ! -x "$NODE_RUNTIME_ROOT/bin/node" ]; then',
+      '    echo "Node.js release line $NODE_VERSION is not installed." >&2',
+      '    exit 1',
+      '  fi',
+      '',
+      '  export NODE_RUNTIME_ROOT',
+      '  export PATH="$NODE_RUNTIME_ROOT/bin:$PATH"',
+      'fi',
+      '',
+    )
+  }
+
+  if (input.agents.some(agent => agent.name === 'agy')) {
+    lines.push(
+      '# Link shared Agent Skills',
+      'if [ ! -L "/home/devbox/.gemini/skills" ]; then',
+      '  ln -sfn /home/devbox/.agents/skills /home/devbox/.gemini/skills',
+      '  chown -h devbox:devbox /home/devbox/.gemini/skills',
+      'fi',
+      '',
+    )
+  }
+
+  lines.push(
+    'if [ $# -gt 0 ]; then',
+    '  exec gosu devbox "$@"',
+    'else',
+    '  exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf',
+    'fi',
+  )
+
+  return `${lines.join('\n')}\n`
+}
+
+function renderSupervisorConfiguration(): string {
+  const lines = [
+    '[supervisord]',
+    'nodaemon=true',
+    'user=root',
+    'logfile=/var/log/supervisor/supervisord.log',
+    'pidfile=/var/run/supervisord.pid',
+    '',
+    '[program:idle]',
+    'command=/bin/sleep infinity',
+    'autorestart=false',
+    'startsecs=0',
+    'stopsignal=TERM',
+    'stopasgroup=true',
+    'killasgroup=true',
+    'stdout_logfile=/dev/null',
+    'stderr_logfile=/dev/null',
+  ]
   return `${lines.join('\n')}\n`
 }
 

@@ -55,12 +55,14 @@ afterEach(async () => {
 })
 
 describe('buildWorkspace', () => {
-  it('replaces stale Build context contents and leaves configuration untouched on success', async () => {
+  it('preserves user Build context inputs and initializes missing Workspace image defaults', async () => {
     const sandbox = await temporaryDirectory()
     const devboxHome = join(sandbox, '.devbox')
+    const buildContext = join(devboxHome, 'build')
     await writeGlobalConfiguration(devboxHome, { node: ['24'], agent: [] })
-    await mkdir(join(devboxHome, 'build'), { recursive: true })
-    await writeFile(join(devboxHome, 'build', 'stale.txt'), 'stale')
+    await mkdir(buildContext, { recursive: true })
+    await writeFile(join(buildContext, 'stale.txt'), 'stale')
+    await writeFile(join(buildContext, '.gitconfig'), '[user]\n\tname = Devbox User\n')
     const before = await readFile(join(devboxHome, 'config.yaml'), 'utf8')
 
     const result = await buildWorkspace({
@@ -69,11 +71,15 @@ describe('buildWorkspace', () => {
     })
 
     expect(result).toEqual({ ok: true, value: { image: WORKSPACE_IMAGE } })
-    await expect(readFile(join(devboxHome, 'build', 'stale.txt'), 'utf8')).rejects.toMatchObject({
-      code: 'ENOENT',
-    })
-    await expect(readFile(join(devboxHome, 'build', '.dockerignore'), 'utf8')).resolves.toContain(
-      '!Dockerfile',
+    expect(await readFile(join(buildContext, 'stale.txt'), 'utf8')).toBe('stale')
+    expect(await readFile(join(buildContext, '.gitconfig'), 'utf8')).toBe(
+      '[user]\n\tname = Devbox User\n',
+    )
+    await expect(readFile(join(buildContext, '.bash_aliases'), 'utf8')).resolves.toContain(
+      "alias ..='cd ..'",
+    )
+    await expect(readFile(join(buildContext, '.dockerignore'), 'utf8')).resolves.toContain(
+      '!entrypoint.sh',
     )
     expect(await readFile(join(devboxHome, 'config.yaml'), 'utf8')).toBe(before)
   })
@@ -116,6 +122,10 @@ describe('buildWorkspace', () => {
     })
     let invocation: DockerBuildInvocation | undefined
     let dockerfile = ''
+    let entrypoint = ''
+    let supervisord = ''
+    let claudeSettings = ''
+    let ompAgentConfig = ''
 
     const result = await buildWorkspace({
       devboxHome,
@@ -123,6 +133,10 @@ describe('buildWorkspace', () => {
       executeDockerBuild: async input => {
         invocation = input
         dockerfile = await readFile(join(input.context, 'Dockerfile'), 'utf8')
+        entrypoint = await readFile(join(input.context, 'entrypoint.sh'), 'utf8')
+        supervisord = await readFile(join(input.context, 'supervisord.conf'), 'utf8')
+        claudeSettings = await readFile(join(input.context, '.claude', 'settings.json'), 'utf8')
+        ompAgentConfig = await readFile(join(input.context, '.omp', 'agent', 'config.yml'), 'utf8')
         return success(undefined)
       },
     })
@@ -146,6 +160,37 @@ describe('buildWorkspace', () => {
     )
     expect(dockerfile).not.toContain(' -a agy ')
     expect(dockerfile).not.toContain(' -a omp ')
+    expect(dockerfile).toContain(
+      'COPY .bash_aliases /home/devbox/.bash_aliases\nCOPY .gitconfig /home/devbox/.gitconfig',
+    )
+    expect(dockerfile).toContain('COPY .claude/settings.json /home/devbox/.claude/settings.json')
+    expect(dockerfile).toContain('COPY .omp/agent/config.yml /home/devbox/.omp/agent/config.yml')
+    expect(dockerfile).toContain('COPY entrypoint.sh /usr/local/bin/entrypoint.sh')
+    expect(dockerfile).toContain('COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf')
+    expect(entrypoint).toContain('NODE_VERSION="${NODE_VERSION:-}"')
+    expect(entrypoint).toContain('ln -sfn /home/devbox/.agents/skills /home/devbox/.gemini/skills')
+    expect(claudeSettings).toContain('"CLAUDE_CODE_USE_POWERSHELL_TOOL": "0"')
+    expect(ompAgentConfig).toContain('setupVersion: 2')
+    expect(supervisord).toBe(
+      [
+        '[supervisord]',
+        'nodaemon=true',
+        'user=root',
+        'logfile=/var/log/supervisor/supervisord.log',
+        'pidfile=/var/run/supervisord.pid',
+        '',
+        '[program:idle]',
+        'command=/bin/sleep infinity',
+        'autorestart=false',
+        'startsecs=0',
+        'stopsignal=TERM',
+        'stopasgroup=true',
+        'killasgroup=true',
+        'stdout_logfile=/dev/null',
+        'stderr_logfile=/dev/null',
+        '',
+      ].join('\n'),
+    )
   })
 
   it('installs Agents that do not support skills', async () => {
@@ -180,11 +225,13 @@ describe('buildWorkspace', () => {
       agent: ['claude-code'],
     })
     let dockerfile = ''
+    let entrypoint = ''
 
     const result = await buildWorkspace({
       devboxHome,
       executeDockerBuild: async input => {
         dockerfile = await readFile(join(input.context, 'Dockerfile'), 'utf8')
+        entrypoint = await readFile(join(input.context, 'entrypoint.sh'), 'utf8')
         return success(undefined)
       },
     })
@@ -195,6 +242,8 @@ describe('buildWorkspace', () => {
     expect(dockerfile).toContain('ENV PATH="/home/devbox/.local/bin:${PATH}"')
     expect(dockerfile).not.toContain('skills add')
     expect(dockerfile).not.toContain('/opt/devbox/runtimes')
+    expect(entrypoint).not.toContain('NODE_VERSION')
+    expect(entrypoint).not.toContain('NODE_RUNTIME_ROOT')
   })
 
   it('keeps Global configuration unchanged when the Docker build fails', async () => {
