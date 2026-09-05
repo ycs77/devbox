@@ -1,6 +1,11 @@
 import type { Readable, Writable } from 'node:stream'
 import * as p from '@clack/prompts'
-import { InterruptedError, type ConfigurationPrompter } from '../project/index.js'
+import c from 'picocolors'
+import {
+  InterruptedError,
+  type ConfigurationPrompter,
+  type ConfirmationDetails,
+} from '../project/index.js'
 
 export interface ConfigurationPrompterOptions {
   readonly signal: AbortSignal
@@ -21,7 +26,7 @@ export function createConfigurationPrompter({
   return {
     confirm: async (message, details) => {
       if (details !== undefined) {
-        p.note(details.content, details.title, common)
+        p.note(renderConfirmationDetails(details), c.bold(c.cyan(details.title)), common)
       }
       return promptValue(p.confirm({ message, ...common }))
     },
@@ -37,6 +42,12 @@ export function createConfigurationPrompter({
         }),
       ),
     editGlobal: async (configuration, catalog) => {
+      p.log.step(
+        `${c.bold(c.cyan('Global configuration'))}\n${c.dim(
+          'Choose the runtimes and agents available to every Project.',
+        )}`,
+        common,
+      )
       const node = await promptValue(
         p.multiselect<string>({
           message: 'Configured Node release lines',
@@ -65,6 +76,12 @@ export function createConfigurationPrompter({
       return { version: 1, node, agent, agent_notifications }
     },
     editLocal: async (configuration, catalog, globalConfiguration) => {
+      p.log.step(
+        `${c.bold(c.cyan('Project configuration'))}\n${c.dim(
+          'Choose the runtime for this Project.',
+        )}`,
+        common,
+      )
       const node = await promptValue(
         p.select<string | null>({
           message: 'Selected Node release line',
@@ -79,6 +96,18 @@ export function createConfigurationPrompter({
       return { version: 1, node }
     },
   }
+}
+
+function renderConfirmationDetails(details: ConfirmationDetails): string {
+  return details.sections
+    .map(section =>
+      [
+        c.bold(section.title),
+        `${c.yellow(c.dim('Current'))}\n${section.current}`,
+        `${c.bold(c.green('New'))}\n${section.next}`,
+      ].join('\n\n'),
+    )
+    .join('\n\n')
 }
 
 async function promptValue<T>(prompt: Promise<T | symbol>): Promise<T> {

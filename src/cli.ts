@@ -1,5 +1,7 @@
 import type { CAC } from 'cac'
+import { intro, outro } from '@clack/prompts'
 import { cac } from 'cac'
+import c from 'picocolors'
 import { createConfigurationPrompter } from './configuration/prompter.js'
 import { HostCommandError } from './host.js'
 import {
@@ -42,17 +44,23 @@ function createCli(signal: AbortSignal, interactive: boolean): CAC {
           'Run devbox init from a TTY before it writes Project state.',
         )
       }
+      intro(c.bgCyan(' devbox '))
       const result = await initializeProject({ signal, prompt })
       if (!result.ok) {
         return result
       }
-      return success({
-        message: result.value.created
-          ? `Registered Project: ${result.value.root}`
-          : result.value.confirmed === false
-            ? 'Project registration was not changed.'
-            : `Project is already registered: ${result.value.root}`,
-      })
+
+      if (result.value.confirmed === false) {
+        outro('Project registration was not changed.')
+        return success({})
+      }
+
+      outro(
+        `Next: run ${c.cyan(c.bold('devbox build'))} to prepare your workspace, then ${c.cyan(
+          c.bold('devbox up'),
+        )} to start it.`,
+      )
+      return success({})
     })
 
   cli
@@ -64,28 +72,31 @@ function createCli(signal: AbortSignal, interactive: boolean): CAC {
           'Run devbox config from a TTY, or edit the supported Global or Local YAML directly.',
         )
       }
+      intro(c.bgCyan(' devbox '))
       const scope = await prompt.selectConfigurationScope()
       if (scope === 'global') {
         const result = await configureGlobal({ signal, prompt })
         if (!result.ok) {
           return result
         }
-        return success({
-          message: result.value.changed
+        outro(
+          result.value.changed
             ? 'Global configuration updated.'
             : 'Global configuration was not changed.',
-        })
+        )
+        return success({})
       }
 
       const result = await configureLocalProject({ signal, prompt })
       if (!result.ok) {
         return result
       }
-      return success({
-        message: result.value.changed
+      outro(
+        result.value.changed
           ? 'Local configuration updated.'
           : 'Local configuration was not changed.',
-      })
+      )
+      return success({})
     })
 
   cli

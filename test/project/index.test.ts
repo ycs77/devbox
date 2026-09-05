@@ -14,6 +14,7 @@ import {
   sandboxIdentity,
   sandboxName,
   unescapePathSegment,
+  type ConfirmationDetails,
 } from '../../src/project/index.js'
 import { success } from '../../src/result.js'
 import { withStateLocks } from '../../src/state-lock/index.js'
@@ -69,17 +70,22 @@ describe('initializeProject', () => {
     const devboxHome = join(sandbox, 'user-state', '.devbox')
     await mkdir(projectRoot)
 
+    let confirmationMessage: string | undefined
     const result = await initializeProject({
       root: projectRoot,
       devboxHome,
       validateHost: async () => success(undefined),
-      confirm: async () => false,
+      confirm: async message => {
+        confirmationMessage = message
+        return false
+      },
     })
 
     expect(result).toMatchObject({
       ok: true,
       value: { root: projectRoot, created: false, confirmed: false },
     })
+    expect(confirmationMessage).toBe('Save configuration?')
     await expect(stat(devboxHome)).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
@@ -545,16 +551,31 @@ describe('configuration boundaries', () => {
     const globalBefore = await readFile(globalPath, 'utf8')
     const registryBefore = await readFile(registryPath, 'utf8')
 
+    let confirmation:
+      | { readonly message: string; readonly details?: ConfirmationDetails }
+      | undefined
     const result = await configureLocalProject({
       root: projectRoot,
       devboxHome,
       nextConfiguration: { version: 1, node: null },
-      prompt: { confirm: async () => true },
+      prompt: {
+        confirm: async (message, details) => {
+          confirmation = { message, details }
+          return true
+        },
+      },
     })
 
     expect(result).toEqual({
       ok: true,
       value: { scope: 'local', root: projectRoot, changed: true },
+    })
+    expect(confirmation).toMatchObject({
+      message: 'Save Project configuration?',
+      details: {
+        title: 'Review configuration',
+        sections: [{ title: `Project: ${projectRoot}` }],
+      },
     })
     await expect(readFile(globalPath, 'utf8')).resolves.toBe(globalBefore)
     await expect(readFile(registryPath, 'utf8')).resolves.toBe(registryBefore)
@@ -575,6 +596,9 @@ describe('configuration boundaries', () => {
     const first = await createProjectState(firstRoot, devboxHome)
     const second = await createProjectState(secondRoot, devboxHome)
 
+    let confirmation:
+      | { readonly message: string; readonly details?: ConfirmationDetails }
+      | undefined
     const result = await configureGlobal({
       devboxHome,
       nextConfiguration: {
@@ -583,10 +607,20 @@ describe('configuration boundaries', () => {
         agent: ['codex'],
         agent_notifications: false,
       },
-      confirm: async () => true,
+      confirm: async (message, details) => {
+        confirmation = { message, details }
+        return true
+      },
     })
 
     expect(result).toEqual({ ok: true, value: { scope: 'global', changed: true } })
+    expect(confirmation).toMatchObject({
+      message: 'Save Global configuration?',
+      details: {
+        title: 'Review configuration',
+        sections: [{ title: 'Global configuration' }],
+      },
+    })
     await Promise.all(
       [first, second].map(async project => {
         expect(

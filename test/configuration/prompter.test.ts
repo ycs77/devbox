@@ -50,6 +50,7 @@ describe('createConfigurationPrompter', () => {
       agent: [],
       agent_notifications: true,
     })
+    expect(output.chunks.join('')).toContain('Global configuration')
   })
 
   it('selects the Global configuration scope', async () => {
@@ -86,6 +87,7 @@ describe('createConfigurationPrompter', () => {
     input.emit('keypress', '', { name: 'return' })
 
     await expect(editing).resolves.toEqual({ version: 1, node: '24' })
+    expect(output.chunks.join('')).toContain('Project configuration')
   })
 
   it('renders confirmation details before asking for approval', async () => {
@@ -96,16 +98,24 @@ describe('createConfigurationPrompter', () => {
       input,
       output,
     })
-    const confirmation = prompt.confirm('Save Local configuration?', {
-      title: 'Local configuration changes',
-      content: 'Current: node 24\nNext: node 22',
+    const confirmation = prompt.confirm('Save Project configuration?', {
+      title: 'Review configuration',
+      sections: [
+        {
+          title: 'Project: /workspace/example',
+          current: 'node 24',
+          next: 'node 22',
+        },
+      ],
     })
 
     input.emit('keypress', '', { name: 'return' })
 
     await expect(confirmation).resolves.toBe(true)
-    expect(output.chunks.join('')).toContain('Local configuration changes')
-    expect(output.chunks.join('')).toContain('Current: node 24')
+    expect(output.chunks.join('')).toContain('Review configuration')
+    expect(output.chunks.join('')).toContain('Project: /workspace/example')
+    expect(output.chunks.join('')).toContain('Current')
+    expect(output.chunks.join('')).toContain('New')
   })
 
   it('maps prompt cancellation to command interruption', async () => {

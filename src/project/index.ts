@@ -45,9 +45,15 @@ export interface DevboxPaths {
   readonly claudeHostConfiguration: string
 }
 
+export interface ConfirmationSection {
+  readonly title: string
+  readonly current: string
+  readonly next: string
+}
+
 export interface ConfirmationDetails {
   readonly title: string
-  readonly content: string
+  readonly sections: readonly ConfirmationSection[]
 }
 
 export type ConfirmationHandler = (
@@ -430,7 +436,7 @@ async function initializeProjectUnlocked(
   }
 
   const confirm = input.confirm ?? input.prompt?.confirm ?? (async () => true)
-  if (!(await confirm(`Register Project ${projectRoot} and write its configuration?`))) {
+  if (!(await confirm('Save configuration?'))) {
     return success({
       root: projectRoot,
       stateDirectory,
@@ -559,11 +565,16 @@ async function configureLocalProjectUnlocked(
   }
 
   const confirm = input.confirm ?? input.prompt?.confirm ?? (async () => true)
-  const changeSummary = `Current: ${serializeLocalConfiguration(localCheck.value).trim()}\nNext: ${serializeLocalConfiguration(nextCheck.value).trim()}`
   if (
-    !(await confirm(`Save Local configuration for ${projectRoot}?`, {
-      title: 'Local configuration changes',
-      content: changeSummary,
+    !(await confirm('Save Project configuration?', {
+      title: 'Review configuration',
+      sections: [
+        {
+          title: `Project: ${projectRoot}`,
+          current: serializeLocalConfiguration(localCheck.value).trim(),
+          next: serializeLocalConfiguration(nextCheck.value).trim(),
+        },
+      ],
     }))
   ) {
     return success({ scope: 'local', root: projectRoot, changed: false })
@@ -719,23 +730,21 @@ async function configureGlobalUnlocked(
   }
 
   const confirm = input.confirm ?? input.prompt?.confirm ?? (async () => true)
-  const localChangeSummary = [...replacementConfigurations]
-    .map(
-      ([root, configuration]) =>
-        `Project ${root}:\nCurrent: ${serializeLocalConfiguration(localConfigurations.get(root)!).trim()}\nNext: ${serializeLocalConfiguration(configuration).trim()}`,
-    )
-    .join('\n\n')
-  const changeSummary = [
-    `Current Global:\n${serializeGlobalConfiguration(currentConfiguration).trim()}`,
-    `Next Global:\n${serializeGlobalConfiguration(nextCheck.value).trim()}`,
-    localChangeSummary,
-  ]
-    .filter(Boolean)
-    .join('\n\n')
   if (
     !(await confirm('Save Global configuration?', {
-      title: 'Global configuration changes',
-      content: changeSummary,
+      title: 'Review configuration',
+      sections: [
+        {
+          title: 'Global configuration',
+          current: serializeGlobalConfiguration(currentConfiguration).trim(),
+          next: serializeGlobalConfiguration(nextCheck.value).trim(),
+        },
+        ...[...replacementConfigurations].map(([root, configuration]) => ({
+          title: `Project: ${root}`,
+          current: serializeLocalConfiguration(localConfigurations.get(root)!).trim(),
+          next: serializeLocalConfiguration(configuration).trim(),
+        })),
+      ],
     }))
   ) {
     return success({ scope: 'global', changed: false })
