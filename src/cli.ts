@@ -59,6 +59,11 @@ function createCli(signal: AbortSignal, interactive: boolean): CAC {
         return success({})
       }
 
+      if (!result.value.created) {
+        outro('Project is already registered.')
+        return success({})
+      }
+
       outro(
         `Next: run ${c.cyan(c.bold('devbox build'))} to prepare your workspace, then ${c.cyan(
           c.bold('devbox up'),
