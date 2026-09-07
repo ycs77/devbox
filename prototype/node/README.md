@@ -9,6 +9,12 @@ mkdir -p prototype/node/data
 printf '{}\n' > prototype/node/data/.claude.json
 ```
 
+Build the devbox image with:
+
+```bash
+docker build --file prototype/node/Dockerfile --tag devbox:latest .
+```
+
 Start the devbox container with:
 
 ```bash
