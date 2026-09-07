@@ -202,6 +202,7 @@ describe('initializeProject', () => {
           environment: {
             NODE_VERSION: '22',
             PULSE_SERVER: 'unix:/tmp/pulse-socket',
+            TERM: 'xterm-256color',
           },
           volumes: [
             {

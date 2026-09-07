@@ -31,6 +31,7 @@ interface RenderedProjectCompose {
 export function renderProjectCompose(input: ProjectComposeInput): Result<string> {
   const fragments = selectComposeFragments(input)
   const environment = {
+    TERM: 'xterm-256color',
     ...fragments.node?.environment,
     ...fragments.notification?.environment,
   }
