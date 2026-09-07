@@ -75,7 +75,7 @@ describe('published Compose definition', () => {
         name: project.value.sandboxName,
         services: {
           devbox: {
-            container_name: project.value.sandboxName,
+            container_name: `devbox-${project.value.sandboxName}`,
             image: 'devbox-workspace:latest',
             working_dir: `/workspace/${project.value.sandboxName}`,
             environment: { NODE_VERSION: '24' },

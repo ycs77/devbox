@@ -197,7 +197,7 @@ describe('initializeProject', () => {
       services: {
         devbox: {
           image: 'devbox-workspace:latest',
-          container_name: 'project',
+          container_name: 'devbox-project',
           working_dir: '/workspace/project',
           environment: {
             NODE_VERSION: '22',
@@ -375,7 +375,7 @@ describe('initializeProject', () => {
       name: 'shared-project-2',
       services: {
         devbox: {
-          container_name: 'shared-project-2',
+          container_name: 'devbox-shared-project-2',
           working_dir: '/workspace/shared-project-2',
         },
       },

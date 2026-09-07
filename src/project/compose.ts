@@ -77,7 +77,7 @@ export function renderProjectCompose(input: ProjectComposeInput): Result<string>
     services: {
       devbox: {
         image: WORKSPACE_IMAGE,
-        container_name: input.sandboxName,
+        container_name: `devbox-${input.sandboxName}`,
         working_dir: `/workspace/${input.sandboxName}`,
         ...(Object.keys(environment).length === 0 ? {} : { environment }),
         volumes,
@@ -124,7 +124,7 @@ function validatesProjectCompose(source: string, input: ProjectComposeInput): bo
     const service = definition.services.devbox
     if (
       service.image !== WORKSPACE_IMAGE ||
-      service.container_name !== input.sandboxName ||
+      service.container_name !== `devbox-${input.sandboxName}` ||
       service.working_dir !== `/workspace/${input.sandboxName}` ||
       'build' in service
     ) {
