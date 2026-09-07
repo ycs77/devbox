@@ -79,8 +79,7 @@ devbox sh
 | `devbox sh` | 在執行中的沙箱內開啟 Bash Shell。 |
 | `devbox stop` | 停止沙箱，保留它以便稍後重新啟動。 |
 | `devbox down` | 停止並移除沙箱容器。 |
-| `devbox config` | 變更目前專案選擇的 Node.js 版本。 |
-| `devbox config -g` | 變更全域設定的 Node.js 版本或 AI Agent。 |
+| `devbox config` | 變更全域設定或目前專案選擇的 Node.js 版本。 |
 
 ## 疑難排解
 

@@ -79,8 +79,7 @@ Run these commands from the initialized project directory:
 | `devbox sh` | Open a Bash shell in the running sandbox. |
 | `devbox stop` | Stop the sandbox and preserve it for a later restart. |
 | `devbox down` | Stop and remove the sandbox container. |
-| `devbox config` | Change the current project's Node.js selection. |
-| `devbox config -g` | Change the globally configured Node.js versions or AI agents. |
+| `devbox config` | Change the globally configured or current project's Node.js selection. |
 
 ## Troubleshooting
 
