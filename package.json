@@ -39,7 +39,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest",
     "check": "pnpm lint && pnpm fmt --check && pnpm typecheck && pnpm test --run",
-    "smoke:cli": "node scripts/package-devbox-smoke.mjs",
+    "smoke": "node scripts/package-devbox-smoke.mjs",
+    "update-actions": "actionspack update",
     "release": "bumpp --commit \"Release v%s\"",
     "prepack": "pnpm build"
   },
@@ -51,6 +52,7 @@
   },
   "devDependencies": {
     "@types/node": "^26.2.0",
+    "actionspack": "^0.1.5",
     "bumpp": "^12.2.0",
     "memfs": "^4.68.1",
     "oxfmt": "^0.63.0",
