@@ -31,7 +31,11 @@ function deferred(): {
 
 async function writeGlobalConfiguration(
   devboxHome: string,
-  configuration: { readonly node: readonly string[]; readonly agent: readonly string[] },
+  configuration: {
+    readonly node: readonly string[]
+    readonly agent: readonly string[]
+    readonly agentNotifications?: boolean
+  },
 ): Promise<void> {
   await mkdir(devboxHome, { recursive: true })
   await writeFile(
@@ -40,7 +44,7 @@ async function writeGlobalConfiguration(
       'version: 1',
       `node: [${configuration.node.join(', ')}]`,
       `agent: [${configuration.agent.join(', ')}]`,
-      'agent_notifications: true',
+      `agent_notifications: ${configuration.agentNotifications ?? true}`,
       '',
     ].join('\n'),
   )
@@ -168,6 +172,20 @@ describe('buildWorkspace', () => {
     )
     expect(dockerfile).toContain('COPY .claude/settings.json /home/devbox/.claude/settings.json')
     expect(dockerfile).toContain('COPY .omp/agent/config.yml /home/devbox/.omp/agent/config.yml')
+    expect(dockerfile).toContain(
+      [
+        '# Install Agent Notification Plugins',
+        'USER devbox',
+        'RUN set -eux \\',
+        '    && claude plugin marketplace add ycs77/claude-code-notifications \\',
+        '    && claude plugin install notification-basic-wsl@ycs77-notifications \\',
+        '    && codex plugin marketplace add ycs77/codex-notifications \\',
+        '    && codex plugin add notification-basic-wsl@ycs77-notifications \\',
+        '    && omp plugin marketplace add ycs77/omp-notifications \\',
+        '    && omp plugin install notification-basic@ycs77-notifications',
+        'USER root',
+      ].join('\n'),
+    )
     expect(dockerfile).toContain('COPY entrypoint.sh /usr/local/bin/entrypoint.sh')
     expect(dockerfile).toContain('COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf')
     expect(entrypoint).toContain('NODE_VERSION="${NODE_VERSION:-}"')
@@ -194,6 +212,29 @@ describe('buildWorkspace', () => {
         '',
       ].join('\n'),
     )
+  })
+
+  it('does not install Agent notification plugins when notifications are disabled', async () => {
+    const sandbox = await temporaryDirectory()
+    const devboxHome = join(sandbox, '.devbox')
+    await writeGlobalConfiguration(devboxHome, {
+      node: [],
+      agent: ['claude-code', 'codex', 'omp'],
+      agentNotifications: false,
+    })
+    let dockerfile = ''
+
+    const result = await buildWorkspace({
+      devboxHome,
+      executeDockerBuild: async input => {
+        dockerfile = await readFile(join(input.context, 'Dockerfile'), 'utf8')
+        return success(undefined)
+      },
+    })
+
+    expect(result).toEqual({ ok: true, value: { image: WORKSPACE_IMAGE } })
+    expect(dockerfile).not.toContain('Install Agent Notification Plugins')
+    expect(dockerfile).not.toContain('plugin marketplace add ycs77')
   })
 
   it('installs Agents that do not support skills', async () => {

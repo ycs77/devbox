@@ -1,4 +1,14 @@
-export interface PackagedAgent {
+type AgentNotificationSupport =
+  | {
+      readonly supportsNotifications: true
+      readonly notificationInstallationCommands: readonly string[]
+    }
+  | {
+      readonly supportsNotifications: false
+      readonly notificationInstallationCommands?: never
+    }
+
+export type PackagedAgent = {
   readonly home: {
     readonly volumeName: string
     readonly target: string
@@ -8,9 +18,8 @@ export interface PackagedAgent {
     readonly shell: 'bash' | 'sh'
     readonly preInstallCommands?: readonly string[]
   }
-  readonly supportsNotifications: boolean
   readonly supportsSkillInstallation: boolean
-}
+} & AgentNotificationSupport
 
 export interface NodeRuntimeRecipe {
   readonly releaseLine: string
@@ -57,6 +66,10 @@ export const PACKAGED_AGENTS: Readonly<Record<string, PackagedAgent>> = {
       preInstallCommands: ["echo '{}' > /home/devbox/.claude.json"],
     },
     supportsNotifications: true,
+    notificationInstallationCommands: [
+      'claude plugin marketplace add ycs77/claude-code-notifications',
+      'claude plugin install notification-basic-wsl@ycs77-notifications',
+    ],
     supportsSkillInstallation: true,
   },
   codex: {
@@ -64,6 +77,10 @@ export const PACKAGED_AGENTS: Readonly<Record<string, PackagedAgent>> = {
     installation: { url: 'https://chatgpt.com/codex/install.sh', shell: 'sh' },
     supportsNotifications: true,
     supportsSkillInstallation: true,
+    notificationInstallationCommands: [
+      'codex plugin marketplace add ycs77/codex-notifications',
+      'codex plugin add notification-basic-wsl@ycs77-notifications',
+    ],
   },
   agy: {
     home: { volumeName: 'devbox-agy', target: '/home/devbox/.gemini' },
@@ -76,6 +93,10 @@ export const PACKAGED_AGENTS: Readonly<Record<string, PackagedAgent>> = {
     installation: { url: 'https://omp.sh/install', shell: 'sh' },
     supportsNotifications: true,
     supportsSkillInstallation: false,
+    notificationInstallationCommands: [
+      'omp plugin marketplace add ycs77/omp-notifications',
+      'omp plugin install notification-basic@ycs77-notifications',
+    ],
   },
 }
 

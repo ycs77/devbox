@@ -45,6 +45,12 @@ An AI coding agent from the Configured Agent set that works inside every Project
 **Configured Agent set**:
 The user-scope subset of Agent catalog entries selected in Global configuration for installation and availability in every Project Sandbox, independently of its Toolchain. Existing Sandbox containers retain their earlier installed set across stops and starts until they are replaced.
 
+**Agent notifications**:
+A Global configuration choice that enables notification capability for each supported AI Agent in the Configured Agent set in the next Workspace image and its Sandboxes.
+
+**Agent notification plugin**:
+An Agent-owned extension installed in a Workspace image that enables Agent notifications for one supported AI Agent.
+
 **Agent credentials**:
 The authentication material stored in an Agent home, shared across Devbox projects but kept separate from the developer's normal host credentials.
 

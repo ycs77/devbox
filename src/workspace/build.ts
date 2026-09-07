@@ -127,6 +127,7 @@ async function buildWorkspaceUnlocked(input: BuildWorkspaceInput): Promise<Build
     nodeRuntimes,
     buildNodeRuntime: buildNodeRuntimeRecipe(globalConfiguration),
     agents,
+    agentNotifications: globalConfiguration.agent_notifications,
     skillAgents: globalConfiguration.agent.filter(
       agent => PACKAGED_AGENTS[agent]?.supportsSkillInstallation === true,
     ),
@@ -180,6 +181,7 @@ function renderBuildDockerfile(input: {
   readonly nodeRuntimes: readonly NodeRuntimeRecipe[]
   readonly buildNodeRuntime: NodeRuntimeRecipe | undefined
   readonly agents: readonly ConfiguredAgent[]
+  readonly agentNotifications: boolean
   readonly skillAgents: readonly string[]
 }): string {
   const lines: string[] = [
@@ -288,6 +290,25 @@ function renderBuildDockerfile(input: {
       )
     }
     lines.push(`RUN ${ownershipCommands.join(' \\\n    && ')}`, '')
+  }
+
+  const notificationInstallationCommands = input.agentNotifications
+    ? input.agents.flatMap(agent =>
+        agent.recipe.supportsNotifications ? agent.recipe.notificationInstallationCommands : [],
+      )
+    : []
+  if (notificationInstallationCommands.length > 0) {
+    lines.push(
+      '# Install Agent Notification Plugins',
+      'USER devbox',
+      'RUN set -eux \\',
+      ...notificationInstallationCommands.map(
+        (command, index) =>
+          `    && ${command}${index < notificationInstallationCommands.length - 1 ? ' \\' : ''}`,
+      ),
+      'USER root',
+      '',
+    )
   }
 
   lines.push(
