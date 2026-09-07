@@ -1,7 +1,7 @@
 {
   "name": "@ycs77/devbox",
   "version": "0.3.1",
-  "description": "A containerized devbox for AI agents",
+  "description": "A Lucas Yang's opinionated devbox for AI agents",
   "keywords": [
     "agent",
     "agentic",

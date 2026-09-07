@@ -2,7 +2,7 @@
 
 # @ycs77/devbox
 
-**A containerized devbox for AI agents.**
+**A opinionated devbox for AI agents.**
 
 [![NPM version][ico-version]][link-npm]
 [![Software License][ico-license]](LICENSE)
