@@ -100,7 +100,7 @@ RUN ARCH= OPENSSL_ARCH= && dpkgArch="$(dpkg --print-architecture)" \
     && export PATH="$NODE_RUNTIME_ROOT/bin:$PATH" \
     && npm install -g npm \
     && npm uninstall -g corepack \
-    && npm install -g yarn pnpm @antfu/ni \
+    && npm install -g yarn pnpm @antfu/ni --allow-scripts=pnpm,yarn \
     && "$NODE_RUNTIME_ROOT/bin/node" --version \
     && "$NODE_RUNTIME_ROOT/bin/npm" --version \
     && rm -rf /tmp/node-source
@@ -150,7 +150,7 @@ RUN ARCH= OPENSSL_ARCH= && dpkgArch="$(dpkg --print-architecture)" \
     && export PATH="$NODE_RUNTIME_ROOT/bin:$PATH" \
     && npm install -g npm \
     && npm uninstall -g corepack \
-    && npm install -g yarn pnpm @antfu/ni \
+    && npm install -g yarn pnpm @antfu/ni --allow-scripts=pnpm,yarn \
     && "$NODE_RUNTIME_ROOT/bin/node" --version \
     && "$NODE_RUNTIME_ROOT/bin/npm" --version \
     && rm -rf /tmp/node-source
