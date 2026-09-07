@@ -17,7 +17,6 @@ if [ -n "$NODE_VERSION" ]; then
     exit 1
   fi
 
-
   if ! grep -q "# Devbox" /etc/bash.bashrc; then
     printf "\n# Devbox\nexport PATH=\"$NODE_RUNTIME_ROOT/bin:\$PATH\"\n" >> /etc/bash.bashrc
   fi
