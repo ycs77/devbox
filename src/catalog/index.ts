@@ -6,6 +6,7 @@ export interface PackagedAgent {
   readonly installation: {
     readonly url: string
     readonly shell: 'bash' | 'sh'
+    readonly preInstallCommands?: readonly string[]
   }
   readonly supportsNotifications: boolean
   readonly supportsSkillInstallation: boolean
@@ -50,7 +51,11 @@ export const PACKAGED_NODE_RELEASE_LINES = ['24', '22'] as const
 export const PACKAGED_AGENTS: Readonly<Record<string, PackagedAgent>> = {
   'claude-code': {
     home: { volumeName: 'devbox-claude', target: '/home/devbox/.claude' },
-    installation: { url: 'https://claude.ai/install.sh', shell: 'bash' },
+    installation: {
+      url: 'https://claude.ai/install.sh',
+      shell: 'bash',
+      preInstallCommands: ["echo '{}' > /home/devbox/.claude.json"],
+    },
     supportsNotifications: true,
     supportsSkillInstallation: true,
   },

@@ -151,6 +151,9 @@ describe('buildWorkspace', () => {
     expect(dockerfile).toContain('NODE_RUNTIME_VERSION=24.19.0')
     expect(dockerfile).toContain('export PATH="/opt/devbox/runtimes/node/24/bin:$PATH"')
     expect(dockerfile).toContain('curl -fsSL https://claude.ai/install.sh | bash')
+    expect(dockerfile).toContain(
+      "RUN mkdir -p /home/devbox/.claude \\\n    && echo '{}' > /home/devbox/.claude.json \\\n    && curl -fsSL https://claude.ai/install.sh | bash",
+    )
     expect(dockerfile).toContain('curl -fsSL https://chatgpt.com/codex/install.sh | sh')
     expect(dockerfile).toContain('curl -fsSL https://antigravity.google/cli/install.sh | bash')
     expect(dockerfile).toContain('curl -fsSL https://omp.sh/install | sh')
@@ -213,6 +216,7 @@ describe('buildWorkspace', () => {
     expect(result).toEqual({ ok: true, value: { image: WORKSPACE_IMAGE } })
     expect(dockerfile).toContain('curl -fsSL https://antigravity.google/cli/install.sh | bash')
     expect(dockerfile).toContain('curl -fsSL https://omp.sh/install | sh')
+    expect(dockerfile).not.toContain('/home/devbox/.claude.json')
     expect(dockerfile).not.toContain('Install Agent Skills')
     expect(dockerfile).not.toContain('skills add')
   })

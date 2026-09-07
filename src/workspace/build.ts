@@ -231,9 +231,11 @@ function renderBuildDockerfile(input: {
   }
 
   for (const agent of input.agents) {
+    const preInstallCommands = agent.recipe.installation.preInstallCommands ?? []
     lines.push(
       `# Install ${agent.name}`,
       `RUN mkdir -p ${agent.recipe.home.target} \\`,
+      ...preInstallCommands.map(command => `    && ${command} \\`),
       `    && curl -fsSL ${agent.recipe.installation.url} | ${agent.recipe.installation.shell}`,
       '',
     )
