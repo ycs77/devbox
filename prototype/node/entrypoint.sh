@@ -1,5 +1,4 @@
-#!/bin/sh
-set -eu
+#!/usr/bin/env bash
 
 # Set the Node.js release line to use
 NODE_VERSION="${NODE_VERSION:-}"

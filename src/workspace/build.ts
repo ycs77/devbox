@@ -194,6 +194,10 @@ function renderBuildDockerfile(input: {
     '',
     'RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone',
     '',
+    'RUN echo "Acquire::http::Pipeline-Depth 0;" > /etc/apt/apt.conf.d/99custom && \\',
+    '    echo "Acquire::http::No-Cache true;" >> /etc/apt/apt.conf.d/99custom && \\',
+    '    echo "Acquire::BrokenProxy    true;" >> /etc/apt/apt.conf.d/99custom',
+    '',
     '# Install the Base profile packages and build tools',
     'RUN set -eux \\',
     '    && apt-get update && apt-get upgrade -y \\',
@@ -381,7 +385,7 @@ function renderEntrypoint(input: {
   readonly nodeRuntimes: readonly NodeRuntimeRecipe[]
   readonly agents: readonly ConfiguredAgent[]
 }): string {
-  const lines = ['#!/bin/sh', 'set -eu', '']
+  const lines = ['#!/usr/bin/env bash', '']
 
   if (input.nodeRuntimes.length > 0) {
     lines.push(

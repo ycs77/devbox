@@ -1,12 +1,18 @@
-# PROTOTYPE: validate the one-stage Base plus direct Node archive recipe.
+# PROTOTYPE: validate the one-stage Base plus direct PHP archive recipe.
 # The generated Build Dockerfile will replace these fixed values with lock inputs.
 FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=UTC
 ENV LANG=C.UTF-8
+ENV SUPERVISOR_PHP_COMMAND="/usr/bin/php -d variables_order=EGPCS /var/www/html/artisan serve --host=0.0.0.0 --port=80"
+ENV SUPERVISOR_PHP_USER="devbox"
 
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+RUN echo "Acquire::http::Pipeline-Depth 0;" > /etc/apt/apt.conf.d/99custom && \
+    echo "Acquire::http::No-Cache true;" >> /etc/apt/apt.conf.d/99custom && \
+    echo "Acquire::BrokenProxy    true;" >> /etc/apt/apt.conf.d/99custom
 
 # Install the Base profile packages and build tools
 RUN set -eux \
@@ -37,16 +43,64 @@ RUN set -eux \
       build-essential \
       python3 \
       python-is-python3 \
+      sqlite3 \
+      libcap2-bin \
       pkg-config \
       gnupg \
       dirmngr \
       xz-utils \
+      libpng-dev \
+      librsvg2-bin \
+      fswatch \
+      ffmpeg \
       pulseaudio-utils \
       sudo \
       gosu \
     && apt-get -y autoremove \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+# Install PHP 8.5
+RUN apt-get update && apt-get upgrade -y \
+    && mkdir -p /etc/apt/keyrings \
+    && curl -sSLo /tmp/debsuryorg-archive-keyring.deb https://packages.sury.org/debsuryorg-archive-keyring.deb \
+    && dpkg -i /tmp/debsuryorg-archive-keyring.deb \
+    && echo "deb [signed-by=/usr/share/keyrings/debsuryorg-archive-keyring.gpg] https://packages.sury.org/php/ noble main" > /etc/apt/sources.list.d/php.list \
+    && apt-get update \
+    && apt-get install -y \
+        libgd3 \
+        php8.5-cli \
+        php8.5-dev \
+        php8.5-pgsql \
+        php8.5-sqlite3 \
+        php8.5-gd \
+        php8.5-curl \
+        php8.5-mongodb \
+        php8.5-imap \
+        php8.5-mysql \
+        php8.5-mbstring \
+        php8.5-xml \
+        php8.5-zip \
+        php8.5-bcmath \
+        php8.5-soap \
+        php8.5-intl \
+        php8.5-readline \
+        php8.5-igbinary \
+        php8.5-redis \
+        php8.5-imagick \
+    && curl -sLS https://getcomposer.org/installer | php -- --install-dir=/usr/bin/ --filename=composer \
+    && COMPOSER_HOME=/usr/local/share/composer composer global require cpx/cpx:^2.0 \
+    && ln -s /usr/local/share/composer/vendor/bin/cpx /usr/local/bin/cpx \
+    && curl -sS https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor | tee /etc/apt/keyrings/pgdg.gpg > /dev/null \
+    && echo "deb [signed-by=/etc/apt/keyrings/pgdg.gpg] http://apt.postgresql.org/pub/repos/apt noble-pgdg main" > /etc/apt/sources.list.d/pgdg.list \
+    && apt-get update \
+    && apt-get install -y mysql-client \
+    && apt-get install -y postgresql-client-18 \
+    && apt-get -y autoremove \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+RUN setcap "cap_net_bind_service=+ep" /usr/bin/php8.5
 
 # Create the devbox user and group
 RUN userdel -r ubuntu \
@@ -106,6 +160,9 @@ USER root
 
 COPY prototype/php/entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY prototype/php/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+COPY php.ini /etc/php/8.5/cli/conf.d/99-devbox.ini
 RUN chmod +x /usr/local/bin/entrypoint.sh
+
+EXPOSE 80/tcp
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

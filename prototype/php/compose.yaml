@@ -5,10 +5,18 @@ services:
     build:
       context: ../..
       dockerfile: prototype/php/Dockerfile
+      args:
+        WWWGROUP: '${WWWGROUP}'
     image: devbox-php:latest
     container_name: devbox-php
     hostname: devbox
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    ports:
+      - '${APP_PORT:-80}:80'
+      - '${VITE_PORT:-5173}:${VITE_PORT:-5173}'
     environment:
+      WWWUSER: '${WWWUSER}'
       PHP_VERSION: '8.5'
       TERM: xterm-256color
       PULSE_SERVER: unix:/tmp/pulse-socket
@@ -20,9 +28,15 @@ services:
       - devbox-agy:/home/devbox/.gemini
       - devbox-omp:/home/devbox/.omp
       - /mnt/wslg/runtime-dir/pulse/native:/tmp/pulse-socket:ro
+    networks:
+      - devbox
 
 volumes:
   devbox-claude:
   devbox-codex:
   devbox-agy:
   devbox-omp:
+
+networks:
+  devbox:
+    driver: bridge
