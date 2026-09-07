@@ -9,7 +9,7 @@ services:
     container_name: devbox
     hostname: devbox
     environment:
-      NODE_VERSION: "24"
+      NODE_VERSION: '24'
       TERM: xterm-256color
       PULSE_SERVER: unix:/tmp/pulse-socket
     volumes:

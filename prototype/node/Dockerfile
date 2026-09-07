@@ -67,8 +67,6 @@ RUN ARCH= OPENSSL_ARCH= && dpkgArch="$(dpkg --print-architecture)" \
     && set -eux \
     && NODE_RUNTIME_VERSION=22.23.2 \
     && NODE_RUNTIME_ROOT=/opt/devbox/runtimes/node/22 \
-    && NODE_ARCHIVE_URL="https://nodejs.org/dist/v${NODE_RUNTIME_VERSION}/node-v${NODE_RUNTIME_VERSION}-linux-${ARCH}.tar.xz" \
-    && NODE_CHECKSUMS_URL="https://nodejs.org/dist/v${NODE_RUNTIME_VERSION}/SHASUMS256.txt.asc" \
     && mkdir -p "$NODE_RUNTIME_ROOT" /tmp/node-source \
     && cd /tmp/node-source \
     # use pre-existing gpg directory
@@ -88,19 +86,14 @@ RUN ARCH= OPENSSL_ARCH= && dpkgArch="$(dpkg --print-architecture)" \
       { gpg --batch --no-options --keyserver hkps://keys.openpgp.org --recv-keys "$key" && gpg --batch --no-options --fingerprint "$key"; } || \
       { gpg --batch --no-options --keyserver keyserver.ubuntu.com --recv-keys "$key" && gpg --batch --no-options --fingerprint "$key"; }; \
     done \
-    && archive="node-v${NODE_RUNTIME_VERSION}-linux-${ARCH}.tar.xz" \
-    && curl -fsSL --retry 3 -o "$archive" "$NODE_ARCHIVE_URL" \
-    && curl -fsSL --retry 3 -o SHASUMS256.txt.asc "$NODE_CHECKSUMS_URL" \
+    && curl -fsSLO --compressed "https://nodejs.org/dist/v${NODE_RUNTIME_VERSION}/node-v${NODE_RUNTIME_VERSION}-linux-${ARCH}.tar.xz" \
+    && curl -fsSLO --compressed "https://nodejs.org/dist/v${NODE_RUNTIME_VERSION}/SHASUMS256.txt.asc" \
     && gpg --batch --no-options --decrypt --output SHASUMS256.txt SHASUMS256.txt.asc \
     && gpgconf --kill all \
     && rm -rf "$GNUPGHOME" \
-    && awk -v archive="$archive" \
-      '$2 == archive { print; found = 1; exit } END { if (!found) exit 1 }' \
-      SHASUMS256.txt > "$archive.sha256" \
-    && sha256sum --check "$archive.sha256" \
-    && tar --extract --xz --file "$archive" --directory "$NODE_RUNTIME_ROOT" \
-      --strip-components=1 --no-same-owner \
-    && rm "$archive" SHASUMS256.txt.asc SHASUMS256.txt "$archive.sha256" \
+    && grep " node-v${NODE_RUNTIME_VERSION}-linux-${ARCH}.tar.xz\$" SHASUMS256.txt | sha256sum -c - \
+    && tar -xJf "node-v${NODE_RUNTIME_VERSION}-linux-${ARCH}.tar.xz" -C "$NODE_RUNTIME_ROOT" --strip-components=1 --no-same-owner \
+    && rm "node-v${NODE_RUNTIME_VERSION}-linux-${ARCH}.tar.xz" SHASUMS256.txt.asc SHASUMS256.txt \
     # Remove unused OpenSSL headers to save ~34MB. See this NodeJS issue: https://github.com/nodejs/node/issues/46451
     && find "$NODE_RUNTIME_ROOT/include/node/openssl/archs" -mindepth 1 -maxdepth 1 ! -name "$OPENSSL_ARCH" -exec rm -rf {} \; \
     && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
@@ -124,8 +117,6 @@ RUN ARCH= OPENSSL_ARCH= && dpkgArch="$(dpkg --print-architecture)" \
     && set -eux \
     && NODE_RUNTIME_VERSION=24.19.0 \
     && NODE_RUNTIME_ROOT=/opt/devbox/runtimes/node/24 \
-    && NODE_ARCHIVE_URL="https://nodejs.org/dist/v${NODE_RUNTIME_VERSION}/node-v${NODE_RUNTIME_VERSION}-linux-${ARCH}.tar.xz" \
-    && NODE_CHECKSUMS_URL="https://nodejs.org/dist/v${NODE_RUNTIME_VERSION}/SHASUMS256.txt.asc" \
     && mkdir -p "$NODE_RUNTIME_ROOT" /tmp/node-source \
     && cd /tmp/node-source \
     # use pre-existing gpg directory
@@ -145,19 +136,14 @@ RUN ARCH= OPENSSL_ARCH= && dpkgArch="$(dpkg --print-architecture)" \
       { gpg --batch --no-options --keyserver hkps://keys.openpgp.org --recv-keys "$key" && gpg --batch --no-options --fingerprint "$key"; } || \
       { gpg --batch --no-options --keyserver keyserver.ubuntu.com --recv-keys "$key" && gpg --batch --no-options --fingerprint "$key"; }; \
     done \
-    && archive="node-v${NODE_RUNTIME_VERSION}-linux-${ARCH}.tar.xz" \
-    && curl -fsSL --retry 3 -o "$archive" "$NODE_ARCHIVE_URL" \
-    && curl -fsSL --retry 3 -o SHASUMS256.txt.asc "$NODE_CHECKSUMS_URL" \
+    && curl -fsSLO --compressed "https://nodejs.org/dist/v${NODE_RUNTIME_VERSION}/node-v${NODE_RUNTIME_VERSION}-linux-${ARCH}.tar.xz" \
+    && curl -fsSLO --compressed "https://nodejs.org/dist/v${NODE_RUNTIME_VERSION}/SHASUMS256.txt.asc" \
     && gpg --batch --no-options --decrypt --output SHASUMS256.txt SHASUMS256.txt.asc \
     && gpgconf --kill all \
     && rm -rf "$GNUPGHOME" \
-    && awk -v archive="$archive" \
-      '$2 == archive { print; found = 1; exit } END { if (!found) exit 1 }' \
-      SHASUMS256.txt > "$archive.sha256" \
-    && sha256sum --check "$archive.sha256" \
-    && tar --extract --xz --file "$archive" --directory "$NODE_RUNTIME_ROOT" \
-      --strip-components=1 --no-same-owner \
-    && rm "$archive" SHASUMS256.txt.asc SHASUMS256.txt "$archive.sha256" \
+    && grep " node-v${NODE_RUNTIME_VERSION}-linux-${ARCH}.tar.xz\$" SHASUMS256.txt | sha256sum -c - \
+    && tar -xJf "node-v${NODE_RUNTIME_VERSION}-linux-${ARCH}.tar.xz" -C "$NODE_RUNTIME_ROOT" --strip-components=1 --no-same-owner \
+    && rm "node-v${NODE_RUNTIME_VERSION}-linux-${ARCH}.tar.xz" SHASUMS256.txt.asc SHASUMS256.txt \
     # Remove unused OpenSSL headers to save ~34MB. See this NodeJS issue: https://github.com/nodejs/node/issues/46451
     && find "$NODE_RUNTIME_ROOT/include/node/openssl/archs" -mindepth 1 -maxdepth 1 ! -name "$OPENSSL_ARCH" -exec rm -rf {} \; \
     && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \
