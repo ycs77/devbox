@@ -1,15 +1,15 @@
-name: devbox-node
+name: devbox-php
 
 services:
   devbox:
     build:
       context: ../..
-      dockerfile: prototype/node/Dockerfile
-    image: devbox-node:latest
-    container_name: devbox-node
+      dockerfile: prototype/php/Dockerfile
+    image: devbox-php:latest
+    container_name: devbox-php
     hostname: devbox
     environment:
-      NODE_VERSION: '24'
+      PHP_VERSION: '8.5'
       TERM: xterm-256color
       PULSE_SERVER: unix:/tmp/pulse-socket
     volumes:

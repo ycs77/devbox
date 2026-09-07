@@ -12,7 +12,7 @@ printf '{}\n' > prototype/node/data/.claude.json
 Build the devbox image with:
 
 ```bash
-docker build --file prototype/node/Dockerfile --tag devbox:latest .
+docker build --file prototype/node/Dockerfile --tag devbox-node:latest .
 ```
 
 Start the devbox container with:
@@ -36,7 +36,7 @@ docker compose -f prototype/node/compose.yaml run --rm -it -u devbox devbox bash
 Enter the prototype image with the default Node.js 24 runtime:
 
 ```bash
-docker run --rm -it -u devbox -v "$PWD:/workspace" devbox:latest
+docker run --rm -it -u devbox -v "$PWD:/workspace" devbox-node:latest
 ```
 
 ### Node.js 22
@@ -44,7 +44,7 @@ docker run --rm -it -u devbox -v "$PWD:/workspace" devbox:latest
 Switch to Node.js 22 with:
 
 ```bash
-docker run --rm -it -u devbox -e NODE_VERSION=22 -v "$PWD:/workspace" devbox:latest
+docker run --rm -it -u devbox -e NODE_VERSION=22 -v "$PWD:/workspace" devbox-node:latest
 ```
 
 ### Persist AI tool data
@@ -66,7 +66,7 @@ docker run --rm -it \
   -v devbox-codex:/home/devbox/.codex \
   -v devbox-agy:/home/devbox/.gemini \
   -v devbox-omp:/home/devbox/.omp \
-  devbox:latest
+  devbox-node:latest
 ```
 
 ### WSL audio passthrough
@@ -79,5 +79,5 @@ docker run --rm -it \
   -e PULSE_SERVER=unix:/tmp/pulse-socket \
   -v "$PWD:/workspace" \
   -v /mnt/wslg/runtime-dir/pulse/native:/tmp/pulse-socket \
-  devbox:latest
+  devbox-node:latest
 ```
