@@ -77,6 +77,7 @@ export function renderProjectCompose(input: ProjectComposeInput): Result<string>
     services: {
       devbox: {
         image: WORKSPACE_IMAGE,
+        hostname: 'devbox',
         container_name: `devbox-${input.sandboxName}`,
         working_dir: `/workspace/${input.sandboxName}`,
         ...(Object.keys(environment).length === 0 ? {} : { environment }),

@@ -197,6 +197,7 @@ describe('initializeProject', () => {
       services: {
         devbox: {
           image: 'devbox-workspace:latest',
+          hostname: 'devbox',
           container_name: 'devbox-project',
           working_dir: '/workspace/project',
           environment: {
