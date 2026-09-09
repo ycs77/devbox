@@ -1,10 +1,10 @@
 # Share one Devbox-managed Agent home across projects
 
-ADR-0030 supersedes per-Project Agent selection and ADR-0034 names the user-scope desired concept Configured Agent set. Every Configured Agent is installed in the Workspace image and available to every Project Sandbox independently of its Toolchain. One user-scope Agent home per AI Agent remains shared across all Sandboxes where that Agent is available.
+ADR-0049 supersedes per-Project Agent selection and establishes the Configured Agent set in Global configuration. Every Configured Agent is installed in the Workspace image and available to every Project Sandbox independently of its Selected Node Runtime. One user-scope Agent home per AI Agent remains shared across all Sandboxes where that Agent is available; ADR-0050 separately defines Claude's host-owned `.claude.json` bind mount.
 
 Devbox keeps one writable user-scope Docker volume per AI Agent and generated Compose mounts every Configured Agent's volume into every Project Sandbox at that Agent's upstream-compatible home path. Devbox never mounts or imports the developer's normal host Agent home. A user authenticates by running the Agent inside any Project Sandbox and completing the Agent's upstream flow; the resulting credentials, settings, history, trust state, hooks, MCP configuration, and other mutable Agent state are then shared read-write across Projects. Every process running as the Sandbox user can read or modify every mounted Agent home, so Devbox explicitly accepts cross-Project credential and state exposure within that user's Devbox Sandboxes.
 
-Agent home Docker volumes are user-data resources rather than rebuildable cache. `cleanup`, `down`, and `rm` never delete them, and Devbox exposes no generic volume-deletion option. A future Agent-specific reset lifecycle may deliberately remove one named Agent home, but its command and confirmation contract are outside the initial Cleanup design.
+Agent home Docker volumes are user-data resources rather than rebuildable cache. `up` creates the external volumes required by its retained Compose definition; `cleanup`, `down`, and `rm` never delete them, and Devbox exposes no generic volume-deletion option. A future Agent-specific reset lifecycle may deliberately remove one named Agent home, but its command and confirmation contract are outside the initial Cleanup design.
 
 ## Agent home boundary evidence
 

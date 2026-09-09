@@ -1,8 +1,10 @@
 # Use Ubuntu 24.04 LTS as the Base profile
 
-> **Current status (2026-08-14):** ADR-0048 keeps Ubuntu 24.04 and the validated prototype Base flow but supersedes the statement that its digest and package plan are persisted in a Platform lock. Base inputs are current recipe/build inputs; no `platform-lock.yaml` is created.
+> **Current status (2026-09-09):** Ubuntu 24.04 remains the non-user-selectable Base profile. ADR-0048 keeps the inline recipe-driven Base and Runtime Build flow without a Platform lock; Build currently uses the `ubuntu:24.04` tag as its Dockerfile base and persists no Base digest or package plan.
 
-Devbox replaces Debian 13 Trixie Slim with one non-user-selectable Ubuntu 24.04 LTS Base profile, built from a digest-pinned `ubuntu:24.04` source. Devbox is Lucas's opinionated personal development environment; his greater familiarity with and regular use of Ubuntu outweigh retaining the existing Trixie-specific prototype evidence. This is a product preference, not a claim that Ubuntu provides broader official multi-version Runtime packages.
+Devbox replaces Debian 13 Trixie Slim with one non-user-selectable Ubuntu 24.04 LTS Base profile. Devbox is Lucas's opinionated personal development environment; his greater familiarity with and regular use of Ubuntu outweigh retaining the existing Trixie-specific prototype evidence. This is a product preference, not a claim that Ubuntu provides broader official multi-version Runtime packages.
+
+## Superseded historical Base-input details
 
 The Platform lock uses `ubuntu:24.04` itself as the Base profile identifier and separately pins the resolved source digest. Devbox stores no additional Base ABI generation, recipe version, or recipe hash; packaged recipe changes within the Noble profile may therefore change a later Build from the same Platform lock, while a future Ubuntu profile changes the identifier and requires `update`.
 

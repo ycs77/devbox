@@ -1,5 +1,3 @@
 # Keep the initial Local configuration schema minimal
 
-ADR-0030 supersedes this schema. Local `config.yaml` remains at `version: 1`, keeps `toolchain` and `ports`, and removes the per-Project `agent` field.
-
-The initial `config.yaml` schema requires independent `version: 1`, a complete `toolchain` mapping whose PHP and Node values are release-line scalars and which may be empty, one `agent` scalar limited to `claude-code` or `codex`, and a complete `ports` list which may be empty. Each port entry contains only distinct valid `host` and `container` ports and is rendered as TCP bound to host `127.0.0.1`; `init` suggests `8000:8000` for selected PHP and `5173:5173` for selected Node, then lets the user confirm or edit them. The initial schema contains no extensions, Services, network, resources, SSH, arbitrary mounts, credentials, Agent state, or Git configuration fields.
+> **Status: Superseded by ADR-0049 (2026-08-30).** The current Local `config.yaml` has exactly `version: 1` and `node`, where `node` is one Global-configured Node release line or `null`. It has no `toolchain`, `agent`, `ports`, Services, network, resource, SSH, mount, credential, Agent-state, or Git-configuration fields.

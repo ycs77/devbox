@@ -1,12 +1,9 @@
 # Keep image assembly behind Devbox operations
 
-> **Current status (2026-08-14):** ADR-0048 supersedes this ADR's Platform-plan/lock consumption and Sandbox-bootstrap Node-tool placement for the current stage. Build reads Global `build.node`, applies packaged recipes, and follows the validated prototype Docker flow.
+> **Current status (2026-09-09):** ADR-0048 defines the packaged Runtime recipe flow without a Platform lock; ADR-0049 defines Global `node` build input and static Compose publication; ADR-0050 defines Configured Agent installation. Build regenerates the machine-owned Docker context and publishes `devbox-workspace:latest`; `up` never invokes Build. The following pipeline details are historical.
 
-ADR-0029 supersedes per-Toolchain Workspace candidates and assembly, ADR-0030 removes the public `sync` command, ADR-0032 removes persisted Workspace identity, ADR-0034 introduces the explicit public build pipeline and removes post-build verification, and ADR-0035 folds Base materialization into that single Workspace build. Build accepts one fully resolved Platform plan, generates the machine-owned Dockerfile, and invokes Docker directly against `devbox-workspace:latest`.
+## Superseded historical design
 
-Devbox exposes the public global `build` command but no internal-artifact targets. `update` resolves and atomically publishes the exact Platform lock without invoking Docker; `build` alone consumes that lock, regenerates the common Workspace context, installs Configured Agents, and publishes `devbox-workspace:latest`; `up` never invokes Build.
-
-The Build module accepts one immutable, fully resolved current Platform plan. It owns Workspace-context generation, Docker invocation, cancellation, and publication of `devbox-workspace:latest`, while never reading Project or Local configuration, resolving upstream versions, activating or serializing an existing Platform lock, rendering Compose, or managing Sandbox lifecycle.
 
 ## Superseded historical candidate and fingerprint design
 

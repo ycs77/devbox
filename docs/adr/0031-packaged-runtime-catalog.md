@@ -1,10 +1,14 @@
 # Require release lines in the packaged Runtime catalog
 
-> **Current status (2026-08-14):** ADR-0048 keeps the finite packaged Runtime catalog, but each supported release line now points to a packaged fixed-version recipe and Global `build.node` selects the build set. There is no Platform-lock exact-resolution stage.
+> **Current status (2026-09-09):** ADR-0049 keeps the finite packaged Runtime catalog. Global `node` selects the Node release lines installed by the next Workspace build, and Local `node` selects one configured line or `null`; there is no Platform-lock exact-resolution stage.
 
-Devbox recognizes only the finite set of Runtime family and release-line pairs distributed in its packaged Runtime catalog. For each Runtime family, its ordered catalog entries and Built-in suggestions are the same set; the first entry is the initialization default, while the Configured Runtime set is the user-specific subset selected for resolution and future Workspace builds. A new official release line remains unavailable until a Devbox package update adds it, deliberately accepting that release cadence constraint in exchange for a finite, inspectable support surface. This supersedes ADR-0019's open release-line space.
+Devbox recognizes only the finite set of Runtime family and release-line pairs distributed in its packaged Runtime catalog. For each Runtime family, its ordered catalog entries and Built-in suggestions are the same set; the first entry is the initialization default, while the Configured Runtime set is the user-specific Global subset selected for the next Workspace build. A new official release line remains unavailable until a Devbox package update adds it, deliberately accepting that release cadence constraint in exchange for a finite, inspectable support surface. This supersedes ADR-0019's open release-line space.
 
-`devbox config` and `devbox config -g` accept only release lines in the current packaged catalog, and Local or Global configuration loaded after supported manual edits must satisfy the same membership rule. A catalog-external release line fails validation before persistence, so Devbox never saves desired state it cannot interpret.
+`devbox config` accepts only release lines in the current packaged catalog, regardless of whether the user chooses Global or Local scope. Local and Global configuration loaded after supported manual edits must satisfy the same membership rule; Local `node` must additionally occur in Global `node`. A catalog-external release line fails validation before persistence, so Devbox never saves desired state it cannot interpret.
+
+## Historical catalog consequences
+
+
 
 Every packaged catalog entry is a Devbox support claim that its official source can be resolved and its Runtime recipe is compatible with the current Base profile; package publication must validate that claim. `update` or a bootstrap `build` still resolves defensively. If a nonexistent source or incompatibility escapes publication checks, confirmed configuration remains saved, resolution failure preserves the prior Platform lock, Docker build failure preserves the prior `devbox-workspace:latest`, and Devbox never silently falls back.
 

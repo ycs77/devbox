@@ -1,6 +1,6 @@
 # Ship the v0.x line as a Node-only MVP
 
-ADR-0029 supersedes this decision's per-Toolchain Workspace-image shape, ADR-0030 and ADR-0031 supersede its fixed configuration and Runtime assumptions, ADR-0034 supersedes its public commands and implicit preparation flow, and ADR-0037 replaces Debian with Ubuntu 24.04. Only the deliberately Node-only delivery stage, WSL2 `linux/amd64` host, and deferral of PHP, Services, and other hosts remain in force until later stage decisions change them.
+ADR-0049 supersedes this decision's former fixed-Toolchain, configuration, image, and CLI details. The current v0.x delivery boundary remains Node-only on WSL2 `linux/amd64`: Global configuration may include the packaged Node 22 and 24 release lines, and each Project may select one configured Node line or `null`. PHP, Services, and other hosts remain deferred until later decisions change that boundary.
 
 ## Superseded historical MVP shape
 
@@ -10,4 +10,4 @@ This deliberately narrows the v1.0 PHP-plus-Node catalog defined by ADR-0005. PH
 
 ## Consequences
 
-The Base includes only Node-MVP requirements. A later PHP release requires its own Base update, Runtime recipe, Workspace identity, user-facing configuration, and executable acceptance rather than silently expanding the current Toolchain.
+The Base includes only Node-MVP requirements. A later PHP release requires its own Base update, Runtime recipe, user-facing configuration, and executable acceptance rather than silently expanding the current Toolchain.

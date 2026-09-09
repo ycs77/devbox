@@ -77,7 +77,7 @@ The Project-scoped execution environment with its own container, workspace mount
 A Project-scoped CLI command that invokes an already generated Sandbox Compose definition without changing configuration, building a Workspace image, or rendering a replacement definition.
 
 **Sandbox user**:
-The non-root account that runs interactive shells, commands, project tools, and available AI Agents inside a Sandbox after its UID and GID are aligned with the developer invoking Devbox.
+The fixed non-root `devbox` account that runs interactive shells, commands, project tools, and available AI Agents inside a Sandbox. The Workspace image grants this account passwordless `sudo`; the container entrypoint and idle supervisor start as root, while `devbox sh` executes as `devbox`.
 
 
 **Service**:

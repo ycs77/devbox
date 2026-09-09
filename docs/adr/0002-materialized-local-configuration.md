@@ -1,6 +1,8 @@
 # Materialize complete project configuration in user scope
 
-ADR-0030 supersedes this decision. Devbox has no committed Project configuration or public `sync` command; Local configuration is entirely user-owned, stays at `version: 1`, and is applied through `config` or `up` without schema migration machinery.
+ADR-0049 supersedes this decision. Devbox has no committed Project configuration or public `sync` command; Local configuration is user-owned and has the schema defined by ADR-0049.
+
+## Superseded historical configuration details
 
 The first `devbox init` for a Project runs only in an interactive terminal and materializes one complete Local configuration in user scope; the initial release provides no non-interactive initialization mode. Project configuration values are fixed and displayed without prompting, while the user answers every option the project leaves open. For an open Toolchain choice, Devbox detects supported project manifests such as `composer.json` and `package.json`, presents the inferred Runtimes and release lines as editable suggestions, and falls back to Built-in defaults when detection is inconclusive; detection never fixes a Project option automatically. Repeating `init` reports that the Project is already initialized and changes nothing, while later configuration changes use a separate operation. Before each start, current project-fixed values are synchronized into the Local configuration, and execution reads only the resulting complete configuration; removing a project-fixed value preserves its last local value but makes it user-editable. This gives projects shareable control over selected choices without requiring every personal choice to live in the repository.
 

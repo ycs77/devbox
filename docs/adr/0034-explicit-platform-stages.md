@@ -1,6 +1,8 @@
 # Separate configuration, locking, building, and Sandbox lifecycle
 
-> **Current status (2026-08-14):** ADR-0048 supersedes this ADR's Platform-lock and explicit `update` contract. The current direction uses Global `build.node` configuration plus packaged Runtime recipes, does not create `platform-lock.yaml`, and defers Project-specific Runtime selection and Local configuration. General separation of configuration, Build, and Sandbox lifecycle remains only where it does not conflict with ADR-0048.
+> **Current status (2026-09-09):** ADR-0048 supersedes this ADR's Platform-lock and explicit `update` contract, and ADR-0049 supersedes its `build.node`, deferred Local configuration, and `up`-time Compose rendering. The current direction uses Global configuration plus packaged recipes, static Compose publication during configuration operations, explicit `build`, and retained-definition lifecycle commands.
+
+## Superseded historical stage details
 
 Devbox adopts an explicit staged workflow instead of self-applying configuration. Interactive `init` registers the current Project and initializes its Local configuration and, only when absent, Global configuration without resolving artifacts or invoking Docker; `config` edits only Local configuration, while `config -g` edits only Global configuration. `update` is the only command allowed to modify an existing Platform lock and may also create one by resolving the current Base inputs and Configured Runtime source coordinates and trusted release-key policy without invoking Docker.
 

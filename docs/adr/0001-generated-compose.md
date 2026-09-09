@@ -1,6 +1,8 @@
 # Generate Compose outside the project
 
-ADR-0034 supersedes this decision's Compose regeneration through configuration or shared reconciliation: only `up` now renders and atomically retains the current Project definition before invoking Compose, while `stop`, `down`, `sh`, `exec`, and `logs` use the last retained file. ADR-0032 supersedes references to fingerprinted Workspace tags, ADR-0042 supersedes the neighboring Local `config.yaml` as registration truth, and ADR-0045 supersedes this decision's former lifecycle-lock, helper, and lock-order contract. The Project registry now owns registration while Compose remains machine-owned state outside the Project.
+ADR-0049 supersedes this decision's Compose regeneration through configuration or shared reconciliation: configuration and initialization now publish retained static Project definitions, while `up`, `stop`, `down`, and `sh` use the last retained file. ADR-0032 supersedes references to fingerprinted Workspace tags, ADR-0042 supersedes the neighboring Local `config.yaml` as registration truth, and ADR-0045 supersedes this decision's former lifecycle-lock, helper, and lock-order assumptions.
+
+## Superseded historical lifecycle details
 
 Devbox manages a Sandbox and any future Services by generating an internal Compose definition in Devbox-owned user data and invoking Docker Compose. The initial release ships no Service catalog and generates Sandbox-only definitions, while retaining Compose as the lifecycle and networking foundation for later curated Services. This keeps projects free of required Docker configuration and avoids rebuilding Compose semantics around individual `docker run` calls; generated Compose is an implementation detail, not a user extension surface.
 

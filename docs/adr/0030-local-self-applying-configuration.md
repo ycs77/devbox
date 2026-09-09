@@ -1,8 +1,9 @@
 # Keep Project choices local and make configuration self-applying
 
-> **Current status (2026-08-14):** ADR-0048 supersedes this ADR's Global Runtime-to-Platform-lock resolution contract and defers Local configuration. The current Global build input is `build.node`; Project-specific Runtime selection will be decided later.
+> **Status: Superseded by ADR-0049 (2026-08-30).** ADR-0049 defines the current Global and Local configuration schemas, `config` flow, static Compose publication, Workspace Build boundary, and Project-specific Node selection. The following material is historical.
 
-ADR-0034 supersedes this decision's self-applying configuration flow. `config` and `config -g` now edit only their configuration scope; exact resolution, image building, and Sandbox lifecycle are separate explicit stages. The Local and Global configuration ownership, schema, persistence, and no-migration decisions remain in force.
+## Superseded historical design
+
 
 Devbox removes committed Project configuration and `devbox.yaml`; Runtime choices are entirely local to each user and may differ for the same Project across machines. A human-editable Local `config.yaml` remains the complete Project-scoped desired state with `version: 1`, a `toolchain` mapping that selects zero or one release line per Runtime family, and `ports`; it no longer stores an AI Agent. This accepts weaker cross-machine Runtime reproducibility in exchange for one simpler, user-owned configuration source and supersedes the Project/Local merge model in ADR-0002, ADR-0003, ADR-0018, and ADR-0022.
 

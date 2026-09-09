@@ -1,14 +1,14 @@
 # Publish one latest Workspace image without persisted identity
 
-> **Current status (2026-08-14):** ADR-0048 supersedes this ADR's Platform-lock source for the Workspace plan. The single latest Workspace-image direction remains, but Build inputs now come from Global `build.node` and packaged recipes.
+> **Current status (2026-09-09):** ADR-0049 keeps one mutable `devbox-workspace:latest` Workspace image. Its Build input is Global `node`, `agent`, and `agent_notifications` configuration plus packaged recipes; Project-specific Node selection affects static Compose, not the shared image.
 
 The single mutable `devbox-workspace:latest` identity and old-image retention rules remain in force. The common image contains Base, Configured Runtime, and Configured Agent contents.
 
-Devbox removes the custom Workspace fingerprint and does not persist a Workspace image ID, generation, or candidate registry. Each explicit `build` regenerates the fully resolved Workspace plan from the Platform lock, relies only on BuildKit's internal cache, and builds directly to the single local `devbox-workspace:latest` tag; all retained Compose definitions use that mutable reference.
+Devbox removes the custom Workspace fingerprint and does not persist a Workspace image ID, generation, or candidate registry. Each explicit `build` reads committed Global configuration directly, relies only on BuildKit's internal cache, and builds directly to the single local `devbox-workspace:latest` tag; all retained Compose definitions use that mutable reference.
 
-Running Sandbox containers remain attached to the immutable Docker image from which they were created when `latest` moves. A later Compose-only `up` may recreate that Project's container when its referenced image changed, but it does not verify that `latest` corresponds to the current Platform lock. Devbox accepts that explicit stages may remain out of sync in exchange for removing the Workspace fingerprint schema, canonical encoder, immutable Workspace tags, and persisted publication identity.
+Running Sandbox containers remain attached to the immutable Docker image from which they were created when `latest` moves. A later Compose-only `up` may recreate that Project's container when its referenced image changed, but it does not verify that `latest` corresponds to the current Global configuration. Devbox accepts that explicit Build and lifecycle stages may remain out of sync in exchange for removing the Workspace fingerprint schema, canonical encoder, immutable Workspace tags, and persisted publication identity.
 
-`update`, or `build` when no Platform lock exists, resolves the complete exact plan for the Configured Runtime set. Build consumes the resulting lock's exact Base entry and every exact Runtime entry together with current packaged Runtime and Workspace recipes; it never reads floating upstream releases or modifies an existing lock. Resolution failure preserves the prior lock, while Docker build failure preserves the prior usable `latest`.
+`build` reads Global `node`, Agent, and notification configuration and packaged recipes directly. Docker build failure preserves the prior usable `latest`; Build does not resolve or create a Platform lock.
 
 The Configured Agent set is a Workspace build input. The common image contains every configured Agent executable, while Agent homes, credentials, configuration, and mutable state remain outside the image under their separately defined lifecycle.
 
