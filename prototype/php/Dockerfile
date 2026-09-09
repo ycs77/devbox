@@ -2,6 +2,9 @@
 # The generated Build Dockerfile will replace these fixed values with lock inputs.
 FROM ubuntu:24.04
 
+ARG USER_ID
+ARG GROUP_ID
+
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=UTC
 ENV LANG=C.UTF-8
@@ -104,8 +107,8 @@ RUN setcap "cap_net_bind_service=+ep" /usr/bin/php8.5
 
 # Create the devbox user and group
 RUN userdel -r ubuntu \
-    && groupadd -f -g 1000 devbox \
-    && useradd -m -s /bin/bash -N -g 1000 -u 1000 devbox \
+    && groupadd -f -g "$GROUP_ID" devbox \
+    && useradd -m -s /bin/bash -N -g "$GROUP_ID" -u "$USER_ID" devbox \
     && echo "devbox ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/devbox \
     && chmod 0440 /etc/sudoers.d/devbox
 

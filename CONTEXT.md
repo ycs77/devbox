@@ -40,7 +40,7 @@ The single versioned userland ABI shared by Devbox and every compatible Runtime 
 A Base-profile-compatible, independently reusable Runtime installation placed at an isolated path and linked into Workspace images.
 
 **Workspace image**:
-An immutable image built from the Base profile, Configured Runtime set, Configured Agent set, and enabled Agent notification plugins through packaged recipes, then shared by every Project Sandbox independently of its Toolchain. Its latest successful build is used for new or recreated Sandboxes, while existing Sandbox containers may continue using an older build.
+An immutable image built from the Base profile, Configured Runtime set, Configured Agent set, enabled Agent notification plugins, and the invoking host user's POSIX numeric identity through packaged recipes, then shared by every Project Sandbox independently of its Toolchain. Its latest successful build is used for new or recreated Sandboxes, while existing Sandbox containers may continue using an older build.
 
 **AI Agent**:
 An AI coding agent from the Configured Agent set that works inside every Project Sandbox with writable access to its Project workspace.
@@ -77,7 +77,7 @@ The Project-scoped execution environment with its own container, workspace mount
 A Project-scoped CLI command that invokes an already generated Sandbox Compose definition without changing configuration, building a Workspace image, or rendering a replacement definition.
 
 **Sandbox user**:
-The fixed non-root `devbox` account that runs interactive shells, commands, project tools, and available AI Agents inside a Sandbox. The Workspace image grants this account passwordless `sudo`; the container entrypoint and idle supervisor start as root, while `devbox sh` executes as `devbox`.
+The non-root `devbox` account whose numeric UID and GID match the host user that built its Workspace image. It runs interactive shells, commands, project tools, and available AI Agents inside a Sandbox. The Workspace image grants this account passwordless `sudo`; the container entrypoint and idle supervisor start as root, while `devbox sh` executes as `devbox`.
 
 
 **Service**:

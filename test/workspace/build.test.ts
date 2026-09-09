@@ -1,7 +1,7 @@
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { failure, success } from '../../src/result.js'
 import { withStateLocks } from '../../src/state-lock/index.js'
 import {
@@ -11,6 +11,9 @@ import {
 } from '../../src/workspace/build.js'
 
 const temporaryDirectories: string[] = []
+
+let hostUserId = 1000
+let hostGroupId = 1000
 
 async function temporaryDirectory(): Promise<string> {
   const directory = await mkdtemp(join(tmpdir(), 'devbox-build-test-'))
@@ -51,6 +54,7 @@ async function writeGlobalConfiguration(
 }
 
 afterEach(async () => {
+  vi.restoreAllMocks()
   await Promise.all(
     temporaryDirectories
       .splice(0)
@@ -59,6 +63,13 @@ afterEach(async () => {
 })
 
 describe('buildWorkspace', () => {
+  beforeEach(() => {
+    hostUserId = 1000
+    hostGroupId = 1000
+    vi.spyOn(process, 'getuid').mockImplementation(() => hostUserId)
+    vi.spyOn(process, 'getgid').mockImplementation(() => hostGroupId)
+  })
+
   it('preserves user Build context inputs and initializes missing Workspace image defaults', async () => {
     const sandbox = await temporaryDirectory()
     const devboxHome = join(sandbox, '.devbox')
@@ -86,6 +97,58 @@ describe('buildWorkspace', () => {
       '!entrypoint.sh',
     )
     expect(await readFile(join(devboxHome, 'config.yaml'), 'utf8')).toBe(before)
+  })
+
+  it('builds the Workspace image with the invoking host numeric identity', async () => {
+    const sandbox = await temporaryDirectory()
+    const devboxHome = join(sandbox, '.devbox')
+    await writeGlobalConfiguration(devboxHome, { node: [], agent: [] })
+    hostUserId = 2001
+    hostGroupId = 2002
+    let invocation: DockerBuildInvocation | undefined
+    let dockerfile = ''
+
+    const result = await buildWorkspace({
+      devboxHome,
+      executeDockerBuild: async input => {
+        invocation = input
+        dockerfile = await readFile(join(input.context, 'Dockerfile'), 'utf8')
+        return success(undefined)
+      },
+    })
+
+    expect(result).toEqual({ ok: true, value: { image: WORKSPACE_IMAGE } })
+    expect(invocation).toMatchObject({
+      buildArgs: { USER_ID: '2001', GROUP_ID: '2002' },
+    })
+    expect(dockerfile).toContain('ARG USER_ID')
+    expect(dockerfile).toContain('ARG GROUP_ID')
+    expect(dockerfile).toContain('groupadd -g "$GROUP_ID" devbox')
+    expect(dockerfile).toContain('useradd -m -s /bin/bash -N -g "$GROUP_ID" -u "$USER_ID" devbox')
+    expect(dockerfile).not.toContain('1000')
+  })
+
+  it('rejects a root host identity before attempting the Workspace image build', async () => {
+    const sandbox = await temporaryDirectory()
+    const devboxHome = join(sandbox, '.devbox')
+    await writeGlobalConfiguration(devboxHome, { node: [], agent: [] })
+    hostUserId = 0
+    hostGroupId = 0
+    let buildAttempts = 0
+
+    const result = await buildWorkspace({
+      devboxHome,
+      executeDockerBuild: async () => {
+        buildAttempts += 1
+        return success(undefined)
+      },
+    })
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: { kind: 'validation', code: 'invalid-host-identity' },
+    })
+    expect(buildAttempts).toBe(0)
   })
 
   it('serializes access to the shared Build context', async () => {
