@@ -78,16 +78,73 @@ describe('createConfigurationPrompter', () => {
       output,
     })
     const editing = prompt.editLocal!(
-      { version: 1, node: null },
+      { version: 1, node: null, ports: [] },
       { runtimes: { node: ['24', '22'] }, agents: [] },
       { version: 1, node: ['24'], agent: [], agent_notifications: true },
     )
 
     input.emit('keypress', '', { name: 'down' })
     input.emit('keypress', '', { name: 'return' })
+    await new Promise<void>(resolve => setImmediate(resolve))
+    input.emit('keypress', '', { name: 'return' })
+    input.emit('keypress', '', { name: 'return' })
 
-    await expect(editing).resolves.toEqual({ version: 1, node: '24' })
+    await expect(editing).resolves.toEqual({ version: 1, node: '24', ports: [] })
     expect(output.chunks.join('')).toContain('Project configuration')
+  })
+
+  it('prepopulates Local ports in the multiline editor', async () => {
+    const input = new PromptInput()
+    const output = new PromptOutput()
+    const prompt = createConfigurationPrompter({
+      signal: new AbortController().signal,
+      input,
+      output,
+    })
+    const editing = prompt.editLocal!(
+      { version: 1, node: null, ports: ['APP_PORT:5173:5173'] },
+      { runtimes: { node: ['24', '22'] }, agents: [] },
+      { version: 1, node: ['24'], agent: [], agent_notifications: true },
+    )
+
+    input.emit('keypress', '', { name: 'down' })
+    input.emit('keypress', '', { name: 'return' })
+    await new Promise<void>(resolve => setImmediate(resolve))
+    input.emit('keypress', '', { name: 'return' })
+    input.emit('keypress', '', { name: 'return' })
+
+    await expect(editing).resolves.toEqual({
+      version: 1,
+      node: '24',
+      ports: ['APP_PORT:5173:5173'],
+    })
+    expect(output.chunks.join('')).toContain('Published ports')
+  })
+
+  it('preserves Local ports while selecting a Global Node replacement', async () => {
+    const input = new PromptInput()
+    const output = new PromptOutput()
+    const prompt = createConfigurationPrompter({
+      signal: new AbortController().signal,
+      input,
+      output,
+    })
+    const editing = prompt.editLocal!(
+      { version: 1, node: '24', ports: ['APP_PORT:5173:5173'] },
+      { runtimes: { node: ['24', '22'] }, agents: [] },
+      { version: 1, node: ['22'], agent: [], agent_notifications: true },
+      false,
+    )
+
+    input.emit('keypress', '', { name: 'down' })
+    input.emit('keypress', '', { name: 'return' })
+
+    await expect(editing).resolves.toEqual({
+      version: 1,
+      node: '22',
+      ports: ['APP_PORT:5173:5173'],
+    })
+    expect(output.chunks.join('')).toContain('replacement runtime')
   })
 
   it('renders confirmation details before asking for approval', async () => {

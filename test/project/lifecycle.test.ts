@@ -28,7 +28,7 @@ async function createProjectState(
       agent: ['claude-code'],
       agent_notifications: true,
     },
-    initialLocalConfiguration: { version: 1, node: '24' },
+    initialLocalConfiguration: { version: 1, node: '24', ports: [] },
   })
   expect(result).toMatchObject({ ok: true, value: { root, created: true } })
   if (!result.ok) {

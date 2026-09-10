@@ -6,6 +6,7 @@ import {
   type ConfigurationPrompter,
   type ConfirmationDetails,
 } from '../project/index.js'
+import { normalizePortMappings } from './index.js'
 
 export interface ConfigurationPrompterOptions {
   readonly signal: AbortSignal
@@ -75,10 +76,12 @@ export function createConfigurationPrompter({
       )
       return { version: 1, node, agent, agent_notifications }
     },
-    editLocal: async (configuration, catalog, globalConfiguration) => {
+    editLocal: async (configuration, catalog, globalConfiguration, editPorts = true) => {
       p.log.step(
         `${c.bold(c.cyan('Project configuration'))}\n${c.dim(
-          'Choose the runtime for this Project.',
+          editPorts
+            ? 'Choose the runtime and published ports for this Project.'
+            : 'Choose the replacement runtime for this Project.',
         )}`,
         common,
       )
@@ -93,7 +96,26 @@ export function createConfigurationPrompter({
           ...common,
         }),
       )
-      return { version: 1, node }
+      if (!editPorts) {
+        return { ...configuration, node }
+      }
+
+      const source = await promptValue(
+        p.multiline({
+          message: 'Published ports',
+          initialValue: configuration.ports.join('\n'),
+          validate: value => {
+            const ports = normalizePortMappings((value ?? '').split('\n'))
+            return ports.ok ? undefined : ports.error.observed
+          },
+          ...common,
+        }),
+      )
+      const ports = normalizePortMappings(source.split('\n'))
+      if (!ports.ok) {
+        throw new Error(ports.error.observed)
+      }
+      return { version: 1, node, ports: ports.value }
     },
   }
 }

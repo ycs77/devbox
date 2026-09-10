@@ -1,4 +1,5 @@
 import { parse, stringify } from 'yaml'
+import { renderComposePortMapping } from '../configuration/index.js'
 import { failure, success, type Result } from '../result.js'
 import { WORKSPACE_IMAGE } from '../workspace/image.js'
 import { selectComposeFragments, type ComposeFragmentSelectionInput } from './compose-fragments.js'
@@ -7,6 +8,7 @@ export interface ProjectComposeInput extends ComposeFragmentSelectionInput {
   readonly projectRoot: string
   readonly sandboxName: string
   readonly claudeHostConfiguration: string | undefined
+  readonly ports: readonly string[]
 }
 
 interface RenderedProjectCompose {
@@ -23,6 +25,7 @@ interface RenderedProjectCompose {
       readonly container_name: unknown
       readonly working_dir: unknown
       readonly environment?: { readonly NODE_VERSION?: unknown }
+      readonly ports?: unknown
       readonly build?: unknown
     }
   }
@@ -80,6 +83,9 @@ export function renderProjectCompose(input: ProjectComposeInput): Result<string>
         hostname: 'devbox',
         container_name: `devbox-${input.sandboxName}`,
         working_dir: `/workspace/${input.sandboxName}`,
+        ...(input.ports.length === 0
+          ? {}
+          : { ports: input.ports.map(port => renderComposePortMapping(port)) }),
         ...(Object.keys(environment).length === 0 ? {} : { environment }),
         volumes,
       },
@@ -131,9 +137,11 @@ function validatesProjectCompose(source: string, input: ProjectComposeInput): bo
     ) {
       return false
     }
+    const ports = input.ports.map(port => renderComposePortMapping(port))
     return (
-      (input.selectedNode === null && service.environment?.NODE_VERSION === undefined) ||
-      (input.selectedNode !== null && service.environment?.NODE_VERSION === input.selectedNode)
+      JSON.stringify(service.ports ?? []) === JSON.stringify(ports) &&
+      ((input.selectedNode === null && service.environment?.NODE_VERSION === undefined) ||
+        (input.selectedNode !== null && service.environment?.NODE_VERSION === input.selectedNode))
     )
   } catch {
     return false

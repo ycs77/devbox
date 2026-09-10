@@ -71,6 +71,7 @@ export interface ConfigurationPrompter {
     configuration: LocalConfiguration,
     catalog: RuntimeCatalog,
     globalConfiguration: GlobalConfiguration,
+    editPorts?: boolean,
   ) => Promise<LocalConfiguration>
 }
 
@@ -706,7 +707,12 @@ async function configureGlobalUnlocked(
 
     let replacement = input.nextLocalConfigurations?.[root]
     if (replacement === undefined && input.prompt?.editLocal) {
-      replacement = await input.prompt.editLocal(localConfiguration, catalog, nextCheck.value)
+      replacement = await input.prompt.editLocal(
+        localConfiguration,
+        catalog,
+        nextCheck.value,
+        false,
+      )
     }
     if (replacement === undefined) {
       return failure({
@@ -1269,6 +1275,7 @@ async function composeStateWrite(input: {
     configuredAgents: input.globalConfiguration.agent,
     agentNotifications: input.globalConfiguration.agent_notifications,
     claudeHostConfiguration: claudeHostConfiguration.value,
+    ports: input.localConfiguration.ports,
   })
   if (!rendered.ok) {
     return rendered

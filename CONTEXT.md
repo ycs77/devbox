@@ -141,7 +141,7 @@ A retained Project registration whose exact absolute Project root cannot be foun
 The single confirmed set of disposable Devbox-owned resources selected for one cleanup operation. It may include a resource that becomes eligible only after an earlier removal in the same plan.
 
 **Local configuration**:
-The complete user-owned configuration for one Project, stored in user scope and never supplied or fixed by files in the Project workspace. In the current scope, it contains only the Project's Selected Node Runtime.
+The complete user-owned configuration for one Project, stored in user scope and never supplied or fixed by files in the Project workspace. It contains the Project's Selected Node Runtime and published port mappings.
 _Avoid_: Project configuration, Project lockfile
 
 **Project workspace**:

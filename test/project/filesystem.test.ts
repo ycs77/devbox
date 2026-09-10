@@ -82,7 +82,7 @@ describe('Project filesystem failures', () => {
     const result = await configureLocalProject({
       root: projectRoot,
       devboxHome,
-      nextConfiguration: { version: 1, node: null },
+      nextConfiguration: { version: 1, node: null, ports: [] },
       confirm: async () => true,
     })
 
@@ -125,8 +125,8 @@ describe('Project filesystem failures', () => {
       devboxHome,
       nextConfiguration: { version: 1, node: [], agent: [], agent_notifications: true },
       nextLocalConfigurations: {
-        [projectRoot]: { version: 1, node: null },
-        [secondProjectRoot]: { version: 1, node: null },
+        [projectRoot]: { version: 1, node: null, ports: [] },
+        [secondProjectRoot]: { version: 1, node: null, ports: [] },
       },
       confirm: async () => true,
     })

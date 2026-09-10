@@ -11,6 +11,7 @@ const dockerComposeAvailable =
   spawnSync('docker', ['compose', 'version'], { stdio: 'ignore' }).status === 0
 const dockerComposeEnvironment = { ...process.env }
 delete dockerComposeEnvironment.COMPOSE_PROJECT_NAME
+delete dockerComposeEnvironment.APP_PORT
 
 async function temporaryDirectory(): Promise<string> {
   const directory = await mkdtemp(join(tmpdir(), 'devbox-compose-smoke-test-'))
@@ -46,7 +47,11 @@ describe('published Compose definition', () => {
           agent: [],
           agent_notifications: false,
         },
-        initialLocalConfiguration: { version: 1, node: '24' },
+        initialLocalConfiguration: {
+          version: 1,
+          node: '24',
+          ports: ['3000:3000', 'APP_PORT:5173:5173'],
+        },
       })
 
       expect(project).toMatchObject({ ok: true, value: { created: true } })
@@ -79,6 +84,10 @@ describe('published Compose definition', () => {
             image: 'devbox-workspace:latest',
             working_dir: `/workspace/${project.value.sandboxName}`,
             environment: { NODE_VERSION: '24' },
+            ports: expect.arrayContaining([
+              expect.objectContaining({ published: '3000', target: 3000 }),
+              expect.objectContaining({ published: '5173', target: 5173 }),
+            ]),
           },
         },
       })

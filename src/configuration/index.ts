@@ -17,6 +17,7 @@ export interface GlobalConfiguration {
 export interface LocalConfiguration {
   readonly version: 1
   readonly node: string | null
+  readonly ports: readonly string[]
 }
 
 export function normalizeCatalog(
@@ -67,7 +68,11 @@ export function defaultGlobalConfiguration(
 export function defaultLocalConfiguration(
   globalConfiguration: GlobalConfiguration,
 ): LocalConfiguration {
-  return { version: 1, node: globalConfiguration.node[0] ?? null }
+  return {
+    version: 1,
+    node: globalConfiguration.node[0] ?? null,
+    ports: ['APP_PORT:5173:5173'],
+  }
 }
 
 export function parseGlobalConfiguration(
@@ -145,7 +150,11 @@ export function parseLocalConfiguration(
   }
 
   const document = parsed.value
-  if (!isRecord(document) || !hasExactKeys(document, ['version', 'node'])) {
+  if (
+    !isRecord(document) ||
+    (!hasExactKeys(document, ['version', 'node']) &&
+      !hasExactKeys(document, ['version', 'node', 'ports']))
+  ) {
     return invalid(
       'invalid-local-configuration',
       'Local configuration contains unknown or missing fields.',
@@ -175,7 +184,12 @@ export function parseLocalConfiguration(
     )
   }
 
-  return success({ version: 1, node })
+  const ports = document.ports === undefined ? success([]) : normalizePortMappings(document.ports)
+  if (!ports.ok) {
+    return ports
+  }
+
+  return success({ version: 1, node, ports: ports.value })
 }
 
 export function serializeGlobalConfiguration(configuration: GlobalConfiguration): string {
@@ -188,7 +202,7 @@ export function serializeGlobalConfiguration(configuration: GlobalConfiguration)
 }
 
 export function serializeLocalConfiguration(configuration: LocalConfiguration): string {
-  return stringify({ version: 1, node: configuration.node })
+  return stringify({ version: 1, node: configuration.node, ports: [...configuration.ports] })
 }
 
 export function configurationsEqual(
@@ -196,6 +210,39 @@ export function configurationsEqual(
   right: GlobalConfiguration | LocalConfiguration,
 ): boolean {
   return JSON.stringify(left) === JSON.stringify(right)
+}
+
+export function renderComposePortMapping(mapping: string): string {
+  return parsePortMapping(mapping)?.compose ?? mapping
+}
+
+export function normalizePortMappings(values: unknown): Result<readonly string[]> {
+  if (!Array.isArray(values) || !values.every(value => typeof value === 'string')) {
+    return invalid('invalid-local-configuration', 'Ports must be a list of port mappings.')
+  }
+
+  const mappings: string[] = []
+  const hostPorts = new Set<string>()
+  for (const input of values) {
+    const mapping = input.trim()
+    if (mapping.length === 0) {
+      continue
+    }
+
+    const parsed = parsePortMapping(mapping)
+    if (parsed === undefined) {
+      return invalid('invalid-local-configuration', `Port mapping is invalid: ${mapping}.`)
+    }
+    if (hostPorts.has(parsed.hostPort)) {
+      return invalid(
+        'invalid-local-configuration',
+        `Host port is configured more than once: ${parsed.hostPort}.`,
+      )
+    }
+    hostPorts.add(parsed.hostPort)
+    mappings.push(mapping)
+  }
+  return success(mappings)
 }
 
 type ParsedYaml =
@@ -232,6 +279,36 @@ function runtimeLineOrNull(value: unknown): string | null | undefined {
     return null
   }
   return runtimeLine(value)
+}
+
+interface PortMapping {
+  readonly hostPort: string
+  readonly compose: string
+}
+
+function parsePortMapping(mapping: string): PortMapping | undefined {
+  const literal = /^(\d+):(\d+)$/.exec(mapping)
+  if (literal !== null) {
+    return validPort(literal[1]) && validPort(literal[2])
+      ? { hostPort: String(Number(literal[1])), compose: mapping }
+      : undefined
+  }
+
+  const environment = /^([A-Za-z_][A-Za-z0-9_]*):(\d+):(\d+)$/.exec(mapping)
+  if (environment !== null) {
+    return validPort(environment[2]) && validPort(environment[3])
+      ? {
+          hostPort: String(Number(environment[2])),
+          compose: `\${${environment[1]}:-${environment[2]}}:${environment[3]}`,
+        }
+      : undefined
+  }
+  return undefined
+}
+
+function validPort(value: string): boolean {
+  const port = Number(value)
+  return Number.isInteger(port) && port >= 1 && port <= 65_535
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

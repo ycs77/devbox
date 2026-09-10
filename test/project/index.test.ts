@@ -153,6 +153,7 @@ describe('initializeProject', () => {
       {
         version: 1,
         node: '24',
+        ports: ['APP_PORT:5173:5173'],
       },
     )
   })
@@ -174,10 +175,12 @@ describe('initializeProject', () => {
         agent: ['claude-code', 'agy'],
         agent_notifications: true,
       },
-      initialLocalConfiguration: { version: 1, node: '22' },
+      initialLocalConfiguration: {
+        version: 1,
+        node: '22',
+        ports: ['3000:3000', 'APP_PORT:5173:5173'],
+      },
     })
-
-    expect(project).toMatchObject({ ok: true, value: { created: true } })
     if (!project.ok) {
       throw new Error(project.error.observed)
     }
@@ -205,6 +208,7 @@ describe('initializeProject', () => {
             PULSE_SERVER: 'unix:/tmp/pulse-socket',
             TERM: 'xterm-256color',
           },
+          ports: ['3000:3000', '${APP_PORT:-5173}:5173'],
           volumes: [
             {
               type: 'bind',
@@ -258,7 +262,7 @@ describe('initializeProject', () => {
         agent: ['claude-code'],
         agent_notifications: false,
       },
-      initialLocalConfiguration: { version: 1, node: '24' },
+      initialLocalConfiguration: { version: 1, node: '24', ports: [] },
     })
     expect(project).toMatchObject({ ok: true, value: { created: true } })
     const configuration = join(devboxHome, 'agents', 'claude', '.claude.json')
@@ -294,7 +298,7 @@ describe('initializeProject', () => {
         agent: ['codex'],
         agent_notifications: false,
       },
-      initialLocalConfiguration: { version: 1, node: '22' },
+      initialLocalConfiguration: { version: 1, node: '22', ports: [] },
     })
 
     expect(result).toMatchObject({ ok: true, value: { created: false } })
@@ -503,6 +507,7 @@ describe('initializeProject', () => {
         editLocal: async (_configuration, _catalog, globalConfiguration) => ({
           version: 1,
           node: globalConfiguration.node[0] ?? null,
+          ports: [],
         }),
       },
     })
@@ -519,6 +524,7 @@ describe('initializeProject', () => {
         editLocal: async (_configuration, _catalog, globalConfiguration) => ({
           version: 1,
           node: globalConfiguration.node[0] ?? null,
+          ports: [],
         }),
       },
     })
@@ -559,7 +565,7 @@ describe('configuration boundaries', () => {
     const result = await configureLocalProject({
       root: projectRoot,
       devboxHome,
-      nextConfiguration: { version: 1, node: null },
+      nextConfiguration: { version: 1, node: null, ports: [] },
       prompt: {
         confirm: async (message, details) => {
           confirmation = { message, details }
@@ -587,6 +593,9 @@ describe('configuration boundaries', () => {
     expect(
       parse(await readFile(join(project.stateDirectory, 'compose.yaml'), 'utf8')),
     ).not.toHaveProperty('services.devbox.environment.NODE_VERSION')
+    expect(
+      parse(await readFile(join(project.stateDirectory, 'compose.yaml'), 'utf8')),
+    ).not.toHaveProperty('services.devbox.ports')
   })
 
   it('regenerates every affected Project definition after a Global change', async () => {
@@ -720,7 +729,7 @@ describe('configuration boundaries', () => {
     const result = await configureLocalProject({
       root: projectRoot,
       devboxHome,
-      nextConfiguration: { version: 1, node: null },
+      nextConfiguration: { version: 1, node: null, ports: [] },
       confirm: async () => false,
     })
 
@@ -744,7 +753,7 @@ describe('configuration boundaries', () => {
     const result = await configureLocalProject({
       root: projectRoot,
       devboxHome,
-      nextConfiguration: { version: 1, node: null },
+      nextConfiguration: { version: 1, node: null, ports: [] },
       prompt: { confirm: async () => true },
     })
 
@@ -780,7 +789,7 @@ describe('configuration boundaries', () => {
       devboxHome,
       prompt: {
         confirm: async () => true,
-        editLocal: async () => ({ version: 1, node: '26' }),
+        editLocal: async () => ({ version: 1, node: '26', ports: [] }),
       },
     })
 
@@ -809,7 +818,7 @@ describe('configuration boundaries', () => {
       nextConfiguration: { version: 1, node: [], agent: [], agent_notifications: true },
       prompt: {
         confirm: async () => true,
-        editLocal: async () => ({ version: 1, node: null }),
+        editLocal: async () => ({ version: 1, node: null, ports: [] }),
       },
     })
 

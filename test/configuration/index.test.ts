@@ -58,7 +58,7 @@ describe('configuration schemas', () => {
 
     expect(parseLocalConfiguration('version: 1\nnode: null\n', global)).toEqual({
       ok: true,
-      value: { version: 1, node: null },
+      value: { version: 1, node: null, ports: [] },
     })
     expect(parseLocalConfiguration('version: 1\nnode: ""\n', global)).toMatchObject({
       ok: false,
@@ -68,5 +68,82 @@ describe('configuration schemas', () => {
       ok: false,
       error: { code: 'unconfigured-runtime-selection' },
     })
+  })
+
+  it('normalizes valid Local port mappings', () => {
+    const global = {
+      version: 1 as const,
+      node: ['24'] as const,
+      agent: [] as const,
+      agent_notifications: false,
+    }
+
+    expect(
+      parseLocalConfiguration(
+        'version: 1\nnode: null\nports:\n  - " 3000:3000 "\n  - " APP_PORT:5173:5173 "\n',
+        global,
+      ),
+    ).toEqual({
+      ok: true,
+      value: {
+        version: 1,
+        node: null,
+        ports: ['3000:3000', 'APP_PORT:5173:5173'],
+      },
+    })
+  })
+
+  it('rejects an invalid Local environment port mapping', () => {
+    const global = {
+      version: 1 as const,
+      node: ['24'] as const,
+      agent: [] as const,
+      agent_notifications: false,
+    }
+
+    expect(
+      parseLocalConfiguration('version: 1\nnode: null\nports:\n  - "APP-PORT:5173:5173"\n', global),
+    ).toMatchObject({ ok: false, error: { code: 'invalid-local-configuration' } })
+  })
+
+  it('rejects duplicate Local host ports', () => {
+    const global = {
+      version: 1 as const,
+      node: ['24'] as const,
+      agent: [] as const,
+      agent_notifications: false,
+    }
+
+    expect(
+      parseLocalConfiguration(
+        'version: 1\nnode: null\nports:\n  - "3000:3000"\n  - "APP_PORT:3000:5173"\n',
+        global,
+      ),
+    ).toMatchObject({ ok: false, error: { code: 'invalid-local-configuration' } })
+    expect(
+      parseLocalConfiguration(
+        'version: 1\nnode: null\nports:\n  - "3000:3000"\n  - "03000:4000"\n',
+        global,
+      ),
+    ).toMatchObject({ ok: false, error: { code: 'invalid-local-configuration' } })
+  })
+
+  it('enforces Local port number boundaries', () => {
+    const global = {
+      version: 1 as const,
+      node: ['24'] as const,
+      agent: [] as const,
+      agent_notifications: false,
+    }
+
+    expect(
+      parseLocalConfiguration('version: 1\nnode: null\nports:\n  - "1:65535"\n', global),
+    ).toMatchObject({ ok: true })
+    expect(
+      parseLocalConfiguration('version: 1\nnode: null\nports:\n  - "0:3000"\n', global),
+    ).toMatchObject({ ok: false, error: { code: 'invalid-local-configuration' } })
+    expect(
+      parseLocalConfiguration('version: 1\nnode: null\nports:\n  - "65536:3000"\n', global),
+    ).toMatchObject({ ok: false, error: { code: 'invalid-local-configuration' } })
   })
 })
