@@ -5,10 +5,6 @@ if [ "$SUPERVISOR_PHP_USER" != "root" ] && [ "$SUPERVISOR_PHP_USER" != "devbox" 
   exit 1
 fi
 
-if [ ! -z "$WWWUSER" ]; then
-  usermod -u $WWWUSER devbox
-fi
-
 if [ ! -d /.composer ]; then
   mkdir /.composer
 fi
@@ -19,7 +15,7 @@ if [ $# -gt 0 ]; then
   if [ "$SUPERVISOR_PHP_USER" = "root" ]; then
     exec "$@"
   else
-    exec gosu $WWWUSER "$@"
+    exec gosu "$SUPERVISOR_PHP_USER" "$@"
   fi
 else
   exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf

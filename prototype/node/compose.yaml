@@ -5,6 +5,10 @@ services:
     image: devbox-node:latest
     container_name: devbox-node
     hostname: devbox
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    ports:
+      - '${APP_PORT:-5173}:5173'
     environment:
       NODE_VERSION: '24'
       TERM: xterm-256color

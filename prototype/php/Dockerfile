@@ -79,13 +79,11 @@ RUN apt-get update && apt-get upgrade -y \
         php8.5-gd \
         php8.5-curl \
         php8.5-mongodb \
-        php8.5-imap \
         php8.5-mysql \
         php8.5-mbstring \
         php8.5-xml \
         php8.5-zip \
         php8.5-bcmath \
-        php8.5-soap \
         php8.5-intl \
         php8.5-readline \
         php8.5-igbinary \
@@ -166,6 +164,6 @@ COPY prototype/php/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY php.ini /etc/php/8.5/cli/conf.d/99-devbox.ini
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
-EXPOSE 80/tcp
+EXPOSE 80
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
