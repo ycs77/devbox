@@ -8,6 +8,9 @@ ARG GROUP_ID
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=UTC
 ENV LANG=C.UTF-8
+ENV TERM=xterm-256color
+ENV EDITOR=vim
+ENV VISUAL=vim
 
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 

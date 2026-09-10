@@ -13,7 +13,6 @@ services:
     environment:
       WWWUSER: '${WWWUSER}'
       PHP_VERSION: '8.5'
-      TERM: xterm-256color
       PULSE_SERVER: unix:/tmp/pulse-socket
     volumes:
       - ${DEVBOX_WORKSPACE:-../..}:/workspace

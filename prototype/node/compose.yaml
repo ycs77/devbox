@@ -11,7 +11,6 @@ services:
       - '${APP_PORT:-5173}:5173'
     environment:
       NODE_VERSION: '24'
-      TERM: xterm-256color
       PULSE_SERVER: unix:/tmp/pulse-socket
     volumes:
       - ${DEVBOX_WORKSPACE:-../..}:/workspace
