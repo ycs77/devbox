@@ -12,7 +12,11 @@ printf '{}\n' > prototype/php/data/.claude.json
 Build the devbox image with:
 
 ```bash
-docker build --file prototype/php/Dockerfile --tag devbox-php:latest .
+docker build \
+  --file prototype/php/Dockerfile \
+  --build-arg USER_ID=$(id -u) \
+  --build-arg GROUP_ID=$(id -g) \
+  --tag devbox-php:latest .
 ```
 
 Start the devbox container with:

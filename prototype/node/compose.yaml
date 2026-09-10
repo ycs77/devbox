@@ -2,9 +2,6 @@ name: devbox-node
 
 services:
   devbox:
-    build:
-      context: ../..
-      dockerfile: prototype/node/Dockerfile
     image: devbox-node:latest
     container_name: devbox-node
     hostname: devbox

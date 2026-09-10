@@ -2,11 +2,6 @@ name: devbox-php
 
 services:
   devbox:
-    build:
-      context: ../..
-      dockerfile: prototype/php/Dockerfile
-      args:
-        WWWGROUP: '${WWWGROUP}'
     image: devbox-php:latest
     container_name: devbox-php
     hostname: devbox

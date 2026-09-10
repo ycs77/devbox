@@ -12,7 +12,11 @@ printf '{}\n' > prototype/node/data/.claude.json
 Build the devbox image with:
 
 ```bash
-docker build --file prototype/node/Dockerfile --tag devbox-node:latest .
+docker build \
+  --file prototype/node/Dockerfile \
+  --build-arg USER_ID=$(id -u) \
+  --build-arg GROUP_ID=$(id -g) \
+  --tag devbox-node:latest .
 ```
 
 Start the devbox container with:
@@ -58,6 +62,8 @@ docker volume create devbox-codex
 docker volume create devbox-agy
 docker volume create devbox-omp
 docker run --rm -it \
+  --build-arg USER_ID=$(id -u) \
+  --build-arg GROUP_ID=$(id -g) \
   -u devbox \
   -e TERM="xterm-256color" \
   -v "$PWD:/workspace" \
@@ -75,6 +81,8 @@ Pass through the WSL audio interface:
 
 ```bash
 docker run --rm -it \
+  --build-arg USER_ID=$(id -u) \
+  --build-arg GROUP_ID=$(id -g) \
   -u devbox \
   -e PULSE_SERVER=unix:/tmp/pulse-socket \
   -v "$PWD:/workspace" \
