@@ -2,7 +2,7 @@
 
 # @ycs77/devbox
 
-**A opinionated devbox for AI agents.**
+**An opinionated devbox for AI agents.**
 
 [![NPM version][ico-version]][link-npm]
 [![Software License][ico-license]](LICENSE)
@@ -17,20 +17,20 @@ English | [繁體中文](README-zh-TW.md)
 
 ## Overview
 
-Devbox gives each project an isolated Docker sandbox designed for AI agents, with Lucas's opinionated development setup. Choose the Node.js release lines and AI agents you use, then work from a consistent container without configuring it yourself.
+Devbox gives each project an isolated Docker sandbox for AI agents, preconfigured with Lucas's development preferences.
 
 ## Features
 
 - **Container environment for AI agents:** choose Claude Code, Codex, and more during setup, then use them inside the sandbox.
-- **Simple setup and project lifecycle:** initialize, start, enter, stop, and remove a sandbox with a few commands.
-- **Flexible Node.js environments:** configure Node.js 22 and 24, then select a version for each project.
+- **Simple project sandbox management:** initialize, start, enter, stop, and remove a sandbox with a few commands.
+- **Flexible Node.js versions:** choose the versions to include, then select one for each project.
 - **Selective builds:** build only the Node.js versions and AI agents you choose.
 - **No project configuration files:** keep Devbox configuration local to your machine, not in your repository.
 
 ## Requirements
 
-- **Node.js 22 or later:** installs and runs the CLI with npm.
-- **Docker with Docker Compose:** runs the development sandbox.
+- **Node.js 22 or later:** required to install and run the CLI with npm.
+- **Docker with Docker Compose:** required to run the development sandbox.
 - **Windows:** use Devbox from a **WSL2** Linux distribution with Docker Desktop integration enabled.
 
 ## Getting started
@@ -47,9 +47,11 @@ From your project directory, initialize Devbox:
 devbox init
 ```
 
-The interactive setup lets you choose the Node.js release lines and AI agents to configure, then select the Node.js version for the current project.
+The interactive setup lets you choose the Node.js versions and AI agents to include, then select a Node.js version for the current project.
 
-Build the shared workspace image once after setup or after changing global configuration:
+Global configuration controls what goes into the shared Workspace Image. Each Node.js version or AI agent you add makes the image larger and uses more disk space. Projects can use only the Node.js versions included in the image.
+
+Build the shared Workspace Image once after setup or whenever you change global configuration:
 
 ```bash
 devbox build
@@ -67,9 +69,9 @@ Open a shell inside the running sandbox and start working with your AI agent:
 devbox sh
 ```
 
-For example, run `claude`, `codex`, `agy`, or `omp` after opening the shell when that agent was selected during setup.
+If you selected an agent during setup, run `claude`, `codex`, `agy`, or `omp` inside the shell.
 
-## Everyday commands
+## Commands
 
 Run these commands from the initialized project directory:
 
@@ -79,23 +81,24 @@ Run these commands from the initialized project directory:
 | `devbox sh` | Open a Bash shell in the running sandbox. |
 | `devbox stop` | Stop the sandbox and preserve it for a later restart. |
 | `devbox down` | Stop and remove the sandbox container. |
-| `devbox config` | Change the globally configured or current project's Node.js selection. |
+| `devbox config` | Change global settings or this project's configuration. |
+| `devbox cleanup --missing-projects` | Remove registrations for projects whose root directory no longer exists. |
 
 ## Troubleshooting
 
-### A command says a Devbox marker is occupied
+### Devbox reports that a command marker is in use
 
-An interrupted process or sudden system shutdown can leave a command marker behind. First confirm that no Devbox process is still running, then remove only the stale marker and retry:
+An interrupted command or sudden system shutdown can leave a command marker behind. First confirm that no other Devbox command is still running, then remove the stale marker and retry:
 
 ```bash
 rm -rf ~/.devbox/locks/<marker>
 ```
 
-Markers are directories named `global` or `project-<hash>`. Do not remove a marker while its Devbox command is still running.
+A marker is a directory named `global` or `project-<hash>`. Do not remove a marker while its Devbox command is still running.
 
 ## Sponsor
 
-If you think this package has helped you, please consider [Becoming a sponsor](https://www.patreon.com/ycs77) to support my work~ and your avatar will be visible on my major projects.
+If Devbox has helped you, consider sponsoring my work on Patreon. Your avatar will appear on my major projects.
 
 <p align="center">
   <a href="https://www.patreon.com/ycs77">
