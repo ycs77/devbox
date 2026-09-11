@@ -50,7 +50,7 @@ describe('createConfigurationPrompter', () => {
       agent: [],
       agent_notifications: true,
     })
-    expect(output.chunks.join('')).toContain('Global configuration')
+    expect(output.chunks.join('')).toContain('Workspace Docker image')
   })
 
   it('selects the Global configuration scope', async () => {
@@ -67,6 +67,8 @@ describe('createConfigurationPrompter', () => {
     input.emit('keypress', '', { name: 'return' })
 
     await expect(selection).resolves.toBe('global')
+    expect(output.chunks.join('')).toContain('Current project')
+    expect(output.chunks.join('')).toContain('Workspace Docker image')
   })
 
   it('selects the configured Node Runtime for Local configuration', async () => {
@@ -144,7 +146,7 @@ describe('createConfigurationPrompter', () => {
       node: '22',
       ports: ['APP_PORT:5173:5173'],
     })
-    expect(output.chunks.join('')).toContain('replacement runtime')
+    expect(output.chunks.join('')).toContain('container starts')
   })
 
   it('renders confirmation details before asking for approval', async () => {

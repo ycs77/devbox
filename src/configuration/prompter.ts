@@ -34,18 +34,26 @@ export function createConfigurationPrompter({
     selectConfigurationScope: async () =>
       promptValue(
         p.select<'global' | 'local'>({
-          message: 'Configuration scope',
+          message: 'Where should this configuration apply?',
           options: [
-            { value: 'local', label: 'Current Project' },
-            { value: 'global', label: 'Global' },
+            {
+              value: 'local',
+              label: 'Current project',
+              hint: 'Enabled when this project’s container starts.',
+            },
+            {
+              value: 'global',
+              label: 'Workspace Docker image',
+              hint: 'Built into the shared image. It affects image size and disk usage.',
+            },
           ],
           ...common,
         }),
       ),
     editGlobal: async (configuration, catalog) => {
       p.log.step(
-        `${c.bold(c.cyan('Global configuration'))}\n${c.dim(
-          'Choose the runtimes and agents available to every Project.',
+        `${c.bold(c.cyan('Workspace Docker image'))}\n${c.dim(
+          'Add runtimes and agents to the shared image. They are available to every project and increase the image size.',
         )}`,
         common,
       )
@@ -80,8 +88,8 @@ export function createConfigurationPrompter({
       p.log.step(
         `${c.bold(c.cyan('Project configuration'))}\n${c.dim(
           editPorts
-            ? 'Choose the runtime and published ports for this Project.'
-            : 'Choose the replacement runtime for this Project.',
+            ? 'Choose the Node version and ports to use when this project’s container starts.'
+            : 'Choose the Node version to use when this project’s container starts.',
         )}`,
         common,
       )
