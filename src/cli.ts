@@ -2,6 +2,7 @@ import type { CAC } from 'cac'
 import { intro, outro } from '@clack/prompts'
 import { cac } from 'cac'
 import c from 'picocolors'
+import pkg from '../package.json' with { type: 'json' }
 import { createConfigurationPrompter } from './configuration/prompter.js'
 import { HostCommandError } from './host.js'
 import { showLogo } from './logo.js'
@@ -193,6 +194,7 @@ function createCli(signal: AbortSignal, interactive: boolean): CAC {
       return result.ok ? success({}) : result
     })
 
+  cli.version(pkg.version)
   cli.help()
 
   return cli
