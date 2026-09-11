@@ -113,7 +113,8 @@ _Avoid_: lifecycle lock
 The short-lived coordination state for one Project operation that modifies Devbox state or Sandbox lifecycle. It prevents another lock-participating operation for that Project while the host-side command is running, but does not keep the Sandbox locked after `up` returns or regulate Sandbox shell sessions.
 _Avoid_: container lock, shell lock
 
-
+**Command usage error**:
+An invalid Devbox command invocation, such as an unrecognized option, a missing option value, or unsupported positional input.
 
 **Project**:
 One project root directory registered with Devbox; separate subdirectories, clones, and Git worktrees are distinct Projects even when they originate from the same repository.

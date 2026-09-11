@@ -207,6 +207,7 @@ function present(result: CliResult): number {
   if (result.value.message !== undefined) {
     process.stdout.write(`${result.value.message}\n`)
   }
+
   return 0
 }
 
@@ -229,14 +230,24 @@ async function main(): Promise<number> {
       process.stderr.write('Devbox command interrupted.\n')
       return 130
     }
+
     if (error instanceof HostCommandError) {
       return error.exitCode
+    }
+
+    if (isCacError(error)) {
+      process.stderr.write(`${error.message}\n`)
+      return 2
     }
 
     throw error
   } finally {
     process.off('SIGINT', interrupt)
   }
+}
+
+function isCacError(error: unknown): error is Error {
+  return error instanceof Error && error.name === 'CACError'
 }
 
 function interactiveFailure(observed: string, nextAction: string): Result<never> {
