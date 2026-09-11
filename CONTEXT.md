@@ -74,7 +74,10 @@ The Project-scoped execution environment with its own container, workspace mount
 
 
 **Sandbox lifecycle command**:
-A Project-scoped CLI command that invokes an already generated Sandbox Compose definition without changing configuration, building a Workspace image, or rendering a replacement definition.
+A Project-scoped CLI command that starts, stops, or removes a Sandbox through an already generated Sandbox definition without changing configuration, building a Workspace image, or rendering a replacement definition.
+
+**Sandbox shell session**:
+An interactive session attached to an existing Sandbox by `devbox sh`. It is independent of Devbox command locks and may coexist with other Sandbox shell sessions and Sandbox lifecycle commands.
 
 **Sandbox user**:
 The non-root `devbox` account whose numeric UID and GID match the host user that built its Workspace image. It runs interactive shells, commands, project tools, and available AI Agents inside a Sandbox. The Workspace image grants this account passwordless `sudo`; the container entrypoint and idle supervisor start as root, while `devbox sh` executes as `devbox`.
@@ -103,12 +106,12 @@ The complete set of Global, Local, Project-registry, and host inputs read by one
 _Avoid_: live configuration
 
 **Global command lock**:
-The short-lived coordination state for operations that modify Devbox-wide configuration or Project registration. It does not block `up`, which may use a configuration snapshot while it runs.
+The short-lived coordination state for operations that modify Devbox-wide configuration or Project registration. It does not block `up` or a Sandbox shell session, which may use a configuration snapshot while it runs.
 _Avoid_: lifecycle lock
 
 **Project command lock**:
-The short-lived coordination state for one Project command. It prevents another command for that Project while the host-side command is running, but it does not keep the Sandbox locked after `up` returns.
-_Avoid_: container lock
+The short-lived coordination state for one Project operation that modifies Devbox state or Sandbox lifecycle. It prevents another lock-participating operation for that Project while the host-side command is running, but does not keep the Sandbox locked after `up` returns or regulate Sandbox shell sessions.
+_Avoid_: container lock, shell lock
 
 
 

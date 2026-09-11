@@ -122,9 +122,11 @@ export interface CleanupMissingProjectsInput {
   readonly yes?: boolean
 }
 
-export type SandboxLifecycleCommand = 'up' | 'down' | 'stop' | 'sh'
+export type SandboxLifecycleCommand = 'up' | 'down' | 'stop'
 
-export interface SandboxLifecycleInput {
+type SandboxCommand = SandboxLifecycleCommand | 'sh'
+
+export interface SandboxCommandInput {
   readonly root?: string
   readonly devboxHome?: string
   readonly signal?: AbortSignal
@@ -151,7 +153,7 @@ export type ConfigureLocalResult = Result<ConfigurationOperation>
 export type ConfigureGlobalResult = Result<ConfigurationOperation>
 export type RemoveProjectResult = Result<ProjectRemoval>
 export type CleanupMissingProjectsResult = Result<MissingProjectsCleanup>
-export type SandboxLifecycleResult = Result<void>
+export type SandboxCommandResult = Result<void>
 
 export function devboxPaths(devboxHome = join(homedir(), '.devbox')): DevboxPaths {
   return {
@@ -1006,8 +1008,8 @@ async function cleanupMissingProjectsUnlocked(
 
 export async function runSandboxLifecycle(
   command: SandboxLifecycleCommand,
-  input: SandboxLifecycleInput = {},
-): Promise<SandboxLifecycleResult> {
+  input: SandboxCommandInput = {},
+): Promise<SandboxCommandResult> {
   const projectRoot = input.root ?? process.cwd()
   return withStateLocks(
     {
@@ -1016,15 +1018,21 @@ export async function runSandboxLifecycle(
       projectRoots: [projectRoot],
       signal: input.signal,
     },
-    () => runSandboxLifecycleUnlocked(command, input, projectRoot),
+    () => runSandboxCommandUnlocked(command, input, projectRoot),
   )
 }
 
-async function runSandboxLifecycleUnlocked(
-  command: SandboxLifecycleCommand,
-  input: SandboxLifecycleInput,
+export async function runSandboxShell(
+  input: SandboxCommandInput = {},
+): Promise<SandboxCommandResult> {
+  return runSandboxCommandUnlocked('sh', input, input.root ?? process.cwd())
+}
+
+async function runSandboxCommandUnlocked(
+  command: SandboxCommand,
+  input: SandboxCommandInput,
   projectRoot: string,
-): Promise<SandboxLifecycleResult> {
+): Promise<SandboxCommandResult> {
   if (input.signal?.aborted) {
     throw new InterruptedError()
   }

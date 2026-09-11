@@ -13,6 +13,7 @@ import {
   InterruptedError,
   removeProject,
   runSandboxLifecycle,
+  runSandboxShell,
 } from './project/index.js'
 import { failure, success, type Result } from './result.js'
 import { buildWorkspace } from './workspace/build.js'
@@ -178,13 +179,19 @@ function createCli(signal: AbortSignal, interactive: boolean): CAC {
     ['up', 'Start the current Project Sandbox.'],
     ['down', 'Stop and remove the current Project Sandbox.'],
     ['stop', 'Stop the current Project Sandbox.'],
-    ['sh', 'Open a shell in the current Project Sandbox.'],
   ] as const) {
     cli.command(command, description).action(async (): Promise<CliResult> => {
       const result = await runSandboxLifecycle(command, { signal })
       return result.ok ? success({}) : result
     })
   }
+
+  cli
+    .command('sh', 'Open a shell in the current Project Sandbox.')
+    .action(async (): Promise<CliResult> => {
+      const result = await runSandboxShell({ signal })
+      return result.ok ? success({}) : result
+    })
 
   cli.help()
 
