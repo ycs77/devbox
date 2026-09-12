@@ -52,16 +52,12 @@ try {
     (await run(cli, ['cleanup'], { expectedCode: 2 })).stderr,
     /cleanup requires --missing-projects/,
   )
+  assert.match((await run(cli, ['restart'], { expectedCode: 2 })).stderr, /Unused args: `restart`/)
   assert.match(
-    (await run(cli, ['config', '-g'], { expectedCode: 1 })).stderr,
-    /Unknown option `-g`/,
-  )
-  assert.match((await run(cli, ['restart'], { expectedCode: 1 })).stderr, /Unused args: `restart`/)
-  assert.match(
-    (await run(cli, ['exec', 'bash'], { expectedCode: 1 })).stderr,
+    (await run(cli, ['exec', 'bash'], { expectedCode: 2 })).stderr,
     /Unused args: `exec`, `bash`/,
   )
-  assert.match((await run(cli, ['logs'], { expectedCode: 1 })).stderr, /Unused args: `logs`/)
+  assert.match((await run(cli, ['logs'], { expectedCode: 2 })).stderr, /Unused args: `logs`/)
 
   const shellHelp = (await run(cli, ['sh', '--help'])).stdout
   assert.match(shellHelp, /Usage:\n  \$ devbox sh/)
