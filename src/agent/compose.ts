@@ -1,11 +1,5 @@
 import { PACKAGED_AGENTS } from '../catalog/index.js'
 
-export interface NodeComposeFragment {
-  readonly environment: {
-    readonly NODE_VERSION: string
-  }
-}
-
 export interface AgentComposeFragment {
   readonly agent: string
   readonly volume: {
@@ -24,14 +18,7 @@ export interface NotificationComposeFragment {
   }
 }
 
-export interface ComposeFragmentSelectionInput {
-  readonly selectedNode: string | null
-  readonly configuredAgents: readonly string[]
-  readonly agentNotifications: boolean
-}
-
-export interface ComposeFragments {
-  readonly node: NodeComposeFragment | undefined
+export interface AgentComposeFragments {
   readonly agents: readonly AgentComposeFragment[]
   readonly notification: NotificationComposeFragment | undefined
 }
@@ -45,11 +32,10 @@ const NOTIFICATION_FRAGMENT: NotificationComposeFragment = {
   },
 }
 
-export function selectComposeFragments({
-  selectedNode,
-  configuredAgents,
-  agentNotifications,
-}: ComposeFragmentSelectionInput): ComposeFragments {
+export function selectAgentComposeFragments(
+  configuredAgents: readonly string[],
+  notificationsEnabled: boolean,
+): AgentComposeFragments {
   const agents: AgentComposeFragment[] = []
   let hasNotificationAgent = false
   for (const agent of configuredAgents) {
@@ -68,8 +54,7 @@ export function selectComposeFragments({
   }
 
   return {
-    node: selectedNode === null ? undefined : { environment: { NODE_VERSION: selectedNode } },
     agents,
-    notification: agentNotifications && hasNotificationAgent ? NOTIFICATION_FRAGMENT : undefined,
+    notification: notificationsEnabled && hasNotificationAgent ? NOTIFICATION_FRAGMENT : undefined,
   }
 }

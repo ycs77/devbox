@@ -4,11 +4,9 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import {
-  PACKAGED_AGENTS,
-  PACKAGED_NODE_RECIPES,
-  type NodeRuntimeRecipe,
-  type PackagedAgent,
-} from '../catalog/index.js'
+  createAgentWorkspaceContribution,
+  type AgentWorkspaceContribution,
+} from '../agent/build.js'
 import {
   normalizeCatalog,
   parseGlobalConfiguration,
@@ -16,11 +14,13 @@ import {
 } from '../configuration/index.js'
 import { devboxPaths, InterruptedError } from '../project/index.js'
 import { failure, success, type Result } from '../result.js'
+import {
+  createNodeWorkspaceContribution,
+  type NodeWorkspaceContribution,
+} from '../runtimes/node/build.js'
 import { withStateLocks } from '../state-lock/index.js'
 import bashAliases from './image-defaults/.bash_aliases?raw'
-import claudeSettings from './image-defaults/.claude/settings.json?raw'
 import gitconfig from './image-defaults/.gitconfig?raw'
-import ompAgentConfig from './image-defaults/.omp/agent/config.yml?raw'
 import { WORKSPACE_IMAGE } from './image.js'
 
 export { WORKSPACE_IMAGE } from './image.js'
@@ -45,11 +45,6 @@ export interface BuildWorkspaceInput {
   ) => Promise<Result<void>>
 }
 
-interface ConfiguredAgent {
-  readonly name: string
-  readonly recipe: PackagedAgent
-}
-
 interface WorkspaceImageDefault {
   readonly relativePath: string
   readonly content: string
@@ -59,16 +54,6 @@ const BASE_WORKSPACE_IMAGE_DEFAULTS = [
   { relativePath: '.bash_aliases', content: bashAliases },
   { relativePath: '.gitconfig', content: gitconfig },
 ] satisfies readonly WorkspaceImageDefault[]
-
-const CLAUDE_SETTINGS_DEFAULT = {
-  relativePath: '.claude/settings.json',
-  content: claudeSettings,
-} satisfies WorkspaceImageDefault
-
-const OMP_AGENT_CONFIG_DEFAULT = {
-  relativePath: '.omp/agent/config.yml',
-  content: ompAgentConfig,
-} satisfies WorkspaceImageDefault
 
 export interface WorkspaceBuild {
   readonly image: string
@@ -124,32 +109,23 @@ async function buildWorkspaceUnlocked(input: BuildWorkspaceInput): Promise<Build
     return hostIdentity
   }
 
-  const agents = globalConfiguration.agent.map(name => ({
-    name,
-    recipe: PACKAGED_AGENTS[name],
-  }))
-  const buildContextAssets = selectBuildContextAssets(agents)
-  const nodeRuntimes = globalConfiguration.node.map(
-    releaseLine => PACKAGED_NODE_RECIPES[releaseLine],
-  )
-  const dockerfile = renderBuildDockerfile({
-    nodeRuntimes,
-    buildNodeRuntime: buildNodeRuntimeRecipe(globalConfiguration),
-    agents,
-    agentNotifications: globalConfiguration.agent_notifications,
-    skillAgents: globalConfiguration.agent.filter(
-      agent => PACKAGED_AGENTS[agent]?.supportsSkillInstallation === true,
-    ),
+  const node = createNodeWorkspaceContribution(globalConfiguration.node)
+  const agent = createAgentWorkspaceContribution({
+    configuredAgents: globalConfiguration.agent,
+    notificationsEnabled: globalConfiguration.agent_notifications,
+    buildNodeRuntimeRoot: node.buildNodeRuntimeRoot,
   })
+  const buildContextAssets = [...BASE_WORKSPACE_IMAGE_DEFAULTS, ...agent.buildContextAssets]
+  const dockerfile = renderBuildDockerfile({ node, agent })
   await mkdir(paths.buildContext, { recursive: true })
   await seedBuildContextAssets(paths.buildContext, buildContextAssets)
   await Promise.all([
     writeFile(join(paths.buildContext, 'Dockerfile'), dockerfile),
-    writeFile(join(paths.buildContext, '.dockerignore'), renderDockerignore(buildContextAssets)),
     writeFile(
-      join(paths.buildContext, 'entrypoint.sh'),
-      renderEntrypoint({ nodeRuntimes, agents }),
+      join(paths.buildContext, '.dockerignore'),
+      renderDockerignore(buildContextAssets, agent.dockerignoreEntries),
     ),
+    writeFile(join(paths.buildContext, 'entrypoint.sh'), renderEntrypoint({ node, agent })),
     writeFile(join(paths.buildContext, 'supervisord.conf'), renderSupervisorConfiguration()),
   ])
 
@@ -169,22 +145,6 @@ async function buildWorkspaceUnlocked(input: BuildWorkspaceInput): Promise<Build
   }
 
   return success({ image: WORKSPACE_IMAGE })
-}
-
-function buildNodeRuntimeRecipe(
-  globalConfiguration: GlobalConfiguration,
-): NodeRuntimeRecipe | undefined {
-  let buildNodeRuntime: NodeRuntimeRecipe | undefined
-  for (const releaseLine of globalConfiguration.node) {
-    const recipe = PACKAGED_NODE_RECIPES[releaseLine]
-    if (
-      buildNodeRuntime === undefined ||
-      Number.parseFloat(releaseLine) > Number.parseFloat(buildNodeRuntime.releaseLine)
-    ) {
-      buildNodeRuntime = recipe
-    }
-  }
-  return buildNodeRuntime
 }
 
 function currentHostIdentity(): Result<DockerBuildInvocation['buildArgs']> {
@@ -210,11 +170,8 @@ function currentHostIdentity(): Result<DockerBuildInvocation['buildArgs']> {
 }
 
 function renderBuildDockerfile(input: {
-  readonly nodeRuntimes: readonly NodeRuntimeRecipe[]
-  readonly buildNodeRuntime: NodeRuntimeRecipe | undefined
-  readonly agents: readonly ConfiguredAgent[]
-  readonly agentNotifications: boolean
-  readonly skillAgents: readonly string[]
+  readonly node: NodeWorkspaceContribution
+  readonly agent: AgentWorkspaceContribution
 }): string {
   const lines: string[] = [
     '# Generated by devbox build. Machine-owned Workspace build context.',
@@ -257,52 +214,10 @@ function renderBuildDockerfile(input: {
     '    && chmod 0440 /etc/sudoers.d/devbox',
     '',
   ]
-
-  for (const recipe of input.nodeRuntimes) {
-    lines.push(...renderNodeRuntimeStage(recipe))
-  }
-
+  lines.push(...input.node.runtimeInstallations)
   lines.push('WORKDIR /workspace', 'USER devbox', '')
-
-  if (input.buildNodeRuntime !== undefined) {
-    lines.push(
-      '# Configure pnpm for the non-root Sandbox user',
-      'RUN mkdir -p /home/devbox/.config/pnpm /home/devbox/.pnpm-store \\',
-      "    && printf 'storeDir: /home/devbox/.pnpm-store\\n' > /home/devbox/.config/pnpm/config.yaml \\",
-      '    && chown devbox:devbox /home/devbox/.config/pnpm/config.yaml',
-      '',
-    )
-  }
-
-  for (const agent of input.agents) {
-    const preInstallCommands = agent.recipe.installation.preInstallCommands ?? []
-    lines.push(
-      `# Install ${agent.name}`,
-      `RUN mkdir -p ${agent.recipe.home.target} \\`,
-      ...preInstallCommands.map(command => `    && ${command} \\`),
-      `    && curl -fsSL ${agent.recipe.installation.url} | ${agent.recipe.installation.shell}`,
-      '',
-    )
-  }
-  if (input.agents.length > 0) {
-    lines.push(
-      '# Set the PATH to include AI tools',
-      'ENV PATH="/home/devbox/.local/bin:${PATH}"',
-      '',
-    )
-  }
-
-  if (input.buildNodeRuntime !== undefined && input.skillAgents.length > 0) {
-    const skillAgentArguments = input.skillAgents.map(agent => `-a ${agent}`).join(' ')
-    lines.push(
-      '# Install Agent Skills',
-      'RUN set -eux \\',
-      '    && mkdir -p /home/devbox/.agents/skills \\',
-      `    && export PATH="${input.buildNodeRuntime.runtimeRoot}/bin:$PATH" \\`,
-      `    && npx -y skills add ycs77/skills -g ${skillAgentArguments} -s '*' -y`,
-      '',
-    )
-  }
+  lines.push(...input.node.sandboxUserSetup)
+  lines.push(...input.agent.installationDockerfileLines)
 
   lines.push(
     'USER root',
@@ -315,43 +230,8 @@ function renderBuildDockerfile(input: {
     '',
   )
 
-  const hasClaudeCode = input.agents.some(agent => agent.name === 'claude-code')
-  const hasOmp = input.agents.some(agent => agent.name === 'omp')
-  if (hasClaudeCode || hasOmp) {
-    const ownershipCommands: string[] = []
-    lines.push('# Copy AI dotfiles')
-    if (hasClaudeCode) {
-      lines.push('COPY .claude/settings.json /home/devbox/.claude/settings.json')
-      ownershipCommands.push('chown devbox:devbox /home/devbox/.claude/settings.json')
-    }
-    if (hasOmp) {
-      lines.push('COPY .omp/agent/config.yml /home/devbox/.omp/agent/config.yml')
-      ownershipCommands.push(
-        'chown devbox:devbox /home/devbox/.omp/agent',
-        'chown devbox:devbox /home/devbox/.omp/agent/config.yml',
-      )
-    }
-    lines.push(`RUN ${ownershipCommands.join(' \\\n    && ')}`, '')
-  }
-
-  const notificationInstallationCommands = input.agentNotifications
-    ? input.agents.flatMap(agent =>
-        agent.recipe.supportsNotifications ? agent.recipe.notificationInstallationCommands : [],
-      )
-    : []
-  if (notificationInstallationCommands.length > 0) {
-    lines.push(
-      '# Install Agent Notification Plugins',
-      'USER devbox',
-      'RUN set -eux \\',
-      ...notificationInstallationCommands.map(
-        (command, index) =>
-          `    && ${command}${index < notificationInstallationCommands.length - 1 ? ' \\' : ''}`,
-      ),
-      'USER root',
-      '',
-    )
-  }
+  lines.push(...input.agent.assetDockerfileLines)
+  lines.push(...input.agent.notificationDockerfileLines)
 
   lines.push(
     'COPY entrypoint.sh /usr/local/bin/entrypoint.sh',
@@ -364,7 +244,10 @@ function renderBuildDockerfile(input: {
   return `${lines.join('\n')}\n`
 }
 
-function renderDockerignore(assets: readonly WorkspaceImageDefault[]): string {
+function renderDockerignore(
+  assets: readonly WorkspaceImageDefault[],
+  additionalEntries: readonly string[],
+): string {
   const lines = [
     '# Machine-owned Workspace build context',
     '*',
@@ -372,13 +255,8 @@ function renderDockerignore(assets: readonly WorkspaceImageDefault[]): string {
     '!entrypoint.sh',
     '!supervisord.conf',
     ...assets.map(asset => `!${asset.relativePath}`),
+    ...additionalEntries,
   ]
-  if (assets.some(asset => asset.relativePath === '.claude/settings.json')) {
-    lines.push('!.claude', '!.claude/settings.json')
-  }
-  if (assets.some(asset => asset.relativePath === '.omp/agent/config.yml')) {
-    lines.push('!.omp', '!.omp/agent', '!.omp/agent/config.yml')
-  }
   return `${lines.join('\n')}\n`
 }
 
@@ -406,71 +284,21 @@ async function seedBuildContextAssets(
   )
 }
 
-function selectBuildContextAssets(
-  agents: readonly ConfiguredAgent[],
-): readonly WorkspaceImageDefault[] {
-  const assets: WorkspaceImageDefault[] = [...BASE_WORKSPACE_IMAGE_DEFAULTS]
-  if (agents.some(agent => agent.name === 'claude-code')) {
-    assets.push(CLAUDE_SETTINGS_DEFAULT)
-  }
-  if (agents.some(agent => agent.name === 'omp')) {
-    assets.push(OMP_AGENT_CONFIG_DEFAULT)
-  }
-  return assets
-}
-
 function renderEntrypoint(input: {
-  readonly nodeRuntimes: readonly NodeRuntimeRecipe[]
-  readonly agents: readonly ConfiguredAgent[]
+  readonly node: NodeWorkspaceContribution
+  readonly agent: AgentWorkspaceContribution
 }): string {
-  const lines = ['#!/usr/bin/env bash', '']
-
-  if (input.nodeRuntimes.length > 0) {
-    lines.push(
-      '# Set the Node.js release line to use',
-      'NODE_VERSION="${NODE_VERSION:-}"',
-      'if [ -n "$NODE_VERSION" ]; then',
-      '  case "$NODE_VERSION" in',
-      '    *[!0-9]*)',
-      '      echo "NODE_VERSION must be a numeric release line: $NODE_VERSION" >&2',
-      '      exit 1',
-      '      ;;',
-      '  esac',
-      '',
-      '  NODE_RUNTIME_ROOT="/opt/devbox/runtimes/node/$NODE_VERSION"',
-      '  if [ ! -x "$NODE_RUNTIME_ROOT/bin/node" ]; then',
-      '    echo "Node.js release line $NODE_VERSION is not installed." >&2',
-      '    exit 1',
-      '  fi',
-      '',
-      '  if ! grep -q "# Devbox" /etc/bash.bashrc; then',
-      '    printf "\\n# Devbox\\nexport PATH=\\"$NODE_RUNTIME_ROOT/bin:\\$PATH\\"\\n" >> /etc/bash.bashrc',
-      '  fi',
-      '',
-      '  export PATH="$NODE_RUNTIME_ROOT/bin:$PATH"',
-      'fi',
-      '',
-    )
-  }
-
-  if (input.agents.some(agent => agent.name === 'agy')) {
-    lines.push(
-      '# Link shared Agent Skills',
-      'if [ ! -L "/home/devbox/.gemini/skills" ]; then',
-      '  ln -sfn /home/devbox/.agents/skills /home/devbox/.gemini/skills',
-      '  chown -h devbox:devbox /home/devbox/.gemini/skills',
-      'fi',
-      '',
-    )
-  }
-
-  lines.push(
+  const lines = [
+    '#!/usr/bin/env bash',
+    '',
+    ...input.node.entrypointSetup,
+    ...input.agent.entrypointSetup,
     'if [ $# -gt 0 ]; then',
     '  exec gosu devbox "$@"',
     'else',
     '  exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf',
     'fi',
-  )
+  ]
 
   return `${lines.join('\n')}\n`
 }
@@ -494,56 +322,6 @@ function renderSupervisorConfiguration(): string {
     'stderr_logfile=/dev/null',
   ]
   return `${lines.join('\n')}\n`
-}
-
-function renderNodeRuntimeStage(recipe: NodeRuntimeRecipe): string[] {
-  const keys = recipe.trustedReleaseKeys.map(key => `      ${key}`).join(' \\\n')
-
-  return [
-    `# Install Node.js ${recipe.releaseLine}`,
-    'RUN ARCH= OPENSSL_ARCH= && dpkgArch="$(dpkg --print-architecture)" \\',
-    '    && case "${dpkgArch##*-}" in \\',
-    "      amd64) ARCH='x64' OPENSSL_ARCH='linux-x86_64';; \\",
-    "      ppc64el) ARCH='ppc64le' OPENSSL_ARCH='linux-ppc64le';; \\",
-    "      s390x) ARCH='s390x' OPENSSL_ARCH='linux*-s390x';; \\",
-    "      arm64) ARCH='arm64' OPENSSL_ARCH='linux-aarch64';; \\",
-    '      *) echo "unsupported architecture"; exit 1 ;; \\',
-    '    esac \\',
-    '    && set -eux \\',
-    `    && NODE_RUNTIME_VERSION=${recipe.version} \\`,
-    `    && NODE_RUNTIME_ROOT=${recipe.runtimeRoot} \\`,
-    '    && mkdir -p "$NODE_RUNTIME_ROOT" /tmp/node-source \\',
-    '    && cd /tmp/node-source \\',
-    // use pre-existing gpg directory
-    '    && export GNUPGHOME="$(mktemp -d)" \\',
-    // gpg keys listed at https://github.com/nodejs/node#release-keys
-    '    && for key in \\',
-    `${keys} \\`,
-    '    ; do \\',
-    '      { gpg --batch --no-options --keyserver hkps://keys.openpgp.org --recv-keys "$key" && gpg --batch --no-options --fingerprint "$key"; } || \\',
-    '      { gpg --batch --no-options --keyserver keyserver.ubuntu.com --recv-keys "$key" && gpg --batch --no-options --fingerprint "$key"; }; \\',
-    '    done \\',
-    '    && archive="node-v${NODE_RUNTIME_VERSION}-linux-${ARCH}.tar.xz" \\',
-    '    && curl -fsSLO --compressed "https://nodejs.org/dist/v${NODE_RUNTIME_VERSION}/node-v${NODE_RUNTIME_VERSION}-linux-${ARCH}.tar.xz" \\',
-    '    && curl -fsSLO --compressed "https://nodejs.org/dist/v${NODE_RUNTIME_VERSION}/SHASUMS256.txt.asc" \\',
-    '    && gpg --batch --no-options --decrypt --output SHASUMS256.txt SHASUMS256.txt.asc \\',
-    '    && gpgconf --kill all \\',
-    '    && rm -rf "$GNUPGHOME" \\',
-    '    && grep " node-v${NODE_RUNTIME_VERSION}-linux-${ARCH}.tar.xz\\$" SHASUMS256.txt | sha256sum -c - \\',
-    '    && tar -xJf "node-v${NODE_RUNTIME_VERSION}-linux-${ARCH}.tar.xz" -C "$NODE_RUNTIME_ROOT" --strip-components=1 --no-same-owner \\',
-    '    && rm "node-v${NODE_RUNTIME_VERSION}-linux-${ARCH}.tar.xz" SHASUMS256.txt.asc SHASUMS256.txt \\',
-    // Remove unused OpenSSL headers to save ~34MB. See this NodeJS issue: https://github.com/nodejs/node/issues/46451
-    '    && find "$NODE_RUNTIME_ROOT/include/node/openssl/archs" -mindepth 1 -maxdepth 1 ! -name "$OPENSSL_ARCH" -exec rm -rf {} \\; \\',
-    '    && apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false \\',
-    '    && export PATH="$NODE_RUNTIME_ROOT/bin:$PATH" \\',
-    '    && npm install -g npm \\',
-    '    && npm uninstall -g corepack \\',
-    '    && npm install -g yarn pnpm @antfu/ni --allow-scripts=pnpm,yarn \\',
-    '    && "$NODE_RUNTIME_ROOT/bin/node" --version \\',
-    '    && "$NODE_RUNTIME_ROOT/bin/npm" --version \\',
-    '    && rm -rf /tmp/node-source',
-    '',
-  ]
 }
 
 async function runDockerBuild(

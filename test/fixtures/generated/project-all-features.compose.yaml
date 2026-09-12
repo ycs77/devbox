@@ -1,0 +1,54 @@
+name: project
+x-devbox:
+  version: 1
+  project_root: __SANDBOX__/project
+  compose_name: project
+  sandbox_service: devbox
+services:
+  devbox:
+    image: devbox-workspace:latest
+    hostname: devbox
+    container_name: devbox-project
+    working_dir: /workspace/project
+    ports:
+      - 3000:3000
+      - ${APP_PORT:-5173}:5173
+    environment:
+      NODE_VERSION: "24"
+      PULSE_SERVER: unix:/tmp/pulse-socket
+    volumes:
+      - type: bind
+        source: __SANDBOX__/project
+        target: /workspace/project
+      - type: volume
+        source: devbox-claude
+        target: /home/devbox/.claude
+      - type: volume
+        source: devbox-codex
+        target: /home/devbox/.codex
+      - type: volume
+        source: devbox-agy
+        target: /home/devbox/.gemini
+      - type: volume
+        source: devbox-omp
+        target: /home/devbox/.omp
+      - type: bind
+        source: __SANDBOX__/.devbox/agents/claude/.claude.json
+        target: /home/devbox/.claude.json
+      - type: bind
+        source: /mnt/wslg/runtime-dir/pulse/native
+        target: /tmp/pulse-socket
+        read_only: true
+volumes:
+  devbox-claude:
+    name: devbox-claude
+    external: true
+  devbox-codex:
+    name: devbox-codex
+    external: true
+  devbox-agy:
+    name: devbox-agy
+    external: true
+  devbox-omp:
+    name: devbox-omp
+    external: true

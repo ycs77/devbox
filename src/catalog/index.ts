@@ -25,6 +25,7 @@ export interface NodeRuntimeRecipe {
   readonly releaseLine: string
   readonly version: string
   readonly runtimeRoot: string
+  readonly distributionBaseUrl: string
   readonly trustedReleaseKeys: readonly string[]
 }
 
@@ -45,12 +46,14 @@ export const PACKAGED_NODE_RECIPES: Readonly<Record<string, NodeRuntimeRecipe>> 
     releaseLine: '24',
     version: '24.19.0',
     runtimeRoot: '/opt/devbox/runtimes/node/24',
+    distributionBaseUrl: 'https://nodejs.org/dist',
     trustedReleaseKeys: NODE_RELEASE_KEYS,
   },
   '22': {
     releaseLine: '22',
     version: '22.23.2',
     runtimeRoot: '/opt/devbox/runtimes/node/22',
+    distributionBaseUrl: 'https://nodejs.org/dist',
     trustedReleaseKeys: NODE_RELEASE_KEYS,
   },
 }

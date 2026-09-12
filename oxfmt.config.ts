@@ -20,5 +20,5 @@ export default defineConfig({
     ],
     newlinesBetween: false,
   },
-  ignorePatterns: ['**/.agents/**', '**/*.md'],
+  ignorePatterns: ['**/.agents/**', '**/*.md', 'test/fixtures/generated/**/*.yaml'],
 })

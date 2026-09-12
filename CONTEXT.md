@@ -15,11 +15,23 @@ A language execution environment selected independently by release line and comb
 The finite package-managed set of Runtime family and release-line pairs that Devbox recognizes and claims it can build through an official source and a compatible packaged Runtime recipe, ordered within each family. A release line enters the catalog only through a Devbox package update.
 
 **Runtime recipe**:
-A packaged, family-owned definition of a Runtime release line, including its supported source version and the behavior needed to make that Runtime available in a Workspace image.
+The pairing of a Runtime recipe configuration and its Runtime recipe implementation for one Runtime release line.
+
+**Runtime recipe configuration**:
+A packaged, catalog-owned declarative definition of a Runtime release line, including its supported source version, source coordinates, isolated installation path, and trust policy.
+
+**Runtime recipe implementation**:
+A family-owned behavior that interprets a Runtime recipe configuration to make that Runtime available in a Workspace image.
 **Agent catalog**:
 The finite package-managed set of AI Agents that Devbox can install into a Workspace image through an official Runtime-independent path compatible with the current Base profile and runnable by the Sandbox user without elevation. An AI Agent enters the catalog only through a Devbox package update.
 **Agent recipe**:
-A packaged, Agent-owned definition of the official installer and command path required to make one AI Agent available in a Workspace image.
+The pairing of an Agent recipe configuration and its Agent recipe implementation for one AI Agent.
+
+**Agent recipe configuration**:
+A packaged, catalog-owned declarative definition of an AI Agent, including its installation source, Sandbox home, and supported capabilities.
+
+**Agent recipe implementation**:
+An Agent-domain behavior that interprets an Agent recipe configuration to make that AI Agent available in a Workspace image and Sandbox.
 
 **Built-in suggestions**:
 The ordered Runtime catalog entries presented as Devbox's Runtime choices. The two sets are identical, and the first entry for a family is its initialization default.

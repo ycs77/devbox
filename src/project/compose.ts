@@ -1,12 +1,16 @@
 import { parse, stringify } from 'yaml'
+import { selectAgentComposeFragments } from '../agent/compose.js'
 import { renderComposePortMapping } from '../configuration/index.js'
 import { failure, success, type Result } from '../result.js'
+import { selectNodeComposeFragment } from '../runtimes/node/compose.js'
 import { WORKSPACE_IMAGE } from '../workspace/image.js'
-import { selectComposeFragments, type ComposeFragmentSelectionInput } from './compose-fragments.js'
 
-export interface ProjectComposeInput extends ComposeFragmentSelectionInput {
+export interface ProjectComposeInput {
   readonly projectRoot: string
   readonly sandboxName: string
+  readonly selectedNode: string | null
+  readonly configuredAgents: readonly string[]
+  readonly agentNotifications: boolean
   readonly claudeHostConfiguration: string | undefined
   readonly ports: readonly string[]
 }
@@ -32,10 +36,11 @@ interface RenderedProjectCompose {
 }
 
 export function renderProjectCompose(input: ProjectComposeInput): Result<string> {
-  const fragments = selectComposeFragments(input)
+  const node = selectNodeComposeFragment(input.selectedNode)
+  const agent = selectAgentComposeFragments(input.configuredAgents, input.agentNotifications)
   const environment = {
-    ...fragments.node?.environment,
-    ...fragments.notification?.environment,
+    ...node?.environment,
+    ...agent.notification?.environment,
   }
   const volumes = [
     {
@@ -43,7 +48,7 @@ export function renderProjectCompose(input: ProjectComposeInput): Result<string>
       source: input.projectRoot,
       target: `/workspace/${input.sandboxName}`,
     },
-    ...fragments.agents.map(fragment => ({
+    ...agent.agents.map(fragment => ({
       type: 'volume',
       source: fragment.volume.name,
       target: fragment.volume.target,
@@ -57,14 +62,14 @@ export function renderProjectCompose(input: ProjectComposeInput): Result<string>
             target: '/home/devbox/.claude.json',
           },
         ]),
-    ...(fragments.notification === undefined
+    ...(agent.notification === undefined
       ? []
       : [
           {
             type: 'bind',
-            source: fragments.notification.volume.source,
-            target: fragments.notification.volume.target,
-            read_only: fragments.notification.volume.readOnly,
+            source: agent.notification.volume.source,
+            target: agent.notification.volume.target,
+            read_only: agent.notification.volume.readOnly,
           },
         ]),
   ]
@@ -89,11 +94,11 @@ export function renderProjectCompose(input: ProjectComposeInput): Result<string>
         volumes,
       },
     },
-    ...(fragments.agents.length === 0
+    ...(agent.agents.length === 0
       ? {}
       : {
           volumes: Object.fromEntries(
-            fragments.agents.map(fragment => [
+            agent.agents.map(fragment => [
               fragment.volume.name,
               { name: fragment.volume.name, external: fragment.volume.external },
             ]),
