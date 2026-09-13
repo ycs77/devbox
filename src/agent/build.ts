@@ -29,9 +29,15 @@ export function createAgentWorkspaceContribution(input: {
 }): AgentWorkspaceContribution {
   const agents = input.configuredAgents.map(name => ({ name, recipe: PACKAGED_AGENTS[name] }))
   const buildContextAssets = selectBuildContextAssets(agents)
-  const skillAgents = agents
-    .filter(agent => agent.recipe.supportsSkillInstallation)
-    .map(agent => agent.name)
+  const skillAgents = [
+    ...new Set(
+      agents.flatMap(agent =>
+        agent.recipe.skillInstallationTarget === undefined
+          ? []
+          : [agent.recipe.skillInstallationTarget],
+      ),
+    ),
+  ]
 
   return {
     buildContextAssets,

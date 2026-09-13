@@ -8,6 +8,8 @@ type AgentNotificationSupport =
       readonly notificationInstallationCommands?: never
     }
 
+type SkillInstallationTarget = 'claude-code' | 'codex'
+
 export type PackagedAgent = {
   readonly home: {
     readonly volumeName: string
@@ -18,7 +20,7 @@ export type PackagedAgent = {
     readonly shell: 'bash' | 'sh'
     readonly preInstallCommands?: readonly string[]
   }
-  readonly supportsSkillInstallation: boolean
+  readonly skillInstallationTarget?: SkillInstallationTarget
 } & AgentNotificationSupport
 
 export interface NodeRuntimeRecipe {
@@ -73,13 +75,13 @@ export const PACKAGED_AGENTS: Readonly<Record<string, PackagedAgent>> = {
       'claude plugin marketplace add ycs77/claude-code-notifications',
       'claude plugin install notification-basic-wsl@ycs77-notifications',
     ],
-    supportsSkillInstallation: true,
+    skillInstallationTarget: 'claude-code',
   },
   codex: {
     home: { volumeName: 'devbox-codex', target: '/home/devbox/.codex' },
     installation: { url: 'https://chatgpt.com/codex/install.sh', shell: 'sh' },
     supportsNotifications: true,
-    supportsSkillInstallation: true,
+    skillInstallationTarget: 'codex',
     notificationInstallationCommands: [
       'codex plugin marketplace add ycs77/codex-notifications',
       'codex plugin add notification-basic-wsl@ycs77-notifications',
@@ -89,13 +91,12 @@ export const PACKAGED_AGENTS: Readonly<Record<string, PackagedAgent>> = {
     home: { volumeName: 'devbox-agy', target: '/home/devbox/.gemini' },
     installation: { url: 'https://antigravity.google/cli/install.sh', shell: 'bash' },
     supportsNotifications: false,
-    supportsSkillInstallation: false,
   },
   omp: {
     home: { volumeName: 'devbox-omp', target: '/home/devbox/.omp' },
     installation: { url: 'https://omp.sh/install', shell: 'sh' },
     supportsNotifications: true,
-    supportsSkillInstallation: false,
+    skillInstallationTarget: 'codex',
     notificationInstallationCommands: [
       'omp plugin marketplace add ycs77/omp-notifications',
       'omp plugin install notification-basic@ycs77-notifications',

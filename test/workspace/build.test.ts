@@ -300,6 +300,49 @@ describe('buildWorkspace', () => {
     )
   })
 
+  it('installs Codex Skills when OMP is configured', async () => {
+    const sandbox = await temporaryDirectory()
+    const devboxHome = join(sandbox, '.devbox')
+    await writeGlobalConfiguration(devboxHome, {
+      node: ['24'],
+      agent: ['omp'],
+    })
+    let dockerfile = ''
+
+    const result = await buildWorkspace({
+      devboxHome,
+      executeDockerBuild: async input => {
+        dockerfile = await readFile(join(input.context, 'Dockerfile'), 'utf8')
+        return success(undefined)
+      },
+    })
+
+    expect(result).toEqual({ ok: true, value: { image: WORKSPACE_IMAGE } })
+    expect(dockerfile).toContain("npx -y skills add ycs77/skills -g -a codex -s '*' -y")
+    expect(dockerfile).not.toContain(' -a omp ')
+  })
+
+  it('installs Codex Skills once when both OMP and Codex are configured', async () => {
+    const sandbox = await temporaryDirectory()
+    const devboxHome = join(sandbox, '.devbox')
+    await writeGlobalConfiguration(devboxHome, {
+      node: ['24'],
+      agent: ['omp', 'codex'],
+    })
+    let dockerfile = ''
+
+    const result = await buildWorkspace({
+      devboxHome,
+      executeDockerBuild: async input => {
+        dockerfile = await readFile(join(input.context, 'Dockerfile'), 'utf8')
+        return success(undefined)
+      },
+    })
+
+    expect(result).toEqual({ ok: true, value: { image: WORKSPACE_IMAGE } })
+    expect(dockerfile.match(/-a codex/g)).toHaveLength(1)
+  })
+
   it('does not install Agent notification plugins when notifications are disabled', async () => {
     const sandbox = await temporaryDirectory()
     const devboxHome = join(sandbox, '.devbox')
@@ -323,12 +366,12 @@ describe('buildWorkspace', () => {
     expect(dockerfile).not.toContain('plugin marketplace add ycs77')
   })
 
-  it('installs Agents that do not support skills', async () => {
+  it('installs Agents without a Skill target', async () => {
     const sandbox = await temporaryDirectory()
     const devboxHome = join(sandbox, '.devbox')
     await writeGlobalConfiguration(devboxHome, {
       node: ['24'],
-      agent: ['agy', 'omp'],
+      agent: ['agy'],
     })
     let dockerfile = ''
 
@@ -342,15 +385,11 @@ describe('buildWorkspace', () => {
 
     expect(result).toEqual({ ok: true, value: { image: WORKSPACE_IMAGE } })
     expect(dockerfile).toContain('curl -fsSL https://antigravity.google/cli/install.sh | bash')
-    expect(dockerfile).toContain('curl -fsSL https://omp.sh/install | sh')
     expect(dockerfile).not.toContain('/home/devbox/.claude.json')
     expect(dockerfile).not.toContain('Install Agent Skills')
     expect(dockerfile).not.toContain('skills add')
     expect(dockerfile).toContain(
       'COPY --chown=devbox:devbox AGENTS.md /home/devbox/.gemini/GEMINI.md',
-    )
-    expect(dockerfile).toContain(
-      'COPY --chown=devbox:devbox AGENTS.md /home/devbox/.omp/agent/AGENTS.md',
     )
     expect(dockerfile).not.toContain('COPY AGENTS.md /home/devbox/.claude/CLAUDE.md')
     expect(dockerfile).not.toContain('COPY AGENTS.md /home/devbox/.codex/AGENTS.md')
