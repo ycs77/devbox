@@ -1,8 +1,8 @@
-name: project
+name: devbox-project
 x-devbox:
   version: 1
   project_root: __SANDBOX__/project
-  compose_name: project
+  container_name: devbox-project
   sandbox_service: devbox
 services:
   devbox:

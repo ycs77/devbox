@@ -77,7 +77,7 @@ describe('published Compose definition', () => {
 
       expect(compose.status, compose.stderr).toBe(0)
       expect(JSON.parse(compose.stdout)).toMatchObject({
-        name: project.value.sandboxName,
+        name: `devbox-${project.value.sandboxName}`,
         services: {
           devbox: {
             container_name: `devbox-${project.value.sandboxName}`,

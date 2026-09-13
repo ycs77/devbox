@@ -20,7 +20,7 @@ interface RenderedProjectCompose {
   readonly 'x-devbox': {
     readonly version: unknown
     readonly project_root: unknown
-    readonly compose_name: unknown
+    readonly container_name: unknown
     readonly sandbox_service: unknown
   }
   readonly services: {
@@ -36,6 +36,7 @@ interface RenderedProjectCompose {
 }
 
 export function renderProjectCompose(input: ProjectComposeInput): Result<string> {
+  const containerName = `devbox-${input.sandboxName}`
   const node = selectNodeComposeFragment(input.selectedNode)
   const agent = selectAgentComposeFragments(input.configuredAgents, input.agentNotifications)
   const environment = {
@@ -74,18 +75,18 @@ export function renderProjectCompose(input: ProjectComposeInput): Result<string>
         ]),
   ]
   const definition = {
-    name: input.sandboxName,
+    name: containerName,
     'x-devbox': {
       version: 1,
       project_root: input.projectRoot,
-      compose_name: input.sandboxName,
+      container_name: containerName,
       sandbox_service: 'devbox',
     },
     services: {
       devbox: {
         image: WORKSPACE_IMAGE,
         hostname: 'devbox',
-        container_name: `devbox-${input.sandboxName}`,
+        container_name: containerName,
         working_dir: `/workspace/${input.sandboxName}`,
         ...(input.ports.length === 0
           ? {}
@@ -107,7 +108,7 @@ export function renderProjectCompose(input: ProjectComposeInput): Result<string>
   }
   const source = stringify(definition)
 
-  return validatesProjectCompose(source, input)
+  return validatesProjectCompose(source, input, containerName)
     ? success(source)
     : failure({
         kind: 'operational',
@@ -117,17 +118,21 @@ export function renderProjectCompose(input: ProjectComposeInput): Result<string>
       })
 }
 
-function validatesProjectCompose(source: string, input: ProjectComposeInput): boolean {
+function validatesProjectCompose(
+  source: string,
+  input: ProjectComposeInput,
+  containerName: string,
+): boolean {
   try {
     const definition = parse(source) as RenderedProjectCompose
-    if (definition.name !== input.sandboxName) {
+    if (definition.name !== containerName) {
       return false
     }
     const metadata = definition['x-devbox']
     if (
       metadata.version !== 1 ||
       metadata.project_root !== input.projectRoot ||
-      metadata.compose_name !== input.sandboxName ||
+      metadata.container_name !== containerName ||
       metadata.sandbox_service !== 'devbox'
     ) {
       return false
@@ -135,7 +140,7 @@ function validatesProjectCompose(source: string, input: ProjectComposeInput): bo
     const service = definition.services.devbox
     if (
       service.image !== WORKSPACE_IMAGE ||
-      service.container_name !== `devbox-${input.sandboxName}` ||
+      service.container_name !== containerName ||
       service.working_dir !== `/workspace/${input.sandboxName}` ||
       'build' in service
     ) {

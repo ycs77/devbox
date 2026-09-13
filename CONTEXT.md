@@ -146,7 +146,7 @@ _Avoid_: Sandbox name
 The Devbox-owned directory holding one Project's Local configuration and Sandbox definition. It is derived from that Project's Sandbox identity.
 
 **Sandbox name**:
-The Docker-safe name calculated from a Project basename and persisted by the Project registry. It identifies the Project's Compose project, Sandbox container, and workspace path inside that Sandbox.
+The Docker-safe name calculated from a Project basename and persisted by the Project registry. Devbox prefixes it to derive the Compose project name; it identifies the Sandbox container and workspace path inside that Sandbox.
 _Avoid_: Sandbox identity, Project state directory
 
 **Initialization**:

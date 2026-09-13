@@ -189,11 +189,11 @@ describe('initializeProject', () => {
     expect(
       parse(await readFile(join(project.value.stateDirectory, 'compose.yaml'), 'utf8')),
     ).toEqual({
-      name: 'project',
+      name: 'devbox-project',
       'x-devbox': {
         version: 1,
         project_root: projectRoot,
-        compose_name: 'project',
+        container_name: 'devbox-project',
         sandbox_service: 'devbox',
       },
       services: {
@@ -375,7 +375,7 @@ describe('initializeProject', () => {
     expect(
       parse(await readFile(join(second.stateDirectory, 'compose.yaml'), 'utf8')),
     ).toMatchObject({
-      name: 'shared-project-2',
+      name: 'devbox-shared-project-2',
       services: {
         devbox: {
           container_name: 'devbox-shared-project-2',
