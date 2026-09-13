@@ -81,8 +81,8 @@ Run these commands from the initialized project directory:
 | `devbox sh` | Open a Bash shell in the running sandbox. |
 | `devbox stop` | Stop the sandbox and preserve it for a later restart. |
 | `devbox down` | Stop and remove the sandbox container. |
+| `devbox rm` | Stop and remove the current Project's Sandbox, then remove its Devbox state. |
 | `devbox config` | Change global settings or this project's configuration. |
-| `devbox cleanup --missing-projects` | Remove registrations for projects whose root directory no longer exists. |
 
 ## Troubleshooting
 

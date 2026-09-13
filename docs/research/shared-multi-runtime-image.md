@@ -74,7 +74,7 @@ Devbox 仍應驗證自己直接承諾的最小契約，例如：
 - Projects 直接共用同一組 image layers。
 - 新 Project 選用已安裝的 Runtime 時，不需要建立新的 Toolchain 組合 image。
 - 使用者需要的工具可一次準備完成，後續只需切換 Project default。
-- 可以刪除或簡化按 Toolchain 組合 Workspace images 的 fingerprint、assembly 與 cleanup 邏輯。
+- 可以刪除或簡化按 Toolchain 組合 Workspace images 的 fingerprint、assembly 與資源回收邏輯。
 - Global 工具、PATH 與版本選擇可由 Devbox 統一治理，提供一致的互動式與非互動式使用體驗。
 
 ## 接受的取捨
@@ -94,7 +94,7 @@ Devbox 仍應驗證自己直接承諾的最小契約，例如：
 - [ADR-0016](../adr/0016-internal-image-assembly.md)：目前 Build module 接收一或多個 Toolchains，分別產生具 fingerprint 的 Workspace images。
 - [ADR-0019](../adr/0019-open-runtime-release-lines.md)：目前 Project 可以直接選擇 Built-in suggestions 之外的格式合法 release line，再於該 Project 的 atomic build 中驗證。
 
-因此這份研究筆記只能保存討論方向，不能直接取代上述 ADR。若後續確定採用，必須明確更新領域詞彙、image identity、Platform lock、Runtime 新增流程、Project sync、Compose reference 與 cleanup 契約。
+因此這份研究筆記只能保存討論方向，不能直接取代上述 ADR。若後續確定採用，必須明確更新領域詞彙、image identity、Platform lock、Runtime 新增流程、Project sync 與 Compose reference 契約。
 
 ## 尚待決定
 

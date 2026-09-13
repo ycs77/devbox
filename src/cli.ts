@@ -7,7 +7,6 @@ import { createConfigurationPrompter } from './configuration/prompter.js'
 import { HostCommandError } from './host.js'
 import { showLogo } from './logo.js'
 import {
-  cleanupMissingProjects,
   configureGlobal,
   configureLocalProject,
   initializeProject,
@@ -27,7 +26,6 @@ type CliResult = Result<CliSuccess>
 
 interface CommandOptions {
   readonly yes?: boolean
-  readonly missingProjects?: boolean
   readonly cache?: boolean
 }
 
@@ -122,7 +120,7 @@ function createCli(signal: AbortSignal, interactive: boolean): CAC {
     })
 
   cli
-    .command('rm', 'Remove the current registered Project and its state.')
+    .command('rm', 'Remove the current Project Sandbox and Devbox state.')
     .option('--yes', 'Skip the confirmation prompt.')
     .action(async (options: CommandOptions = {}): Promise<CliResult> => {
       if (!interactive && !options.yes) {
@@ -139,40 +137,6 @@ function createCli(signal: AbortSignal, interactive: boolean): CAC {
         message: result.value.removed
           ? `Removed Project: ${result.value.root}`
           : 'Project removal was not changed.',
-      })
-    })
-
-  cli
-    .command('cleanup', 'Remove explicitly selected disposable Devbox state.')
-    .option('--missing-projects', 'Remove Missing-root Project registrations.')
-    .option('--yes', 'Skip the confirmation prompt.')
-    .action(async (options: CommandOptions = {}): Promise<CliResult> => {
-      if (!options.missingProjects) {
-        return failure({
-          kind: 'usage',
-          code: 'cleanup-mode-required',
-          observed: 'cleanup requires --missing-projects.',
-          nextAction: 'Run devbox cleanup --missing-projects.',
-        })
-      }
-      if (!interactive && !options.yes) {
-        return interactiveFailure(
-          'devbox cleanup --missing-projects requires a TTY or --yes.',
-          'Run devbox cleanup --missing-projects from a TTY, or pass --yes to confirm removal.',
-        )
-      }
-      const result = await cleanupMissingProjects({
-        signal,
-        confirm: prompt.confirm,
-        yes: options.yes,
-      })
-      if (!result.ok) {
-        return result
-      }
-      return success({
-        message: result.value.removed
-          ? `Removed Missing-root Projects: ${result.value.roots.join(', ')}`
-          : 'No Missing-root Projects were removed.',
       })
     })
 

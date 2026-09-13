@@ -79,7 +79,7 @@ The authentication material stored in an Agent home, shared across Devbox projec
 A user-owned Claude configuration file at `~/.devbox/agents/claude/.claude.json`, mounted read-write into every Sandbox with Claude Code configured. Devbox initializes it to an empty object only when absent and never overwrites it.
 
 **Agent home**:
-A Devbox-managed user-scope home for one AI Agent's credentials, configuration, and mutable state, shared read-write across every Project Sandbox and kept separate from the developer's normal host Agent home. Every Sandbox-user process can read or modify every mounted Agent home. It is retained as user data independently of Agent availability, Project registration, Sandbox lifecycle, and Cleanup.
+A Devbox-managed user-scope home for one AI Agent's credentials, configuration, and mutable state, shared read-write across every Project Sandbox and kept separate from the developer's normal host Agent home. Every Sandbox-user process can read or modify every mounted Agent home. It is retained as user data independently of Agent availability, Project registration, Sandbox lifecycle, and Project removal.
 
 **Shared Agent volume**:
 The fixed-name external Docker volume that stores one Agent home for every Sandbox where that AI Agent is available. `up` creates it when absent and neither Sandbox lifecycle nor Project-registration operations remove it.
@@ -156,8 +156,6 @@ The interactive registration operation for the current Project. When Global conf
 **Missing-root Project registration**:
 A retained Project registration whose exact absolute Project root cannot be found at observation time. It does not imply that the root was permanently deleted or relocated.
 
-**Cleanup plan**:
-The single confirmed set of disposable Devbox-owned resources selected for one cleanup operation. It may include a resource that becomes eligible only after an earlier removal in the same plan.
 
 **Local configuration**:
 The complete user-owned configuration for one Project, stored in user scope and never supplied or fixed by files in the Project workspace. It contains the Project's Selected Node Runtime and published port mappings.

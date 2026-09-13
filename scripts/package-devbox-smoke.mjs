@@ -44,14 +44,9 @@ try {
   const help = (await run(cli, ['--help'])).stdout
   assert.deepEqual(
     [...help.matchAll(/^  ([a-z]+)\s{2,}/gm)].map(match => match[1]),
-    ['init', 'config', 'build', 'rm', 'cleanup', 'up', 'down', 'stop', 'sh'],
+    ['init', 'config', 'build', 'rm', 'up', 'down', 'stop', 'sh'],
   )
-  assert.match((await run(cli, ['cleanup', '--help'])).stdout, /--missing-projects/)
   assert.doesNotMatch((await run(cli, ['config', '--help'])).stdout, /--global/)
-  assert.match(
-    (await run(cli, ['cleanup'], { expectedCode: 2 })).stderr,
-    /cleanup requires --missing-projects/,
-  )
   assert.match((await run(cli, ['restart'], { expectedCode: 2 })).stderr, /Unused args: `restart`/)
   assert.match(
     (await run(cli, ['exec', 'bash'], { expectedCode: 2 })).stderr,
