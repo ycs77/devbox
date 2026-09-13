@@ -1,6 +1,7 @@
 import { PACKAGED_AGENTS, type PackagedAgent } from '../catalog/index.js'
 import claudeSettings from './image-defaults/.claude/settings.json?raw'
 import ompAgentConfig from './image-defaults/.omp/agent/config.yml?raw'
+import agentInstructions from './image-defaults/AGENTS.md?raw'
 
 export interface AgentBuildContextAsset {
   readonly relativePath: string
@@ -85,10 +86,13 @@ function renderAgentInstallations(
 
 function selectDockerignoreEntries(assets: readonly AgentBuildContextAsset[]): readonly string[] {
   const entries: string[] = []
-  if (assets.some(asset => asset.relativePath === '.claude/settings.json')) {
+  if (assets.some(asset => asset.relativePath === 'AGENTS.md')) {
+    entries.push('!AGENTS.md')
+  }
+  if (assets.some(asset => asset.relativePath.startsWith('.claude/'))) {
     entries.push('!.claude', '!.claude/settings.json')
   }
-  if (assets.some(asset => asset.relativePath === '.omp/agent/config.yml')) {
+  if (assets.some(asset => asset.relativePath.startsWith('.omp/agent/'))) {
     entries.push('!.omp', '!.omp/agent', '!.omp/agent/config.yml')
   }
   return entries
@@ -98,6 +102,9 @@ function selectBuildContextAssets(
   agents: readonly ConfiguredAgent[],
 ): readonly AgentBuildContextAsset[] {
   const assets: AgentBuildContextAsset[] = []
+  if (agents.length > 0) {
+    assets.push({ relativePath: 'AGENTS.md', content: agentInstructions })
+  }
   if (agents.some(agent => agent.name === 'claude-code')) {
     assets.push({ relativePath: '.claude/settings.json', content: claudeSettings })
   }
@@ -109,22 +116,42 @@ function selectBuildContextAssets(
 
 function renderAgentAssets(agents: readonly ConfiguredAgent[]): string[] {
   const hasClaudeCode = agents.some(agent => agent.name === 'claude-code')
+  const hasCodex = agents.some(agent => agent.name === 'codex')
+  const hasAgy = agents.some(agent => agent.name === 'agy')
   const hasOmp = agents.some(agent => agent.name === 'omp')
-  if (!hasClaudeCode && !hasOmp) {
+  if (!hasClaudeCode && !hasCodex && !hasAgy && !hasOmp) {
     return []
   }
 
   const ownershipCommands: string[] = []
   const lines = ['# Copy AI dotfiles']
   if (hasClaudeCode) {
-    lines.push('COPY .claude/settings.json /home/devbox/.claude/settings.json')
-    ownershipCommands.push('chown devbox:devbox /home/devbox/.claude/settings.json')
+    lines.push(
+      'COPY .claude/settings.json /home/devbox/.claude/settings.json',
+      'COPY AGENTS.md /home/devbox/.claude/CLAUDE.md',
+    )
+    ownershipCommands.push(
+      'chown devbox:devbox /home/devbox/.claude/settings.json',
+      'chown devbox:devbox /home/devbox/.claude/CLAUDE.md',
+    )
+  }
+  if (hasCodex) {
+    lines.push('COPY AGENTS.md /home/devbox/.codex/AGENTS.md')
+    ownershipCommands.push('chown devbox:devbox /home/devbox/.codex/AGENTS.md')
+  }
+  if (hasAgy) {
+    lines.push('COPY AGENTS.md /home/devbox/.gemini/GEMINI.md')
+    ownershipCommands.push('chown devbox:devbox /home/devbox/.gemini/GEMINI.md')
   }
   if (hasOmp) {
-    lines.push('COPY .omp/agent/config.yml /home/devbox/.omp/agent/config.yml')
+    lines.push(
+      'COPY .omp/agent/config.yml /home/devbox/.omp/agent/config.yml',
+      'COPY AGENTS.md /home/devbox/.omp/agent/AGENTS.md',
+    )
     ownershipCommands.push(
       'chown devbox:devbox /home/devbox/.omp/agent',
       'chown devbox:devbox /home/devbox/.omp/agent/config.yml',
+      'chown devbox:devbox /home/devbox/.omp/agent/AGENTS.md',
     )
   }
   lines.push(`RUN ${ownershipCommands.join(' \\\n    && ')}`, '')

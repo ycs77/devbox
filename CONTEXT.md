@@ -69,6 +69,9 @@ An Agent-owned extension installed in a Workspace image that enables Agent notif
 **Agent skills**:
 The curated skills installed for enabled Claude Code and Codex Agents during a Workspace build when a Build Node Runtime exists.
 
+
+**Agent instruction default**:
+A package-distributed instruction document that initializes the home of each enabled AI Agent when its Agent home is first created. It does not replace files in an existing Agent home.
 **Agent credentials**:
 The authentication material stored in an Agent home, shared across Devbox projects but kept separate from the developer's normal host credentials.
 
