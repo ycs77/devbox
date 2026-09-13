@@ -4,7 +4,6 @@ import { basename, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
 import {
-  cleanupMissingProjects,
   configureGlobal,
   configureLocalProject,
   escapePathSegment,
@@ -833,8 +832,8 @@ describe('configuration boundaries', () => {
   })
 })
 
-describe('Project removal and Missing-root cleanup', () => {
-  it('removes only the registered Project state and leaves another Project untouched', async () => {
+describe('Project removal', () => {
+  it('tears down the current Project Sandbox before removing its state', async () => {
     const sandbox = await temporaryDirectory()
     const firstRoot = join(sandbox, 'a-b', 'c')
     const secondRoot = join(sandbox, 'a', 'b-c')
@@ -845,10 +844,23 @@ describe('Project removal and Missing-root cleanup', () => {
     ])
     const first = await createProjectState(firstRoot, devboxHome)
     const second = await createProjectState(secondRoot, devboxHome)
+    const commands: string[][] = []
 
-    const result = await removeProject({ root: firstRoot, devboxHome, yes: true })
+    const result = await removeProject({
+      root: firstRoot,
+      devboxHome,
+      yes: true,
+      environment: {
+        run: async (file, args) => {
+          commands.push([file, ...args])
+        },
+      },
+    })
 
     expect(result).toEqual({ ok: true, value: { root: firstRoot, removed: true } })
+    expect(commands).toEqual([
+      ['docker', 'compose', '--file', join(first.stateDirectory, 'compose.yaml'), 'down'],
+    ])
     await expect(stat(first.stateDirectory)).rejects.toMatchObject({ code: 'ENOENT' })
     await expect(stat(second.stateDirectory)).resolves.toMatchObject({
       isDirectory: expect.any(Function),
@@ -860,79 +872,33 @@ describe('Project removal and Missing-root cleanup', () => {
     expect(registry.projects[secondRoot]!.identity).toBe(basename(second.stateDirectory))
   })
 
-  it('cleans Missing-root registrations but preserves unregistered residual state', async () => {
+  it('preserves Project state and registration when teardown fails', async () => {
     const sandbox = await temporaryDirectory()
-    const projectRoot = join(sandbox, 'missing-project')
+    const projectRoot = join(sandbox, 'project')
     const devboxHome = join(sandbox, 'user-state', '.devbox')
     await mkdir(projectRoot)
     const project = await createProjectState(projectRoot, devboxHome)
-    await rm(projectRoot, { recursive: true, force: true })
-    const residual = join(devboxHome, 'projects', 'orphan')
-    await mkdir(residual, { recursive: true })
-    await writeFile(join(residual, 'sentinel'), 'keep me\n')
 
-    const result = await cleanupMissingProjects({ devboxHome, yes: true })
-
-    expect(result).toEqual({ ok: true, value: { roots: [projectRoot], removed: true } })
-    await expect(stat(project.stateDirectory)).rejects.toMatchObject({ code: 'ENOENT' })
-    await expect(readFile(join(residual, 'sentinel'), 'utf8')).resolves.toBe('keep me\n')
-    const registry = parse(await readFile(join(devboxHome, 'projects.yaml'), 'utf8')) as {
-      projects: Record<string, string>
-    }
-    expect(registry.projects[projectRoot]).toBeUndefined()
-  })
-
-  it('does not partially clean Missing-root Projects when one Project marker is busy', async () => {
-    const sandbox = await temporaryDirectory()
-    const firstRoot = join(sandbox, 'a-missing-project')
-    const secondRoot = join(sandbox, 'b-missing-project')
-    const devboxHome = join(sandbox, 'user-state', '.devbox')
-    await Promise.all([mkdir(firstRoot), mkdir(secondRoot)])
-    const first = await createProjectState(firstRoot, devboxHome)
-    const second = await createProjectState(secondRoot, devboxHome)
-    await Promise.all([
-      rm(firstRoot, { recursive: true, force: true }),
-      rm(secondRoot, { recursive: true, force: true }),
-    ])
-
-    const entered = deferred()
-    const release = deferred()
-    const running = withStateLocks(
-      { devboxHome, global: false, projectRoots: [secondRoot] },
-      async () => {
-        entered.resolve()
-        await release.promise
-        return success(undefined)
-      },
-    )
-    await entered.promise
-
-    try {
-      const result = await cleanupMissingProjects({ devboxHome, yes: true })
-
-      expect(result).toMatchObject({
-        ok: false,
-        error: {
-          kind: 'operational',
-          code: 'command-lock-busy',
-          observed: expect.stringContaining('Project'),
+    await expect(
+      removeProject({
+        root: projectRoot,
+        devboxHome,
+        yes: true,
+        environment: {
+          run: async () => {
+            throw new Error('Docker Compose failed')
+          },
         },
-      })
-      await expect(stat(first.stateDirectory)).resolves.toMatchObject({
-        isDirectory: expect.any(Function),
-      })
-      await expect(stat(second.stateDirectory)).resolves.toMatchObject({
-        isDirectory: expect.any(Function),
-      })
-      const registry = parse(await readFile(join(devboxHome, 'projects.yaml'), 'utf8')) as {
-        projects: Record<string, { identity: string; name: string }>
-      }
-      expect(registry.projects[firstRoot]!.identity).toBe(basename(first.stateDirectory))
-      expect(registry.projects[secondRoot]!.identity).toBe(basename(second.stateDirectory))
-    } finally {
-      release.resolve()
-      await running
+      }),
+    ).rejects.toThrow('Docker Compose failed')
+
+    await expect(stat(project.stateDirectory)).resolves.toMatchObject({
+      isDirectory: expect.any(Function),
+    })
+    const registry = parse(await readFile(join(devboxHome, 'projects.yaml'), 'utf8')) as {
+      projects: Record<string, { identity: string; name: string }>
     }
+    expect(registry.projects[projectRoot]!.identity).toBe(basename(project.stateDirectory))
   })
 })
 

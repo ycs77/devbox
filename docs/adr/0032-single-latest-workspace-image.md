@@ -12,4 +12,4 @@ Running Sandbox containers remain attached to the immutable Docker image from wh
 
 The Configured Agent set is a Workspace build input. The common image contains every configured Agent executable, while Agent homes, credentials, configuration, and mutable state remain outside the image under their separately defined lifecycle.
 
-Devbox keeps no historical Workspace tags or image registry after `latest` moves. An existing Devbox Sandbox container is the source of truth for its exact old Docker image and protects that image's layers whether the container is running or stopped. An old untagged Workspace image becomes cleanup-eligible only when no Sandbox container references it; one confirmed Cleanup plan may remove its sole stopped-container references first and then recheck and remove the newly unreferenced image.
+Devbox keeps no historical Workspace tags or image registry after `latest` moves. An existing Devbox Sandbox container is the source of truth for its exact old Docker image and protects that image's layers whether the container is running or stopped.

@@ -113,13 +113,7 @@ export interface RemoveProjectInput {
   readonly signal?: AbortSignal
   readonly confirm?: ConfirmationHandler
   readonly yes?: boolean
-}
-
-export interface CleanupMissingProjectsInput {
-  readonly devboxHome?: string
-  readonly signal?: AbortSignal
-  readonly confirm?: ConfirmationHandler
-  readonly yes?: boolean
+  readonly environment?: HostEnvironment
 }
 
 export type SandboxLifecycleCommand = 'up' | 'down' | 'stop'
@@ -144,15 +138,6 @@ export interface ProjectRemoval {
   readonly removed: boolean
 }
 
-export interface MissingProjectsCleanup {
-  readonly roots: readonly string[]
-  readonly removed: boolean
-}
-export type InitializeProjectResult = Result<RegisteredProject>
-export type ConfigureLocalResult = Result<ConfigurationOperation>
-export type ConfigureGlobalResult = Result<ConfigurationOperation>
-export type RemoveProjectResult = Result<ProjectRemoval>
-export type CleanupMissingProjectsResult = Result<MissingProjectsCleanup>
 export type SandboxCommandResult = Result<void>
 
 export function devboxPaths(devboxHome = join(homedir(), '.devbox')): DevboxPaths {
@@ -836,7 +821,7 @@ async function removeProjectUnlocked(
   }
   if (!input.yes) {
     const confirm = input.confirm ?? (async () => false)
-    if (!(await confirm(`Remove Project ${projectRoot} and its Devbox state?`))) {
+    if (!(await confirm(`Remove Project ${projectRoot}, its Sandbox, and Devbox state?`))) {
       return success({ root: projectRoot, removed: false })
     }
   }
@@ -845,6 +830,13 @@ async function removeProjectUnlocked(
     throw new InterruptedError()
   }
   const stateDirectory = projectStateDirectory(registration.identity, paths.home)
+  const environment = input.environment ?? currentHostEnvironment()
+  await (environment.runDirect ?? environment.run)('docker', [
+    'compose',
+    '--file',
+    join(stateDirectory, 'compose.yaml'),
+    'down',
+  ])
   try {
     await rm(stateDirectory, { recursive: true, force: true })
   } catch {
@@ -866,144 +858,6 @@ async function removeProjectUnlocked(
     return written
   }
   return success({ root: projectRoot, removed: true })
-}
-
-export async function cleanupMissingProjects(
-  input: CleanupMissingProjectsInput = {},
-): Promise<Result<MissingProjectsCleanup>> {
-  const devboxHome = input.devboxHome ?? join(homedir(), '.devbox')
-  return withStateLocks(
-    { devboxHome, global: true, projectRoots: [], signal: input.signal },
-    async locks => {
-      const discovery = await discoverMissingProjects(input)
-      if (!discovery.ok) {
-        return discovery
-      }
-      await locks.acquireProjectScopes(discovery.value.missingRoots)
-      return cleanupMissingProjectsUnlocked(input, discovery.value)
-    },
-  )
-}
-
-interface MissingProjectsDiscovery {
-  readonly paths: DevboxPaths
-  readonly registry: ProjectRegistry
-  readonly missingRoots: readonly string[]
-}
-
-async function discoverMissingProjects(
-  input: CleanupMissingProjectsInput,
-): Promise<Result<MissingProjectsDiscovery>> {
-  if (input.signal?.aborted) {
-    throw new InterruptedError()
-  }
-  const paths = devboxPaths(input.devboxHome)
-  const registryState = await readOptionalFile(paths.projectRegistry)
-  if (!registryState.ok) {
-    return registryState
-  }
-  if (!registryState.value.exists) {
-    return success({
-      paths,
-      registry: { version: 1, projects: {} },
-      missingRoots: [],
-    })
-  }
-  const registryCheck = parseProjectRegistry(registryState.value.content)
-  if (!registryCheck.ok) {
-    return registryCheck
-  }
-
-  const missingRoots: string[] = []
-  for (const root of Object.keys(registryCheck.value.projects)) {
-    if (input.signal?.aborted) {
-      throw new InterruptedError()
-    }
-    const exists = await projectRootExists(root)
-    if (exists === undefined) {
-      return failure({
-        kind: 'operational',
-        code: 'project-root-observation-failed',
-        observed: `Devbox could not inspect Project root: ${root}.`,
-        nextAction: 'Check access to the registered Project root and try cleanup again.',
-      })
-    }
-    if (!exists) {
-      missingRoots.push(root)
-    }
-  }
-  return success({ paths, registry: registryCheck.value, missingRoots })
-}
-
-async function cleanupMissingProjectsUnlocked(
-  input: CleanupMissingProjectsInput,
-  discovery: MissingProjectsDiscovery,
-): Promise<Result<MissingProjectsCleanup>> {
-  if (input.signal?.aborted) {
-    throw new InterruptedError()
-  }
-  if (discovery.missingRoots.length === 0) {
-    return success({ roots: [], removed: false })
-  }
-
-  if (!input.yes) {
-    const confirm = input.confirm ?? (async () => false)
-    if (
-      !(await confirm(
-        `Remove Missing-root Project registrations?\n${discovery.missingRoots.map(root => `- ${root}`).join('\n')}`,
-      ))
-    ) {
-      return success({ roots: [], removed: false })
-    }
-  }
-
-  const removedRoots: string[] = []
-  const projects = { ...discovery.registry.projects }
-  for (const root of discovery.missingRoots) {
-    const rootExists = await projectRootExists(root)
-    if (rootExists === undefined) {
-      return failure({
-        kind: 'operational',
-        code: 'project-root-observation-failed',
-        observed: `Devbox could not recheck Project root: ${root}.`,
-        nextAction: 'Check access to the registered Project root and try cleanup again.',
-      })
-    }
-    if (rootExists) {
-      continue
-    }
-    const registration = projects[root]
-    if (registration === undefined) {
-      continue
-    }
-    try {
-      await rm(projectStateDirectory(registration.identity, discovery.paths.home), {
-        recursive: true,
-        force: true,
-      })
-    } catch {
-      return failure({
-        kind: 'operational',
-        code: 'missing-project-state-removal-failed',
-        observed: `Devbox could not remove Missing-root Project state for ${root}.`,
-        nextAction: 'Check write access to ~/.devbox and try cleanup again.',
-      })
-    }
-    delete projects[root]
-    removedRoots.push(root)
-  }
-
-  if (removedRoots.length === 0) {
-    return success({ roots: [], removed: false })
-  }
-  const written = await writeAtomically(
-    discovery.paths.projectRegistry,
-    serializeProjectRegistry({ version: 1, projects }),
-  )
-  if (!written.ok) {
-    return written
-  }
-  return success({ roots: removedRoots, removed: true })
 }
 
 export async function runSandboxLifecycle(
@@ -1185,17 +1039,6 @@ function allocateSandboxName(projectRoot: string, registry: ProjectRegistry): Re
     observed: `Devbox could not allocate a unique Sandbox name for ${projectRoot}.`,
     nextAction: 'Remove stale Devbox state only through its supported command and try again.',
   })
-}
-
-async function projectRootExists(projectRoot: string): Promise<boolean | undefined> {
-  try {
-    return (await lstat(projectRoot)).isDirectory()
-  } catch (error) {
-    if (isMissingFileError(error)) {
-      return false
-    }
-    return undefined
-  }
 }
 
 async function readOptionalFile(

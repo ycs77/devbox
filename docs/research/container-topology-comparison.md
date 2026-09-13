@@ -60,7 +60,7 @@ Devbox 應維持目前的 **每個 Project 一個 Sandbox container，加上相�
 | CPU / memory 邊界 | Docker 可按 container 設定 CPU 與 memory limits，因此未來可做 per-Project 資源邊界（[resource constraints](https://docs.docker.com/engine/containers/resource_constraints/)）。 | Docker 只能直接限制整個 all-in-one container。要做 per-Project 限制，需在 container 內再建立 cgroup/process 管理層。沒有需求時，單一資源池反而較容易充分利用。 |
 | Mutable state 與 cache | Agent executable 由共用 Workspace image 提供；每個 container writable layer 僅保留其他 ephemeral 變更。現行 Agent home 已按 Agent 跨 Projects 共用（[ADR-0010](../adr/0010-shared-agent-home.md)、[ADR-0050](../adr/0050-build-installed-ai-agents.md)）。 | package-manager cache、下載內容與 Agent executable 可天然只留一份，冷啟動後較省；但 global config、global packages、shell state、cache corruption 與手動安裝也會跨 Project 汙染。必須重新定義哪些狀態可共用。 |
 | 重現性 | image fingerprint 精確包含 Base、所選 Runtime 與 assembly recipe；Project 的工具邊界容易觀察。 | 若所有版本都 immutable 並只靠 per-process PATH 選擇，仍可重現；但若允許在長期 container 內安裝或切換全域工具，實際狀態會逐漸偏離 image。 |
-| 維護成本 | 需要 Platform lock、Runtime bundles、fingerprints、驗證、組合建置與 cleanup；當 PHP 有 `m` 條、Node 有 `n` 條 release lines 時，理論 Toolchain 組合為 `(m + 1)(n + 1)`，但現行只按實際需求建置。 | image identity 與建置路徑較單純；代價是維護所有版本同時共存、版本 selector、全域狀態治理、mount 清單與 container 內的多 Project 程序管理。 |
+| 維護成本 | 需要 Platform lock、Runtime bundles、fingerprints、驗證、組合建置與資源回收；當 PHP 有 `m` 條、Node 有 `n` 條 release lines 時，理論 Toolchain 組合為 `(m + 1)(n + 1)`，但現行只按實際需求建置。 | image identity 與建置路徑較單純；代價是維護所有版本同時共存、版本 selector、全域狀態治理、mount 清單與 container 內的多 Project 程序管理。 |
 
 ## AI Agent 的差異是決定性因素
 

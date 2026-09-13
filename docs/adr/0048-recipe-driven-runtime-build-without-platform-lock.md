@@ -24,7 +24,7 @@ The packaged Runtime recipe is the source of truth for each supported release li
 - Node `22`: `22.23.2`
 - Node `24`: `24.19.0`
 
-The Node recipe also owns the complete verified installation flow validated by `prototype/node/Dockerfile`: local Docker architecture mapping, official archive and signed-manifest coordinates derived from the recipe version, keyserver fallback, release-key fingerprints, signed-manifest verification, archive checksum verification, `.tar.xz` extraction, Runtime layout, OpenSSL-header cleanup, and the current Node global-tool installation sequence:
+The Node recipe also owns the complete verified installation flow validated by `prototype/node/Dockerfile`: local Docker architecture mapping, official archive and signed-manifest coordinates derived from the recipe version, keyserver fallback, release-key fingerprints, signed-manifest verification, archive checksum verification, `.tar.xz` extraction, Runtime layout, OpenSSL-header removal, and the current Node global-tool installation sequence:
 
 ```sh
 npm install -g npm@latest corepack@latest @antfu/ni@latest

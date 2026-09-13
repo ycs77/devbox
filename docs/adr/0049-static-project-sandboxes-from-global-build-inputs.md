@@ -14,7 +14,7 @@ The Project registry persists two distinct names for each Project. Sandbox ident
 
 Each configured Agent home is mounted through its fixed-name external Shared Agent volume, such as `devbox-claude`. Before `up` invokes Compose, Devbox idempotently creates every Shared Agent volume needed by the current Sandbox with `docker volume create --driver local`; `down`, `stop`, and `sh` do not create volumes. Compose does not own or delete these external volumes.
 
-The public command surface is `init`, `config`, `build`, `rm`, `cleanup --missing-projects`, `up`, `down`, `stop`, and `sh`. `up`, `down`, `stop`, and `sh` are Sandbox lifecycle commands: they use the already generated Compose definition and do not configure Devbox or build an image. `sh` executes `bash` for the `devbox` service as the `devbox` user. There are no `exec`, `logs`, or additional lifecycle wrappers.
+The public command surface is `init`, `config`, `build`, `rm`, `up`, `down`, `stop`, and `sh`. `up`, `down`, `stop`, and `sh` are Sandbox lifecycle commands: they use the already generated Compose definition and do not configure Devbox or build an image. `sh` executes `bash` for the `devbox` service as the `devbox` user. There are no `exec`, `logs`, or additional lifecycle wrappers.
 
 ## Consequences
 

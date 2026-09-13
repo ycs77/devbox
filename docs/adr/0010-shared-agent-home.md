@@ -4,7 +4,7 @@ ADR-0049 supersedes per-Project Agent selection and establishes the Configured A
 
 Devbox keeps one writable user-scope Docker volume per AI Agent and generated Compose mounts every Configured Agent's volume into every Project Sandbox at that Agent's upstream-compatible home path. Devbox never mounts or imports the developer's normal host Agent home. A user authenticates by running the Agent inside any Project Sandbox and completing the Agent's upstream flow; the resulting credentials, settings, history, trust state, hooks, MCP configuration, and other mutable Agent state are then shared read-write across Projects. Every process running as the Sandbox user can read or modify every mounted Agent home, so Devbox explicitly accepts cross-Project credential and state exposure within that user's Devbox Sandboxes.
 
-Agent home Docker volumes are user-data resources rather than rebuildable cache. `up` creates the external volumes required by its retained Compose definition; `cleanup`, `down`, and `rm` never delete them, and Devbox exposes no generic volume-deletion option. A future Agent-specific reset lifecycle may deliberately remove one named Agent home, but its command and confirmation contract are outside the initial Cleanup design.
+Agent home Docker volumes are user-data resources rather than rebuildable cache. `up` creates the external volumes required by its retained Compose definition; `down` and `rm` never delete them, and Devbox exposes no generic volume-deletion option. A future Agent-specific reset lifecycle may deliberately remove one named Agent home, but its command and confirmation contract are outside the initial lifecycle design.
 
 ## Agent home boundary evidence
 

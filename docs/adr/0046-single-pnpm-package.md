@@ -15,7 +15,7 @@ The repository has one package boundary at its root:
 
 This is a package-boundary decision. It does not change Devbox's TypeScript CLI direction, Runtime or Sandbox domain model, or the command-marker behavior in ADR-0045.
 
-If a future requirement introduces a second publishable package, a native helper, or a workspace package graph, that change requires a new ADR. Historical helper-backed files that remain during migration are cleanup residue, not a compatibility boundary to preserve.
+If a future requirement introduces a second publishable package, a native helper, or a workspace package graph, that change requires a new ADR. Historical helper-backed files that remain during migration are obsolete residue, not a compatibility boundary to preserve.
 
 ## Consequences
 
