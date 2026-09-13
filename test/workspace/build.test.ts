@@ -236,14 +236,26 @@ describe('buildWorkspace', () => {
     expect(dockerfile).not.toContain(' -a agy ')
     expect(dockerfile).not.toContain(' -a omp ')
     expect(dockerfile).toContain(
-      'COPY .bash_aliases /home/devbox/.bash_aliases\nCOPY .gitconfig /home/devbox/.gitconfig',
+      'COPY --chown=devbox:devbox .bash_aliases /home/devbox/.bash_aliases\nCOPY --chown=devbox:devbox .gitconfig /home/devbox/.gitconfig',
     )
-    expect(dockerfile).toContain('COPY .claude/settings.json /home/devbox/.claude/settings.json')
-    expect(dockerfile).toContain('COPY .omp/agent/config.yml /home/devbox/.omp/agent/config.yml')
-    expect(dockerfile).toContain('COPY AGENTS.md /home/devbox/.claude/CLAUDE.md')
-    expect(dockerfile).toContain('COPY AGENTS.md /home/devbox/.codex/AGENTS.md')
-    expect(dockerfile).toContain('COPY AGENTS.md /home/devbox/.gemini/GEMINI.md')
-    expect(dockerfile).toContain('COPY AGENTS.md /home/devbox/.omp/agent/AGENTS.md')
+    expect(dockerfile).toContain(
+      'COPY --chown=devbox:devbox .claude/settings.json /home/devbox/.claude/settings.json',
+    )
+    expect(dockerfile).toContain(
+      'COPY --chown=devbox:devbox .omp/agent/config.yml /home/devbox/.omp/agent/config.yml',
+    )
+    expect(dockerfile).toContain(
+      'COPY --chown=devbox:devbox AGENTS.md /home/devbox/.claude/CLAUDE.md',
+    )
+    expect(dockerfile).toContain(
+      'COPY --chown=devbox:devbox AGENTS.md /home/devbox/.codex/AGENTS.md',
+    )
+    expect(dockerfile).toContain(
+      'COPY --chown=devbox:devbox AGENTS.md /home/devbox/.gemini/GEMINI.md',
+    )
+    expect(dockerfile).toContain(
+      'COPY --chown=devbox:devbox AGENTS.md /home/devbox/.omp/agent/AGENTS.md',
+    )
     expect(generatedAgentInstructions).toBe(agentInstructions)
     expect(dockerignore).toContain('!AGENTS.md')
     expect(dockerfile).toContain(
@@ -334,8 +346,12 @@ describe('buildWorkspace', () => {
     expect(dockerfile).not.toContain('/home/devbox/.claude.json')
     expect(dockerfile).not.toContain('Install Agent Skills')
     expect(dockerfile).not.toContain('skills add')
-    expect(dockerfile).toContain('COPY AGENTS.md /home/devbox/.gemini/GEMINI.md')
-    expect(dockerfile).toContain('COPY AGENTS.md /home/devbox/.omp/agent/AGENTS.md')
+    expect(dockerfile).toContain(
+      'COPY --chown=devbox:devbox AGENTS.md /home/devbox/.gemini/GEMINI.md',
+    )
+    expect(dockerfile).toContain(
+      'COPY --chown=devbox:devbox AGENTS.md /home/devbox/.omp/agent/AGENTS.md',
+    )
     expect(dockerfile).not.toContain('COPY AGENTS.md /home/devbox/.claude/CLAUDE.md')
     expect(dockerfile).not.toContain('COPY AGENTS.md /home/devbox/.codex/AGENTS.md')
   })

@@ -123,38 +123,26 @@ function renderAgentAssets(agents: readonly ConfiguredAgent[]): string[] {
     return []
   }
 
-  const ownershipCommands: string[] = []
   const lines = ['# Copy AI dotfiles']
   if (hasClaudeCode) {
     lines.push(
-      'COPY .claude/settings.json /home/devbox/.claude/settings.json',
-      'COPY AGENTS.md /home/devbox/.claude/CLAUDE.md',
-    )
-    ownershipCommands.push(
-      'chown devbox:devbox /home/devbox/.claude/settings.json',
-      'chown devbox:devbox /home/devbox/.claude/CLAUDE.md',
+      'COPY --chown=devbox:devbox .claude/settings.json /home/devbox/.claude/settings.json',
+      'COPY --chown=devbox:devbox AGENTS.md /home/devbox/.claude/CLAUDE.md',
     )
   }
   if (hasCodex) {
-    lines.push('COPY AGENTS.md /home/devbox/.codex/AGENTS.md')
-    ownershipCommands.push('chown devbox:devbox /home/devbox/.codex/AGENTS.md')
+    lines.push('COPY --chown=devbox:devbox AGENTS.md /home/devbox/.codex/AGENTS.md')
   }
   if (hasAgy) {
-    lines.push('COPY AGENTS.md /home/devbox/.gemini/GEMINI.md')
-    ownershipCommands.push('chown devbox:devbox /home/devbox/.gemini/GEMINI.md')
+    lines.push('COPY --chown=devbox:devbox AGENTS.md /home/devbox/.gemini/GEMINI.md')
   }
   if (hasOmp) {
     lines.push(
-      'COPY .omp/agent/config.yml /home/devbox/.omp/agent/config.yml',
-      'COPY AGENTS.md /home/devbox/.omp/agent/AGENTS.md',
-    )
-    ownershipCommands.push(
-      'chown devbox:devbox /home/devbox/.omp/agent',
-      'chown devbox:devbox /home/devbox/.omp/agent/config.yml',
-      'chown devbox:devbox /home/devbox/.omp/agent/AGENTS.md',
+      'COPY --chown=devbox:devbox .omp/agent/config.yml /home/devbox/.omp/agent/config.yml',
+      'COPY --chown=devbox:devbox AGENTS.md /home/devbox/.omp/agent/AGENTS.md',
     )
   }
-  lines.push(`RUN ${ownershipCommands.join(' \\\n    && ')}`, '')
+  lines.push('')
   return lines
 }
 

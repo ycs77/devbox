@@ -223,10 +223,8 @@ function renderBuildDockerfile(input: {
     'USER root',
     '',
     '# Copy dotfiles',
-    'COPY .bash_aliases /home/devbox/.bash_aliases',
-    'COPY .gitconfig /home/devbox/.gitconfig',
-    'RUN chown devbox:devbox /home/devbox/.bash_aliases \\',
-    '    && chown devbox:devbox /home/devbox/.gitconfig',
+    'COPY --chown=devbox:devbox .bash_aliases /home/devbox/.bash_aliases',
+    'COPY --chown=devbox:devbox .gitconfig /home/devbox/.gitconfig',
     '',
   )
 

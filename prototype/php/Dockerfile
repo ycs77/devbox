@@ -139,25 +139,16 @@ ENV PATH="/home/devbox/.local/bin:${PATH}"
 USER root
 
 # Copy dotfiles
-COPY prototype/php/.bash_aliases /home/devbox/.bash_aliases
-COPY prototype/php/.gitconfig /home/devbox/.gitconfig
-RUN chown devbox:devbox /home/devbox/.bash_aliases \
-    && chown devbox:devbox /home/devbox/.gitconfig
+COPY --chown=devbox:devbox prototype/php/.bash_aliases /home/devbox/.bash_aliases
+COPY --chown=devbox:devbox prototype/php/.gitconfig /home/devbox/.gitconfig
 
 # Copy AI dotfiles
-COPY prototype/php/.claude/settings.json /home/devbox/.claude/settings.json
-COPY prototype/php/AGENTS.md /home/devbox/.claude/CLAUDE.md
-COPY prototype/php/AGENTS.md /home/devbox/.codex/AGENTS.md
-COPY prototype/php/AGENTS.md /home/devbox/.gemini/GEMINI.md
-COPY prototype/php/.omp/agent/config.yml /home/devbox/.omp/agent/config.yml
-COPY prototype/php/AGENTS.md /home/devbox/.omp/agent/AGENTS.md
-RUN chown devbox:devbox /home/devbox/.claude/settings.json \
-    && chown devbox:devbox /home/devbox/.claude/CLAUDE.md \
-    && chown devbox:devbox /home/devbox/.codex/AGENTS.md \
-    && chown devbox:devbox /home/devbox/.gemini/GEMINI.md \
-    && chown devbox:devbox /home/devbox/.omp/agent \
-    && chown devbox:devbox /home/devbox/.omp/agent/config.yml \
-    && chown devbox:devbox /home/devbox/.omp/agent/AGENTS.md
+COPY --chown=devbox:devbox prototype/php/.claude/settings.json /home/devbox/.claude/settings.json
+COPY --chown=devbox:devbox prototype/php/AGENTS.md /home/devbox/.claude/CLAUDE.md
+COPY --chown=devbox:devbox prototype/php/AGENTS.md /home/devbox/.codex/AGENTS.md
+COPY --chown=devbox:devbox prototype/php/AGENTS.md /home/devbox/.gemini/GEMINI.md
+COPY --chown=devbox:devbox prototype/php/.omp/agent/config.yml /home/devbox/.omp/agent/config.yml
+COPY --chown=devbox:devbox prototype/php/AGENTS.md /home/devbox/.omp/agent/AGENTS.md
 
 # Install Agent Notification Plugins
 USER devbox
