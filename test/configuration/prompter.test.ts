@@ -50,7 +50,11 @@ describe('createConfigurationPrompter', () => {
       agent: [],
       agent_notifications: true,
     })
-    expect(output.chunks.join('')).toContain('Workspace Docker image')
+    const rendered = output.chunks.join('')
+    expect(rendered).toContain('Workspace Docker image')
+    expect(rendered).not.toContain(
+      'Add runtimes and agents to the shared image. They are available to every project and increase the image size.',
+    )
   })
 
   it('selects the Global configuration scope', async () => {
@@ -91,8 +95,15 @@ describe('createConfigurationPrompter', () => {
     input.emit('keypress', '', { name: 'return' })
     input.emit('keypress', '', { name: 'return' })
 
+    const rendered = output.chunks.join('')
+    expect(rendered).toContain('Project configuration')
+    expect(rendered).toContain(
+      'Published ports (multiline; one mapping per line; press Enter twice to submit)',
+    )
+    expect(rendered).not.toContain(
+      'Choose the Node version and ports to use when this project’s container starts.',
+    )
     await expect(editing).resolves.toEqual({ version: 1, node: '24', ports: [] })
-    expect(output.chunks.join('')).toContain('Project configuration')
   })
 
   it('prepopulates Local ports in the multiline editor', async () => {
@@ -146,7 +157,6 @@ describe('createConfigurationPrompter', () => {
       node: '22',
       ports: ['APP_PORT:5173:5173'],
     })
-    expect(output.chunks.join('')).toContain('container starts')
   })
 
   it('renders confirmation details before asking for approval', async () => {

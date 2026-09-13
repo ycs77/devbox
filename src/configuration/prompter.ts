@@ -39,24 +39,17 @@ export function createConfigurationPrompter({
             {
               value: 'local',
               label: 'Current project',
-              hint: 'Enabled when this project’s container starts.',
             },
             {
               value: 'global',
               label: 'Workspace Docker image',
-              hint: 'Built into the shared image. It affects image size and disk usage.',
             },
           ],
           ...common,
         }),
       ),
     editGlobal: async (configuration, catalog) => {
-      p.log.step(
-        `${c.bold(c.cyan('Workspace Docker image'))}\n${c.dim(
-          'Add runtimes and agents to the shared image. They are available to every project and increase the image size.',
-        )}`,
-        common,
-      )
+      p.log.step(c.bold(c.cyan('Workspace Docker image')), common)
       const node = await promptValue(
         p.multiselect<string>({
           message: 'Configured Node release lines',
@@ -85,14 +78,7 @@ export function createConfigurationPrompter({
       return { version: 1, node, agent, agent_notifications }
     },
     editLocal: async (configuration, catalog, globalConfiguration, editPorts = true) => {
-      p.log.step(
-        `${c.bold(c.cyan('Project configuration'))}\n${c.dim(
-          editPorts
-            ? 'Choose the Node version and ports to use when this project’s container starts.'
-            : 'Choose the Node version to use when this project’s container starts.',
-        )}`,
-        common,
-      )
+      p.log.step(c.bold(c.cyan('Project configuration')), common)
       const node = await promptValue(
         p.select<string | null>({
           message: 'Selected Node release line',
@@ -110,7 +96,9 @@ export function createConfigurationPrompter({
 
       const source = await promptValue(
         p.multiline({
-          message: 'Published ports',
+          message:
+            'Published ports' +
+            c.dim(' (multiline; one mapping per line; press Enter twice to submit)'),
           initialValue: configuration.ports.join('\n'),
           validate: value => {
             const ports = normalizePortMappings((value ?? '').split('\n'))

@@ -47,11 +47,16 @@ npm install -g @ycs77/devbox
 devbox init
 ```
 
-互動式設定會讓你選擇要加入的 Node.js 版本與 AI Agent，再為目前專案選擇 Node.js 版本。
+**全域設定** 決定要安裝到共用 Workspace image 的 Node.js 版本與 AI Agent。這些選項會套用到所有專案；選得越多，image 越大、占用的磁碟空間也越多。
 
-全域設定決定共用 Workspace Image 包含哪些內容。每加入一個 Node.js 版本或 AI Agent，都會讓 Image 變大並多占用一些磁碟空間。專案只能使用已包含在 Image 裡的 Node.js 版本。
+**本機設定** 決定目前專案使用的 Node.js 版本。專案只能使用已包含在全域設定中的版本。
 
-首次設定完成後，或變更全域設定後，請建置共用 Workspace Image：
+Published ports 欄位每行輸入一組對應設定。可使用的 port 設定格式如下：
+
+- `5173:5173`：將主機的 `5173` port 對應到容器的 `5173` port。
+- `APP_PORT:5173:5173`：讀取 `APP_PORT` 環境變數的主機 port（預設 port `5173`），並對應到容器的 `5173` port。
+
+首次設定完成後，或變更全域設定後，請建置共用 Workspace image：
 
 ```bash
 devbox build
@@ -81,8 +86,8 @@ devbox sh
 | `devbox sh` | 在執行中的沙箱內開啟 Bash Shell。 |
 | `devbox stop` | 停止沙箱，保留它以便稍後重新啟動。 |
 | `devbox down` | 停止並移除沙箱容器。 |
+| `devbox rm` | 停止並移除目前專案的沙箱，再刪除其 Devbox 狀態。 |
 | `devbox config` | 變更全域設定，或目前專案的設定。 |
-| `devbox cleanup --missing-projects` | 移除根目錄已不存在的專案註冊。 |
 
 ## 疑難排解
 

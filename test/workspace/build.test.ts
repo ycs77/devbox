@@ -469,6 +469,7 @@ describe('buildWorkspace', () => {
       error: {
         kind: 'operational',
         code: 'global-configuration-missing',
+        nextAction: 'Run devbox init to commit Global configuration before devbox build.',
       },
     })
     expect(dockerInvoked).toBe(false)

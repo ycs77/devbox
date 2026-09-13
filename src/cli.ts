@@ -65,8 +65,8 @@ function createCli(signal: AbortSignal, interactive: boolean): CAC {
       }
 
       outro(
-        `Next: run ${c.cyan(c.bold('devbox build'))} to prepare your workspace, then ${c.cyan(
-          c.bold('devbox up'),
+        `Next: run ${command('devbox build')} to prepare your workspace, then ${command(
+          'devbox up',
         )} to start it.`,
       )
       return success({})
@@ -90,7 +90,9 @@ function createCli(signal: AbortSignal, interactive: boolean): CAC {
         }
         outro(
           result.value.changed
-            ? 'Global configuration updated.'
+            ? `Global configuration updated. Run ${command(
+                'devbox build',
+              )} to rebuild the Workspace image.`
             : 'Global configuration was not changed.',
         )
         return success({})
@@ -166,7 +168,9 @@ function createCli(signal: AbortSignal, interactive: boolean): CAC {
 
 function present(result: CliResult): number {
   if (!result.ok) {
-    process.stderr.write(`${result.error.observed}\n${result.error.nextAction}\n`)
+    process.stderr.write(
+      `${highlightCommands(result.error.observed)}\n${highlightCommands(result.error.nextAction)}\n`,
+    )
     return result.error.kind === 'usage' ? 2 : 1
   }
 
@@ -214,6 +218,14 @@ async function main(): Promise<number> {
 
 function isCacError(error: unknown): error is Error {
   return error instanceof Error && error.name === 'CACError'
+}
+
+function command(value: string): string {
+  return c.cyan(c.bold(value))
+}
+
+function highlightCommands(message: string): string {
+  return message.replace(/\bdevbox (?:init|build|config|up|down|stop|sh|rm)\b/g, command)
 }
 
 function interactiveFailure(observed: string, nextAction: string): Result<never> {

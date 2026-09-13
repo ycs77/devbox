@@ -47,11 +47,16 @@ From your project directory, initialize Devbox:
 devbox init
 ```
 
-The interactive setup lets you choose the Node.js versions and AI agents to include, then select a Node.js version for the current project.
+**Global configuration** selects the Node.js versions and AI agents installed in the shared Workspace image. These choices apply to every Project; adding more makes the image larger and uses more disk space.
 
-Global configuration controls what goes into the shared Workspace Image. Each Node.js version or AI agent you add makes the image larger and uses more disk space. Projects can use only the Node.js versions included in the image.
+**Local configuration** selects the Node.js version for the current Project. A Project can use only a version included in the Global configuration.
 
-Build the shared Workspace Image once after setup or whenever you change global configuration:
+Published ports accept one mapping per line. The following are the supported port mapping formats:
+
+- `5173:5173` maps host port `5173` to container port `5173`.
+- `APP_PORT:5173:5173` maps the host port from the `APP_PORT` environment variable (default port: `5173`) to container port `5173`.
+
+Build the shared Workspace image once after setup or whenever you change global configuration:
 
 ```bash
 devbox build

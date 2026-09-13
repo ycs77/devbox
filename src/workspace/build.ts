@@ -94,7 +94,7 @@ async function buildWorkspaceUnlocked(input: BuildWorkspaceInput): Promise<Build
       kind: 'operational',
       code: 'global-configuration-missing',
       observed: 'Global configuration is required before building the Workspace image.',
-      nextAction: 'Run devbox config to commit Global configuration before devbox build.',
+      nextAction: 'Run devbox init to commit Global configuration before devbox build.',
     })
   }
 
