@@ -177,10 +177,18 @@ RUN chown devbox:devbox /home/devbox/.bash_aliases \
 
 # Copy AI dotfiles
 COPY .claude/settings.json /home/devbox/.claude/settings.json
+COPY .claude/CLAUDE.md /home/devbox/.claude/CLAUDE.md
+COPY .codex/AGENTS.md /home/devbox/.codex/AGENTS.md
+COPY .gemini/GEMINI.md /home/devbox/.gemini/GEMINI.md
 COPY .omp/agent/config.yml /home/devbox/.omp/agent/config.yml
+COPY .omp/agent/AGENTS.md /home/devbox/.omp/agent/AGENTS.md
 RUN chown devbox:devbox /home/devbox/.claude/settings.json \
+    && chown devbox:devbox /home/devbox/.claude/CLAUDE.md \
+    && chown devbox:devbox /home/devbox/.codex/AGENTS.md \
+    && chown devbox:devbox /home/devbox/.gemini/GEMINI.md \
     && chown devbox:devbox /home/devbox/.omp/agent \
-    && chown devbox:devbox /home/devbox/.omp/agent/config.yml
+    && chown devbox:devbox /home/devbox/.omp/agent/config.yml \
+    && chown devbox:devbox /home/devbox/.omp/agent/AGENTS.md
 
 # Install Agent Notification Plugins
 USER devbox

@@ -2,6 +2,7 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import agentInstructions from '../../src/agent/image-defaults/AGENTS.md?raw'
 import { failure, success } from '../../src/result.js'
 import { withStateLocks } from '../../src/state-lock/index.js'
 import {
@@ -193,6 +194,11 @@ describe('buildWorkspace', () => {
     let supervisord = ''
     let claudeSettings = ''
     let ompAgentConfig = ''
+    let claudeInstructions = ''
+    let codexInstructions = ''
+    let agyInstructions = ''
+    let ompInstructions = ''
+    let dockerignore = ''
 
     const result = await buildWorkspace({
       devboxHome,
@@ -204,6 +210,11 @@ describe('buildWorkspace', () => {
         supervisord = await readFile(join(input.context, 'supervisord.conf'), 'utf8')
         claudeSettings = await readFile(join(input.context, '.claude', 'settings.json'), 'utf8')
         ompAgentConfig = await readFile(join(input.context, '.omp', 'agent', 'config.yml'), 'utf8')
+        claudeInstructions = await readFile(join(input.context, '.claude', 'CLAUDE.md'), 'utf8')
+        codexInstructions = await readFile(join(input.context, '.codex', 'AGENTS.md'), 'utf8')
+        agyInstructions = await readFile(join(input.context, '.gemini', 'GEMINI.md'), 'utf8')
+        ompInstructions = await readFile(join(input.context, '.omp', 'agent', 'AGENTS.md'), 'utf8')
+        dockerignore = await readFile(join(input.context, '.dockerignore'), 'utf8')
         return success(undefined)
       },
     })
@@ -235,6 +246,18 @@ describe('buildWorkspace', () => {
     )
     expect(dockerfile).toContain('COPY .claude/settings.json /home/devbox/.claude/settings.json')
     expect(dockerfile).toContain('COPY .omp/agent/config.yml /home/devbox/.omp/agent/config.yml')
+    expect(dockerfile).toContain('COPY .claude/CLAUDE.md /home/devbox/.claude/CLAUDE.md')
+    expect(dockerfile).toContain('COPY .codex/AGENTS.md /home/devbox/.codex/AGENTS.md')
+    expect(dockerfile).toContain('COPY .gemini/GEMINI.md /home/devbox/.gemini/GEMINI.md')
+    expect(dockerfile).toContain('COPY .omp/agent/AGENTS.md /home/devbox/.omp/agent/AGENTS.md')
+    expect(claudeInstructions).toBe(agentInstructions)
+    expect(codexInstructions).toBe(agentInstructions)
+    expect(agyInstructions).toBe(agentInstructions)
+    expect(ompInstructions).toBe(agentInstructions)
+    expect(dockerignore).toContain('!.claude/CLAUDE.md')
+    expect(dockerignore).toContain('!.codex/AGENTS.md')
+    expect(dockerignore).toContain('!.gemini/GEMINI.md')
+    expect(dockerignore).toContain('!.omp/agent/AGENTS.md')
     expect(dockerfile).toContain(
       [
         '# Install Agent Notification Plugins',
@@ -323,6 +346,10 @@ describe('buildWorkspace', () => {
     expect(dockerfile).not.toContain('/home/devbox/.claude.json')
     expect(dockerfile).not.toContain('Install Agent Skills')
     expect(dockerfile).not.toContain('skills add')
+    expect(dockerfile).toContain('COPY .gemini/GEMINI.md /home/devbox/.gemini/GEMINI.md')
+    expect(dockerfile).toContain('COPY .omp/agent/AGENTS.md /home/devbox/.omp/agent/AGENTS.md')
+    expect(dockerfile).not.toContain('COPY .claude/CLAUDE.md')
+    expect(dockerfile).not.toContain('COPY .codex/AGENTS.md')
   })
 
   it('installs Agents without Node Runtime or Agent Skills', async () => {
