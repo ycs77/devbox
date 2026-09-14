@@ -1,4 +1,5 @@
 import { Readable, Writable } from 'node:stream'
+import { stripVTControlCharacters } from 'node:util'
 import { describe, expect, it } from 'vitest'
 import { createConfigurationPrompter } from '../../src/configuration/prompter.js'
 import { InterruptedError } from '../../src/project/index.js'
@@ -95,7 +96,7 @@ describe('createConfigurationPrompter', () => {
     input.emit('keypress', '', { name: 'return' })
     input.emit('keypress', '', { name: 'return' })
 
-    const rendered = output.chunks.join('')
+    const rendered = stripVTControlCharacters(output.chunks.join(''))
     expect(rendered).toContain('Project configuration')
     expect(rendered).toContain(
       'Published ports (multiline; one mapping per line; press Enter twice to submit)',
