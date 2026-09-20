@@ -33,6 +33,7 @@ export interface RegisteredProject {
   readonly stateDirectory: string
   readonly sandboxName: string
   readonly created: boolean
+  readonly globalConfigurationCreated: boolean
   readonly confirmed?: boolean
 }
 
@@ -419,6 +420,7 @@ async function initializeProjectUnlocked(
       stateDirectory,
       sandboxName: name,
       created: false,
+      globalConfigurationCreated: false,
       confirmed: true,
     })
   }
@@ -430,6 +432,7 @@ async function initializeProjectUnlocked(
       stateDirectory,
       sandboxName: name,
       created: false,
+      globalConfigurationCreated: false,
       confirmed: false,
     })
   }
@@ -474,6 +477,7 @@ async function initializeProjectUnlocked(
     stateDirectory,
     sandboxName: name,
     created: true,
+    globalConfigurationCreated: globalChanged,
     confirmed: true,
   })
 }

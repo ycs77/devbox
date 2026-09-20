@@ -65,9 +65,11 @@ function createCli(signal: AbortSignal, interactive: boolean): CAC {
       }
 
       outro(
-        `Next: run ${command('devbox build')} to prepare your workspace, then ${command(
-          'devbox up',
-        )} to start it.`,
+        result.value.globalConfigurationCreated
+          ? `Next: run ${command('devbox build')} to prepare your workspace, then ${command(
+              'devbox up',
+            )} to start it.`
+          : `Next: run ${command('devbox up')} to start it.`,
       )
       return success({})
     })

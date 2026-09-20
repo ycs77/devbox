@@ -157,6 +157,36 @@ describe('initializeProject', () => {
     )
   })
 
+  it('reports whether initialization created Global configuration', async () => {
+    const sandbox = await temporaryDirectory()
+    const devboxHome = join(sandbox, 'user-state', '.devbox')
+    const firstProjectRoot = join(sandbox, 'first-project')
+    const secondProjectRoot = join(sandbox, 'second-project')
+    await Promise.all([mkdir(firstProjectRoot), mkdir(secondProjectRoot)])
+
+    const initial = await initializeProject({
+      root: firstProjectRoot,
+      devboxHome,
+      validateHost: async () => success(undefined),
+      confirm: async () => true,
+    })
+    const localOnly = await initializeProject({
+      root: secondProjectRoot,
+      devboxHome,
+      validateHost: async () => success(undefined),
+      confirm: async () => true,
+    })
+
+    expect(initial).toMatchObject({
+      ok: true,
+      value: { globalConfigurationCreated: true },
+    })
+    expect(localOnly).toMatchObject({
+      ok: true,
+      value: { globalConfigurationCreated: false },
+    })
+  })
+
   it('publishes a static Compose definition for the registered Sandbox', async () => {
     const sandbox = await temporaryDirectory()
     const projectRoot = join(sandbox, 'project')
