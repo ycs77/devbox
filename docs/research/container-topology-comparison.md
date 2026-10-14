@@ -1,6 +1,6 @@
 # Devbox 容器拓撲比較
 
-> 研究日期：2026-08-02。這是方案比較筆記，不是新的架構決策；既有行為仍以 `CONTEXT.md` 與 `docs/adr/` 為準。
+> 研究日期：2026-08-02。這是方案比較筆記，不是新的架構決策；既有行為仍以 `GLOSSARY.md` 與 `docs/adr/` 為準。
 
 ## 現況更新（2026-08-10）
 
@@ -70,7 +70,7 @@ Docker 官方文件指出 bind mounts 預設可以修改或刪除 host 檔案，
 - all-in-one 把所有 Projects 都以可寫方式交給同一個 Agent/process 邊界。一個 Project 內的惡意指示、被入侵的套件 script 或一般誤操作，都可以讀取、修改或刪除其他 Projects，包括尚未 commit 的內容。
 - 把非目前 Projects 改成 read-only 只能防止寫入，不能阻止讀取與外洩；而切換目前 Project 的 mount mode 仍需要重新建立 container 或引入更複雜的內層隔離。
 
-因此 all-in-one 與 `CONTEXT.md` 中「Project workspace 可寫，但預設排除開發者機器其餘部分」的 Sandbox 定義不相容。若接受 all-in-one，就應明確承認產品改成「所有已註冊 Projects 屬於同一信任區」，而不是繼續稱為 Project-scoped Sandbox。
+因此 all-in-one 與 `GLOSSARY.md` 中「Project workspace 可寫，但預設排除開發者機器其餘部分」的 Sandbox 定義不相容。若接受 all-in-one，就應明確承認產品改成「所有已註冊 Projects 屬於同一信任區」，而不是繼續稱為 Project-scoped Sandbox。
 
 ## 什麼情況適合 all-in-one
 

@@ -10,7 +10,7 @@ Use the default canonical labels: `needs-triage`, `needs-info`, `ready-for-agent
 
 ### Domain docs
 
-This is a single-context repo using root `CONTEXT.md` and `docs/adr/`. See `docs/agents/domain.md`.
+This is a single-context repo using root `GLOSSARY.md` and `docs/adr/`. See `docs/agents/domain.md`.
 
 ### Writing tests
 

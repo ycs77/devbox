@@ -1,6 +1,6 @@
 # 共用 Multi-runtime Workspace image 討論結論
 
-> 記錄日期：2026-08-10。這是後續討論的暫時結論，不是新的架構決策；既有行為仍以 `CONTEXT.md` 與 `docs/adr/` 為準。
+> 記錄日期：2026-08-10。這是後續討論的暫時結論，不是新的架構決策；既有行為仍以 `GLOSSARY.md` 與 `docs/adr/` 為準。
 
 ## 暫時結論
 
@@ -87,7 +87,7 @@ Devbox 仍應驗證自己直接承諾的最小契約，例如：
 
 ## 與現行決策的關係
 
-這份提案保留 `CONTEXT.md` 定義的 per-Project Sandbox 邊界，但會改變 Workspace image 與 Toolchain 的實作模型，因此目前與以下決策不一致：
+這份提案保留 `GLOSSARY.md` 定義的 per-Project Sandbox 邊界，但會改變 Workspace image 與 Toolchain 的實作模型，因此目前與以下決策不一致：
 
 - [ADR-0005](../adr/0005-linked-runtime-bundles.md)：目前只把 Project 選到的 Runtime bundles 組裝進 Workspace image，未選 Runtime 不存在。
 - [ADR-0007](../adr/0007-global-platform-lock.md)：目前 Platform lock 與更新流程按 release line 準備受影響的 Workspace images。
