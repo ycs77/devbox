@@ -1,7 +1,6 @@
-import { randomUUID } from 'node:crypto'
-import { lstat, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
+import { lstat, rm } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { basename, dirname, isAbsolute, join, parse, relative, sep } from 'node:path'
+import { basename, isAbsolute, join, parse, relative, sep } from 'node:path'
 import { ensureSharedAgentVolumes } from '../agent/volumes.js'
 import {
   configurationsEqual,
@@ -19,7 +18,12 @@ import {
 import { currentHostEnvironment, type HostEnvironment, validateSupportedHost } from '../host.js'
 import { failure, success, type Result } from '../result.js'
 import { withStateLocks, type StateLockContext } from '../state-lock/index.js'
-import { renderProjectCompose } from './compose.js'
+import {
+  prepareSandboxDefinition,
+  publishProjectState,
+  readOptionalFile,
+  writeAtomically,
+} from './publication.js'
 import {
   isSafeSandboxName,
   isSafeStateDirectoryName,
@@ -393,27 +397,33 @@ async function initializeProjectUnlocked(
     localChanged = true
   }
 
-  const composeWrite = await composeStateWrite({
-    projectRoot,
-    sandboxName: name,
+  const definition = await prepareSandboxDefinition(paths.home, globalConfiguration, {
+    root: projectRoot,
+    name,
     stateDirectory,
-    devboxHome: paths.home,
-    globalConfiguration,
     localConfiguration,
   })
-  if (!composeWrite.ok) {
-    return composeWrite
+  if (!definition.ok) {
+    return definition
   }
 
   if (registered) {
-    if (
-      !composeWrite.value.previous.exists ||
-      composeWrite.value.content !== composeWrite.value.previous.content
-    ) {
-      const written = await writeStateTransaction([composeWrite.value])
-      if (!written.ok) {
-        return written
-      }
+    const written = await publishProjectState({
+      devboxHome: paths.home,
+      globalConfiguration,
+      projects: [
+        {
+          root: projectRoot,
+          name,
+          stateDirectory,
+          localConfiguration,
+          preparedDefinition: definition.value,
+          skipUnchangedDefinition: true,
+        },
+      ],
+    })
+    if (!written.ok) {
+      return written
     }
     return success({
       root: projectRoot,
@@ -441,33 +451,22 @@ async function initializeProjectUnlocked(
     version: 1,
     projects: { ...registry.projects, [projectRoot]: { identity, name } },
   }
-  const writes: StateWrite[] = [
-    ...(globalChanged
-      ? [
-          {
-            path: paths.globalConfiguration,
-            content: serializeGlobalConfiguration(globalConfiguration),
-            previous: globalState.value,
-          },
-        ]
-      : []),
-    ...(localChanged
-      ? [
-          {
-            path: localPath,
-            content: serializeLocalConfiguration(localConfiguration),
-            previous: localState.value,
-          },
-        ]
-      : []),
-    {
-      path: paths.projectRegistry,
-      content: serializeProjectRegistry(nextRegistry),
-      previous: registryState.value,
-    },
-    composeWrite.value,
-  ]
-  const written = await writeStateTransaction(writes)
+  const written = await publishProjectState({
+    devboxHome: paths.home,
+    globalConfiguration,
+    globalPrevious: globalChanged ? globalState.value : undefined,
+    registry: { value: nextRegistry, previous: registryState.value },
+    projects: [
+      {
+        root: projectRoot,
+        name,
+        stateDirectory,
+        localConfiguration,
+        localPrevious: localChanged ? localState.value : undefined,
+        preparedDefinition: definition.value,
+      },
+    ],
+  })
   if (!written.ok) {
     return written
   }
@@ -574,25 +573,19 @@ async function configureLocalProjectUnlocked(
   if (input.signal?.aborted) {
     throw new InterruptedError()
   }
-  const composeWrite = await composeStateWrite({
-    projectRoot,
-    sandboxName: registration.name,
-    stateDirectory,
+  const written = await publishProjectState({
     devboxHome: paths.home,
     globalConfiguration: globalCheck.value,
-    localConfiguration: nextCheck.value,
+    projects: [
+      {
+        root: projectRoot,
+        name: registration.name,
+        stateDirectory,
+        localConfiguration: nextCheck.value,
+        localPrevious: localState.value,
+      },
+    ],
   })
-  if (!composeWrite.ok) {
-    return composeWrite
-  }
-  const written = await writeStateTransaction([
-    {
-      path: localPath,
-      content: serializeLocalConfiguration(nextCheck.value),
-      previous: localState.value,
-    },
-    composeWrite.value,
-  ])
   if (!written.ok) {
     return written
   }
@@ -749,40 +742,21 @@ async function configureGlobalUnlocked(
   if (input.signal?.aborted) {
     throw new InterruptedError()
   }
-  const composeWrites: StateWrite[] = []
-  for (const [root, registration] of Object.entries(registryCheck.value.projects)) {
-    const composeWrite = await composeStateWrite({
-      projectRoot: root,
-      sandboxName: registration.name,
+  const written = await publishProjectState({
+    devboxHome: paths.home,
+    globalConfiguration: nextCheck.value,
+    globalPrevious: globalState.value,
+    projects: Object.entries(registryCheck.value.projects).map(([root, registration]) => ({
+      root,
+      name: registration.name,
       stateDirectory: projectStateDirectory(registration.identity, paths.home),
-      devboxHome: paths.home,
-      globalConfiguration: nextCheck.value,
       localConfiguration: replacementConfigurations.get(root) ?? localConfigurations.get(root)!,
-    })
-    if (!composeWrite.ok) {
-      return composeWrite
-    }
-    if (
-      !composeWrite.value.previous.exists ||
-      composeWrite.value.content !== composeWrite.value.previous.content
-    ) {
-      composeWrites.push(composeWrite.value)
-    }
-  }
-
-  const written = await writeStateTransaction([
-    {
-      path: paths.globalConfiguration,
-      content: serializeGlobalConfiguration(nextCheck.value),
-      previous: globalState.value,
-    },
-    ...[...replacementConfigurations].map(([root, configuration]) => ({
-      path: join(paths.projects, registryCheck.value.projects[root]!.identity, 'config.yaml'),
-      content: serializeLocalConfiguration(configuration),
-      previous: { exists: true, content: localConfigurationSources.get(root)! },
+      localPrevious: replacementConfigurations.has(root)
+        ? { exists: true, content: localConfigurationSources.get(root)! }
+        : undefined,
+      skipUnchangedDefinition: true,
     })),
-    ...composeWrites,
-  ])
+  })
   if (!written.ok) {
     return written
   }
@@ -1043,202 +1017,6 @@ function allocateSandboxName(projectRoot: string, registry: ProjectRegistry): Re
     observed: `Devbox could not allocate a unique Sandbox name for ${projectRoot}.`,
     nextAction: 'Remove stale Devbox state only through its supported command and try again.',
   })
-}
-
-async function readOptionalFile(
-  path: string,
-): Promise<Result<{ readonly exists: boolean; readonly content: string }>> {
-  try {
-    return success({ exists: true, content: await readFile(path, 'utf8') })
-  } catch (error) {
-    if (isMissingFileError(error)) {
-      return success({ exists: false, content: '' })
-    }
-    return failure({
-      kind: 'operational',
-      code: 'state-read-failed',
-      observed: `Devbox could not read state file: ${path}.`,
-      nextAction: 'Check write access to ~/.devbox and try again.',
-    })
-  }
-}
-
-async function writeAtomically(path: string, content: string): Promise<Result<void>> {
-  const staged = await stageStateWrite(path, content, 'tmp')
-  if (!staged.ok) {
-    return staged
-  }
-  try {
-    await rename(staged.value, path)
-    return success(undefined)
-  } catch {
-    await rm(staged.value, { force: true }).catch(() => undefined)
-    return failure({
-      kind: 'operational',
-      code: 'state-write-failed',
-      observed: `Devbox could not atomically write state file: ${path}.`,
-      nextAction: 'Check write access to ~/.devbox and run the command again.',
-    })
-  }
-}
-
-async function stageStateWrite(
-  path: string,
-  content: string,
-  suffix: string,
-): Promise<Result<string>> {
-  const directory = dirname(path)
-  const temporaryPath = join(
-    directory,
-    `.${basename(path)}-${process.pid}-${randomUUID()}.${suffix}`,
-  )
-  try {
-    await mkdir(directory, { recursive: true, mode: 0o700 })
-    await writeFile(temporaryPath, content, { encoding: 'utf8', flag: 'wx', mode: 0o600 })
-    return success(temporaryPath)
-  } catch {
-    await rm(temporaryPath, { force: true }).catch(() => undefined)
-    return failure({
-      kind: 'operational',
-      code: 'state-write-failed',
-      observed: `Devbox could not atomically write state file: ${path}.`,
-      nextAction: 'Check write access to ~/.devbox and run the command again.',
-    })
-  }
-}
-
-async function composeStateWrite(input: {
-  readonly projectRoot: string
-  readonly sandboxName: string
-  readonly stateDirectory: string
-  readonly devboxHome: string
-  readonly globalConfiguration: GlobalConfiguration
-  readonly localConfiguration: LocalConfiguration
-}): Promise<Result<StateWrite>> {
-  const claudeHostConfiguration = await ensureClaudeHostConfiguration(
-    input.devboxHome,
-    input.globalConfiguration,
-  )
-  if (!claudeHostConfiguration.ok) {
-    return claudeHostConfiguration
-  }
-
-  const rendered = renderProjectCompose({
-    projectRoot: input.projectRoot,
-    sandboxName: input.sandboxName,
-    selectedNode: input.localConfiguration.node,
-    configuredAgents: input.globalConfiguration.agent,
-    agentNotifications: input.globalConfiguration.agent_notifications,
-    claudeHostConfiguration: claudeHostConfiguration.value,
-    ports: input.localConfiguration.ports,
-  })
-  if (!rendered.ok) {
-    return rendered
-  }
-  const path = join(input.stateDirectory, 'compose.yaml')
-  const previous = await readOptionalFile(path)
-  if (!previous.ok) {
-    return previous
-  }
-  return success({ path, content: rendered.value, previous: previous.value })
-}
-
-async function ensureClaudeHostConfiguration(
-  devboxHome: string,
-  globalConfiguration: GlobalConfiguration,
-): Promise<Result<string | undefined>> {
-  if (!globalConfiguration.agent.includes('claude-code')) {
-    return success(undefined)
-  }
-
-  const path = devboxPaths(devboxHome).claudeHostConfiguration
-  try {
-    const metadata = await lstat(path)
-    if (metadata.isFile()) {
-      return success(path)
-    }
-    return failure({
-      kind: 'operational',
-      code: 'claude-host-configuration-invalid',
-      observed: `Claude host configuration is not a regular file: ${path}.`,
-      nextAction: 'Replace it with a regular file, then run the command again.',
-    })
-  } catch (error) {
-    if (!isMissingFileError(error)) {
-      return failure({
-        kind: 'operational',
-        code: 'claude-host-configuration-unreadable',
-        observed: `Devbox could not inspect Claude host configuration: ${path}.`,
-        nextAction: 'Check access to ~/.devbox and run the command again.',
-      })
-    }
-  }
-
-  try {
-    await mkdir(dirname(path), { recursive: true, mode: 0o700 })
-    await writeFile(path, '{}\n', { encoding: 'utf8', flag: 'wx', mode: 0o600 })
-    return success(path)
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
-      return ensureClaudeHostConfiguration(devboxHome, globalConfiguration)
-    }
-    return failure({
-      kind: 'operational',
-      code: 'claude-host-configuration-write-failed',
-      observed: `Devbox could not create Claude host configuration: ${path}.`,
-      nextAction: 'Check write access to ~/.devbox and run the command again.',
-    })
-  }
-}
-
-interface StateWrite {
-  readonly path: string
-  readonly content: string
-  readonly previous: { readonly exists: boolean; readonly content: string }
-}
-
-async function writeStateTransaction(writes: readonly StateWrite[]): Promise<Result<void>> {
-  const staged: Array<{ readonly write: StateWrite; readonly path: string }> = []
-  for (const write of writes) {
-    const stagedWrite = await stageStateWrite(write.path, write.content, 'transaction.tmp')
-    if (!stagedWrite.ok) {
-      await Promise.all(staged.map(stage => rm(stage.path, { force: true }).catch(() => undefined)))
-      return stagedWrite
-    }
-    staged.push({ write, path: stagedWrite.value })
-  }
-
-  const published: StateWrite[] = []
-  try {
-    for (const stage of staged) {
-      await rename(stage.path, stage.write.path)
-      published.push(stage.write)
-    }
-    return success(undefined)
-  } catch {
-    let restored = true
-    for (const write of published.reverse()) {
-      if (write.previous.exists) {
-        const restoredWrite = await writeAtomically(write.path, write.previous.content)
-        restored &&= restoredWrite.ok
-      } else {
-        try {
-          await rm(write.path, { force: true })
-        } catch {
-          restored = false
-        }
-      }
-    }
-    await Promise.all(staged.map(stage => rm(stage.path, { force: true }).catch(() => undefined)))
-    return failure({
-      kind: 'operational',
-      code: 'state-write-failed',
-      observed: restored
-        ? 'Devbox could not publish Project state; the previous state was restored.'
-        : 'Devbox could not publish Project state or restore the previous state.',
-      nextAction: 'Check write access to ~/.devbox and run the command again.',
-    })
-  }
 }
 
 function validateGlobalObject(
