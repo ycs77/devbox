@@ -27,12 +27,12 @@ The packaged Runtime recipe is the source of truth for each supported release li
 The Node recipe also owns the complete verified installation flow validated by `prototype/node/Dockerfile`: local Docker architecture mapping, official archive and signed-manifest coordinates derived from the recipe version, keyserver fallback, release-key fingerprints, signed-manifest verification, archive checksum verification, `.tar.xz` extraction, Runtime layout, OpenSSL-header removal, and the current Node global-tool installation sequence:
 
 ```sh
-npm install -g npm@latest corepack@latest @antfu/ni@latest
-corepack enable pnpm
-npm install -g -f yarn
+npm install -g npm
+npm uninstall -g corepack
+npm install -g yarn pnpm @antfu/ni --allow-scripts=pnpm,yarn
 ```
 
-Yarn remains the v1 installation path. These tools are Build-time Runtime contents, are not lockfile entries, and are not independently version-pinned by Project state.
+Each Runtime tree has its own npm-installed pnpm and Yarn rather than Corepack shims. The global-tool versions resolve during Build; they are not lockfile entries or independently version-pinned by Project state. The Build also configures the non-root user's pnpm store at `/home/devbox/.pnpm-store`.
 
 `build` reads the Global `node` set, combines it with the packaged recipes, renders the single Workspace Dockerfile, and invokes the validated one-build prototype flow. The build uses the local Docker architecture; Devbox does not persist a top-level target platform in a lockfile. Runtime source verification remains inside Docker Build, and the archive checksum and observed signer are transient verification results.
 

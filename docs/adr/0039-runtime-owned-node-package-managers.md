@@ -1,13 +1,17 @@
 # Install Node global tools in each Runtime tree
 
-> **Current status (2026-08-14):** ADR-0048 supersedes the Sandbox-bootstrap placement of Node global tools for the current prototype. The Node Runtime Build installs `npm@latest`, `corepack@latest`, `@antfu/ni@latest`, Corepack pnpm enablement, and the current Yarn v1 installation flow; these are not lockfile entries.
+ADR-0048 moves Node global-tool installation from Sandbox bootstrap to the Workspace image Build. Each configured Node release line gets its own Runtime tree and global tools.
 
-The native Node prefix, npm layout, Corepack ownership, forced Yarn Classic, and installation sequence remain the Runtime Build contract.
+The Node Runtime recipe extracts the official archive into `/opt/devbox/runtimes/node/<release-line>` and uses npm's native global layout: packages remain under `<prefix>/lib/node_modules` and executables under `<prefix>/bin`. Selecting Node prepends that `bin` directory to the Sandbox `PATH`. Devbox does not relocate global packages or create command shims for Node. Composer remains deferred with the PHP recipe.
 
-The Node Runtime recipe extracts the official Node archive into `/opt/devbox/runtimes/node/<release-line>` and uses npm's native global layout without relocating it: npm's prefix follows that Node installation, packages remain under `<prefix>/lib/node_modules`, executables remain under `<prefix>/bin`, and npm keeps its default `~/.npm` cache. Selecting Node prepends that native `<prefix>/bin` directly to the container-local `PATH`; Devbox does not create a command projection for Node. Composer remains deferred with the PHP recipe.
+For each Node Runtime, Build runs:
 
-Runtime Build runs the fixed sequence `npm install -g npm`, `npm uninstall -g corepack`, then `npm install -g yarn pnpm @antfu/ni`. A Docker build failure preserves the prior Workspace image.
+```sh
+npm install -g npm
+npm uninstall -g corepack
+npm install -g yarn pnpm @antfu/ni --allow-scripts=pnpm,yarn
+```
 
-pnpm is owned by Corepack rather than the globally installed `pnpm` npm package: `corepack enable pnpm` creates its command shim and `corepack install -g pnpm@latest` establishes the default payload. In a Project with an exact pnpm `packageManager` declaration, Corepack activates that declared version and may download a missing payload on first use; failure affects only that command, not Sandbox readiness. Yarn Classic instead deliberately owns `yarn` and `yarnpkg`: the final npm command uses `-f` because the globally installed Corepack package already publishes conflicting Yarn shims, and the force install replaces them. Ordinary `yarn` therefore stays on floating Yarn 1.x and does not honor a Yarn Berry `packageManager` declaration. npm remains the floating version installed in the Selected Node tree.
+The resulting `npm`, `pnpm`, `yarn` and `ni` commands come from that Runtime tree. pnpm and Yarn are npm-installed executables, not Corepack dispatchers; Devbox does not configure Corepack-based version selection from a Project's `packageManager` field. The npm global installs resolve their versions during Build; Devbox does not independently pin them in Project state or a Platform lock. A failed Docker build does not replace the prior Workspace image.
 
-Project dependency manifests, lockfiles, installed dependency trees such as `node_modules`, and Project-local package-manager state remain in the writable Project workspace. Devbox creates no separate writable or shared global-package home: Runtime Build installs managed globals into the Node Runtime's native prefix, while later user-managed global installation is outside the supported lifecycle. npm, pnpm, and Yarn keep their normal per-user cache locations without Devbox relocation. Devbox mounts no cross-Project package-manager cache volume.
+Project dependency manifests, lockfiles and installed dependencies such as `node_modules` remain in the writable Project workspace. Devbox configures `/home/devbox/.pnpm-store` as the non-root user's pnpm store; npm, pnpm and Yarn otherwise use their normal per-user caches. Managed global installations belong to the image-owned Runtime trees, while later user-managed global installations are outside the supported lifecycle. Devbox mounts no cross-Project package-manager cache volume.
