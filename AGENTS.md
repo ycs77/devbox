@@ -1,5 +1,9 @@
 ## Agent skills
 
+### Product brief
+
+`docs/brief/` holds the developer's product intent; its goals bind every plan and change, while examples and open details are settled in ADRs and code. Read it before planning, and edit `docs/brief/` only with explicit permission. See `docs/agents/product-brief.md`.
+
 ### Issue tracker
 
 Issues and PRDs live in GitHub Issues; external PRs are not a triage request surface. See `docs/agents/issue-tracker.md`.
