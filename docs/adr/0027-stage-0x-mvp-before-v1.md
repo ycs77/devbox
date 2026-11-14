@@ -6,4 +6,4 @@ v0.x may evolve its incomplete surfaces as the MVP exposes real needs; v1.0 esta
 
 ## Consequences
 
-ADR-0026 remains the Node-only v0.x delivery boundary only where its opening supersession notice says so; current Workspace, configuration, CLI, Base, Agent, and lifecycle behavior comes from ADR-0044 through ADR-0051. New tickets and acceptance claims must identify their delivery stage without reviving superseded Platform-lock or Build-and-Sync flows.
+ADR-0026 remains the Node-only v0.x delivery boundary only where its opening supersession notice says so; current Workspace, configuration, CLI, Base, Agent, and lifecycle behavior comes from ADR-0044 through ADR-0054. New tickets and acceptance claims must identify their delivery stage without reviving superseded Platform-lock or Build-and-Sync flows.
