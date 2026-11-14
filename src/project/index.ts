@@ -287,32 +287,31 @@ async function initializeProjectUnlocked(
   }
   const registry = registryCheck.value
   const registration = registry.projects[projectRoot]
-  let identity: string
-  let name: string
   if (registration !== undefined) {
-    identity = registration.identity
-    name = registration.name
-  } else {
-    const allocatedIdentity = await allocateSandboxIdentity(projectRoot, paths, registry)
-    if (!allocatedIdentity.ok) {
-      return allocatedIdentity
-    }
-    const allocatedName = allocateSandboxName(projectRoot, registry)
-    if (!allocatedName.ok) {
-      return allocatedName
-    }
-    identity = allocatedIdentity.value
-    name = allocatedName.value
+    return success({
+      root: projectRoot,
+      stateDirectory: projectStateDirectory(registration.identity, paths.home),
+      sandboxName: registration.name,
+      created: false,
+      globalConfigurationCreated: false,
+    })
   }
+
+  const allocatedIdentity = await allocateSandboxIdentity(projectRoot, paths, registry)
+  if (!allocatedIdentity.ok) {
+    return allocatedIdentity
+  }
+  const allocatedName = allocateSandboxName(projectRoot, registry)
+  if (!allocatedName.ok) {
+    return allocatedName
+  }
+  const identity = allocatedIdentity.value
+  const name = allocatedName.value
   const stateDirectory = projectStateDirectory(identity, paths.home)
-  const registered = registration !== undefined
 
   const globalState = await readOptionalFile(paths.globalConfiguration)
   if (!globalState.ok) {
     return globalState
-  }
-  if (registered && !globalState.value.exists) {
-    return missingConfiguration('global', paths.globalConfiguration)
   }
 
   let globalConfiguration: GlobalConfiguration
@@ -343,33 +342,8 @@ async function initializeProjectUnlocked(
     globalChanged = true
   }
 
-  const localPath = join(stateDirectory, 'config.yaml')
-  const localState = registered
-    ? await readOptionalFile(localPath)
-    : success<{ readonly exists: boolean; readonly content: string }>({
-        exists: false,
-        content: '',
-      })
-  if (!localState.ok) {
-    return localState
-  }
-  if (registered && !localState.value.exists) {
-    return missingConfiguration('local', localPath)
-  }
-
   let localConfiguration: LocalConfiguration
-  let localChanged = false
-  if (localState.value.exists) {
-    const parsedLocal = parseLocalConfiguration(
-      localState.value.content,
-      globalConfiguration,
-      catalog,
-    )
-    if (!parsedLocal.ok) {
-      return parsedLocal
-    }
-    localConfiguration = parsedLocal.value
-  } else if (input.initialLocalConfiguration !== undefined) {
+  if (input.initialLocalConfiguration !== undefined) {
     const initialLocal = validateLocalObject(
       input.initialLocalConfiguration,
       globalConfiguration,
@@ -379,7 +353,6 @@ async function initializeProjectUnlocked(
       return initialLocal
     }
     localConfiguration = initialLocal.value
-    localChanged = true
   } else {
     localConfiguration = defaultLocalConfiguration(globalConfiguration)
     if (input.prompt?.editLocal) {
@@ -394,7 +367,6 @@ async function initializeProjectUnlocked(
       }
       localConfiguration = checkedLocal.value
     }
-    localChanged = true
   }
 
   const definition = await prepareSandboxDefinition(paths.home, globalConfiguration, {
@@ -405,34 +377,6 @@ async function initializeProjectUnlocked(
   })
   if (!definition.ok) {
     return definition
-  }
-
-  if (registered) {
-    const written = await publishProjectState({
-      devboxHome: paths.home,
-      globalConfiguration,
-      projects: [
-        {
-          root: projectRoot,
-          name,
-          stateDirectory,
-          localConfiguration,
-          preparedDefinition: definition.value,
-          skipUnchangedDefinition: true,
-        },
-      ],
-    })
-    if (!written.ok) {
-      return written
-    }
-    return success({
-      root: projectRoot,
-      stateDirectory,
-      sandboxName: name,
-      created: false,
-      globalConfigurationCreated: false,
-      confirmed: true,
-    })
   }
 
   const confirm = input.confirm ?? input.prompt?.confirm ?? (async () => true)
@@ -462,7 +406,7 @@ async function initializeProjectUnlocked(
         name,
         stateDirectory,
         localConfiguration,
-        localPrevious: localChanged ? localState.value : undefined,
+        localPrevious: { exists: false, content: '' },
         preparedDefinition: definition.value,
       },
     ],

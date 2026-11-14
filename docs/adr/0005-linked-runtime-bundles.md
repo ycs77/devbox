@@ -1,6 +1,6 @@
 # Assemble Workspace images from isolated Runtime bundles
 
-ADR-0029 supersedes this decision's per-Toolchain Workspace-image assembly, layer-chain, and unselected-Runtime behavior. ADR-0032 removes Workspace fingerprint tags; ADR-0036 replaces Node source-image relocation with direct installation from the official archive; ADR-0037 replaces the Trixie Base. ADR-0048 removes the Platform lock and owns the current Runtime Build, including Node global-tool installation. Historical prototype observations below remain evidence of that prototype, not current requirements. PHP, Composer, and extension responsibilities remain deferred until a PHP recipe is decided.
+ADR-0029 supersedes this decision's per-Toolchain Workspace-image assembly, layer-chain, and unselected-Runtime behavior. ADR-0032 removes Workspace fingerprint tags; ADR-0036 replaces Node source-image relocation with direct installation from the official archive; ADR-0004 replaces the Trixie Base with Ubuntu 24.04 LTS. ADR-0048 removes the Platform lock and owns the current Runtime Build, including Node global-tool installation. Historical prototype observations below remain evidence of that prototype, not current requirements. PHP, Composer, and extension responsibilities remain deferred until a PHP recipe is decided.
 
 ## Superseded historical design and evidence
 

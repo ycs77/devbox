@@ -296,44 +296,44 @@ describe('initializeProject', () => {
     const configuration = join(devboxHome, 'agents', 'claude', '.claude.json')
     await writeFile(configuration, '{"theme":"dark"}\n')
 
-    const regenerated = await initializeProject({
+    const reconfigured = await configureLocalProject({
       root: projectRoot,
       devboxHome,
-      validateHost: async () => success(undefined),
+      nextConfiguration: { version: 1, node: '24', ports: ['3000:3000'] },
       confirm: async () => true,
     })
 
-    expect(regenerated).toMatchObject({ ok: true, value: { created: false } })
+    expect(reconfigured).toMatchObject({ ok: true, value: { changed: true } })
     await expect(readFile(configuration, 'utf8')).resolves.toBe('{"theme":"dark"}\n')
   })
 
-  it('regenerates a retained definition from registered configuration', async () => {
+  it('leaves a registered Project unchanged when init repeats', async () => {
     const sandbox = await temporaryDirectory()
     const projectRoot = join(sandbox, 'project')
     const devboxHome = join(sandbox, 'user-state', '.devbox')
     await mkdir(projectRoot)
     const project = await createProjectState(projectRoot, devboxHome)
+    const localPath = join(project.stateDirectory, 'config.yaml')
+    const localBefore = await readFile(localPath, 'utf8')
     await rm(join(project.stateDirectory, 'compose.yaml'))
 
+    let confirmed = false
     const result = await initializeProject({
       root: projectRoot,
       devboxHome,
       validateHost: async () => success(undefined),
-      confirm: async () => true,
-      initialGlobalConfiguration: {
-        version: 1,
-        node: ['22'],
-        agent: ['codex'],
-        agent_notifications: false,
+      confirm: async () => {
+        confirmed = true
+        return true
       },
-      initialLocalConfiguration: { version: 1, node: '22', ports: [] },
+      initialLocalConfiguration: { version: 1, node: null, ports: [] },
     })
 
     expect(result).toMatchObject({ ok: true, value: { created: false } })
-    expect(
-      parse(await readFile(join(project.stateDirectory, 'compose.yaml'), 'utf8')),
-    ).toMatchObject({
-      services: { devbox: { environment: { NODE_VERSION: '24' } } },
+    expect(confirmed).toBe(false)
+    await expect(readFile(localPath, 'utf8')).resolves.toBe(localBefore)
+    await expect(stat(join(project.stateDirectory, 'compose.yaml'))).rejects.toMatchObject({
+      code: 'ENOENT',
     })
   })
 
@@ -379,7 +379,7 @@ describe('initializeProject', () => {
     )
   })
 
-  it('uses the persisted Sandbox name rather than state-directory naming when regenerating Compose', async () => {
+  it('uses the persisted Sandbox name rather than state-directory naming in Compose', async () => {
     const sandbox = await temporaryDirectory()
     const firstRoot = join(sandbox, 'first-parent', 'shared project')
     const secondRoot = join(sandbox, 'second-parent', 'shared project')
@@ -391,16 +391,6 @@ describe('initializeProject', () => {
 
     await createProjectState(firstRoot, devboxHome)
     const second = await createProjectState(secondRoot, devboxHome)
-    await rm(join(second.stateDirectory, 'compose.yaml'))
-
-    const regenerated = await initializeProject({
-      root: secondRoot,
-      devboxHome,
-      validateHost: async () => success(undefined),
-      confirm: async () => true,
-    })
-
-    expect(regenerated).toMatchObject({ ok: true, value: { created: false } })
     expect(basename(second.stateDirectory)).not.toBe('shared-project-2')
     expect(
       parse(await readFile(join(second.stateDirectory, 'compose.yaml'), 'utf8')),
@@ -732,10 +722,9 @@ describe('configuration boundaries', () => {
     const project = await createProjectState(projectRoot, devboxHome)
     await rm(join(project.stateDirectory, 'config.yaml'))
 
-    const result = await initializeProject({
+    const result = await configureLocalProject({
       root: projectRoot,
       devboxHome,
-      validateHost: async () => success(undefined),
       confirm: async () => true,
     })
 

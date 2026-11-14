@@ -67,7 +67,7 @@ A Global configuration choice that includes notification plugins for each enable
 An Agent-owned extension installed in a Workspace image that enables Agent notifications for one supported AI Agent.
 
 **Agent skills**:
-The curated skills installed for enabled Claude Code and Codex Agents during a Workspace build when a Build Node Runtime exists.
+The curated skills installed during a Workspace build when a Build Node Runtime exists and Claude Code, Codex, or OMP is enabled. OMP shares the skills installed for Codex, and AGY reads the shared skills without its own installation.
 
 
 **Agent instruction default**:

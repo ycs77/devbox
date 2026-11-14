@@ -1,6 +1,6 @@
 # Use a fixed PHP extension set initially
 
-ADR-0037 invalidates the Trixie-specific extension assembly evidence below but does not change the curated extension set.
+ADR-0004's Ubuntu 24.04 LTS Base profile invalidates the Trixie-specific extension assembly evidence below but does not change the curated extension set.
 
 Each PHP Runtime bundle contains and enables one Lucas-curated, Laravel-oriented extension set for that PHP release line. The initial Project and Local configuration schemas expose no `extensions` option, so users cannot add, remove, enable, or disable extensions; this favors a ready-to-use Laravel development experience over the smallest possible Runtime bundle, avoids per-project compilation and extension-combination images, and keeps shared bundles and startup predictable.
 

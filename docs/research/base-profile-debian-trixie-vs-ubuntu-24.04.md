@@ -5,7 +5,7 @@
 > **來源界線：**「OS 官方 archive」只指 Debian/Ubuntu 自己的套件庫。`ppa:ondrej/php` 與 `packages.sury.org/php` 即使由 Debian PHP 維護者 Ondřej Surý 維護，仍是**第三方來源，不是 Debian 或 Ubuntu 官方 archive**。
 >
 > [ADR-0036](../adr/0036-family-owned-runtime-recipes.md) 已決定每個 Runtime family 擁有自己的 recipe，Node 直接安裝官方 binary tarball；Base 不再受 Node Docker image variant 綁定。[ADR-0035](../adr/0035-inline-base-workspace-build.md) 的單一 generated Workspace Dockerfile 仍有效。
-> Decision update: ADR-0037 selected Ubuntu 24.04 LTS because Devbox is Lucas's personal development environment and Ubuntu familiarity outweighs retaining the Trixie evidence. The Debian recommendation below remains the pre-decision technical comparison, not the active architecture.
+> Decision update: ADR-0037 (now merged into ADR-0004) selected Ubuntu 24.04 LTS because Devbox is Lucas's personal development environment and Ubuntu familiarity outweighs retaining the Trixie evidence. The Debian recommendation below remains the pre-decision technical comparison, not the active architecture.
 
 ## 決策摘要
 
@@ -13,7 +13,7 @@
 
 1. Node 官方 GNU/Linux x64/arm64 binary 要求 glibc `>= 2.28`、libstdc++ `>= 6.0.25`；Trixie 的 glibc 2.41 與 Noble 的 2.39 都符合。Node 25 起另需 `libatomic` runtime，兩邊都可由 Base recipe 安裝。因此 Node 對 OS 選擇近乎中性（[Node official binary platforms](https://github.com/nodejs/node/blob/main/BUILDING.md#official-binary-platforms-and-toolchains)）。
 2. Debian Trixie 官方 archive 的 default PHP 是 8.4；Ubuntu Noble 是 8.3。兩邊各只有一條 PHP release line，都不能靠 OS 官方 archive 滿足多版本共存（[Debian `php`](https://packages.debian.org/trixie/php)、[Ubuntu `php`](https://packages.ubuntu.com/noble/php)）。
-3. Docker Official `php` image 在研究日同時有多個 PHP lines 的 Trixie/Bookworm/Alpine variants，沒有 Ubuntu variant；既有 ADR-0004/0005/0006 prototype、native owner closure 與 extension 組裝又全在 Trixie。改 Ubuntu 必須重做 PHP recipe 或接受第三方 repository，並重跑 ABI/package/extension 證據（[Docker Official PHP manifest](https://github.com/docker-library/official-images/blob/master/library/php)）。
+3. Docker Official `php` image 在研究日同時有多個 PHP lines 的 Trixie/Bookworm/Alpine variants，沒有 Ubuntu variant；既有 ADR-0004（Trixie prototype 證據已從 ADR-0004 移除）/0005/0006 prototype、native owner closure 與 extension 組裝又全在 Trixie。改 Ubuntu 必須重做 PHP recipe 或接受第三方 repository，並重跑 ABI/package/extension 證據（[Docker Official PHP manifest](https://github.com/docker-library/official-images/blob/master/library/php)）。
 4. Ubuntu Standard Security Maintenance 到 2029-05；Debian full support 到 2028-08-09，LTS 到 2030-06-30。Ubuntu Pro 可到 2034、Legacy 到 2039，但那是額外 entitlement 與營運狀態，且 Ubuntu 的一般五年 LTS security maintenance 明列為 Main；Universe 的 expanded security coverage 需 Pro（[Ubuntu lifecycle](https://ubuntu.com/about/release-cycle)、[Debian Trixie lifecycle](https://www.debian.org/releases/trixie/)）。
 
 所以最少狀態、最少特殊處理的答案是 Debian。只有在 Ubuntu 2029/2034 lifecycle 的價值高於保留現有 Trixie 證據，而且願意建立、驗證 Ubuntu-native PHP recipe 時，才應切 Ubuntu。
@@ -121,7 +121,7 @@ Debian 的 [`packages.sury.org` distributions](https://packages.sury.org/php/dis
 
 結論：family-owned recipe 已消除「每個 Runtime 必須有同名 Base image variant」的假約束，但沒消除 architecture、glibc、compiler、headers、SONAME 與 owner manifest。未來 Python/Go/Rust 都不是改 Ubuntu 的必要理由，也不是 Debian 專屬理由。現在唯一有明顯既有 distro alignment 的 family 是 PHP。
 
-## 5. 切 Ubuntu 會使哪些 ADR-0004 證據/契約失效
+## 5. 切 Ubuntu 會使哪些 ADR-0004 證據/契約失效（這些內容已從 ADR-0004 移除）
 
 ADR-0035 已淘汰 separate local Base image、Base `image_id` 與 `update --base` lifecycle。除此之外，切換仍會使以下 Trixie-specific 內容失效：
 
@@ -136,7 +136,7 @@ Ubuntu 必須是新 profile identity，記 Ubuntu source revision/digest 與 Ubu
 
 ### 2026-08-02 prototype evidence
 
-ADR-0004 第 17–19 行全部失效：
+ADR-0004 第 17–19 行（已從 ADR-0004 移除）全部失效：
 
 - exact Trixie digest/local image ID/tag 與 12 shared Base layers；
 - Base-only、Node-only、PHP-only、combined image pass；
@@ -148,7 +148,7 @@ Timezone/locale/non-root/no-sudo 的產品意圖可保留，但 Ubuntu 的 packa
 
 ### Package manifests 與 native closure
 
-ADR-0004 第 21–38 行全部失效：
+ADR-0004 第 21–38 行（已從 ADR-0004 移除）全部失效：
 
 - PHP 8.4.24 + Node 22.23.2 runtime owner union 全表；
 - `libicu76`、`libzip5`、`libssl3t64` 等 exact owners；

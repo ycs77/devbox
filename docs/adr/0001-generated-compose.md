@@ -1,6 +1,6 @@
 # Generate Compose outside the project
 
-ADR-0049 supersedes this decision's Compose regeneration through configuration or shared reconciliation: configuration and initialization now publish retained static Project definitions, while `up`, `stop`, `down`, and `sh` use the last retained file. ADR-0032 supersedes references to fingerprinted Workspace tags, ADR-0042 supersedes the neighboring Local `config.yaml` as registration truth, and ADR-0045 supersedes this decision's former lifecycle-lock, helper, and lock-order assumptions.
+ADR-0049 supersedes this decision's Compose regeneration through configuration or shared reconciliation: configuration and initialization now publish retained static Project definitions, while `up`, `stop`, `down`, and `sh` use the last retained file. ADR-0032 supersedes references to fingerprinted Workspace tags, ADR-0042 supersedes the neighboring Local `config.yaml` as registration truth, and ADR-0045 supersedes this decision's former lifecycle-lock, helper, and lock-order assumptions. ADR-0053 supersedes this decision's `devbox sh` contract: there is no interactive-terminal usage check and no `--login` shell.
 
 ## Superseded historical lifecycle details
 
