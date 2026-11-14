@@ -1,5 +1,4 @@
 # PROTOTYPE: validate the one-stage Base plus direct PHP archive recipe.
-# The generated Build Dockerfile will replace these fixed values with lock inputs.
 FROM ubuntu:24.04
 
 ARG USER_ID
