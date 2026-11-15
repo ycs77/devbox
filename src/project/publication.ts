@@ -64,6 +64,14 @@ export async function publishProjectState(input: ProjectStatePublication): Promi
     }
   }
 
+  const claudeHostConfiguration = await ensureClaudeHostConfiguration(
+    input.devboxHome,
+    input.globalConfiguration,
+  )
+  if (!claudeHostConfiguration.ok) {
+    return claudeHostConfiguration
+  }
+
   const writes: StateWrite[] = [
     ...(input.globalPrevious === undefined
       ? []
@@ -104,13 +112,9 @@ export async function prepareSandboxDefinition(
   globalConfiguration: GlobalConfiguration,
   project: SandboxDefinitionInput,
 ): Promise<Result<PreparedSandboxDefinition>> {
-  const claudeHostConfiguration = await ensureClaudeHostConfiguration(
-    devboxHome,
-    globalConfiguration,
-  )
-  if (!claudeHostConfiguration.ok) {
-    return claudeHostConfiguration
-  }
+  const claudeHostConfiguration = globalConfiguration.agent.includes('claude-code')
+    ? join(devboxHome, 'agents', 'claude', '.claude.json')
+    : undefined
 
   const rendered = renderProjectCompose({
     projectRoot: project.root,
@@ -118,9 +122,10 @@ export async function prepareSandboxDefinition(
     selectedNode: project.localConfiguration.node,
     configuredAgents: globalConfiguration.agent,
     agentNotifications: globalConfiguration.agent_notifications,
-    claudeHostConfiguration: claudeHostConfiguration.value,
+    claudeHostConfiguration,
     ports: project.localConfiguration.ports,
   })
+
   if (!rendered.ok) {
     return rendered
   }
