@@ -495,9 +495,7 @@ async function configureLocalProjectUnlocked(
   if (!nextCheck.ok) {
     return nextCheck
   }
-  if (configurationsEqual(localCheck.value, nextCheck.value)) {
-    return success({ scope: 'local', root: projectRoot, changed: false })
-  }
+  const localChanged = !configurationsEqual(localCheck.value, nextCheck.value)
 
   const confirm = input.confirm ?? input.prompt?.confirm ?? (async () => true)
   if (
@@ -526,14 +524,14 @@ async function configureLocalProjectUnlocked(
         name: registration.name,
         stateDirectory,
         localConfiguration: nextCheck.value,
-        localPrevious: localState.value,
+        localPrevious: localChanged ? localState.value : undefined,
       },
     ],
   })
   if (!written.ok) {
     return written
   }
-  return success({ scope: 'local', root: projectRoot, changed: true })
+  return success({ scope: 'local', root: projectRoot, changed: written.value })
 }
 
 export async function configureGlobal(
@@ -659,9 +657,6 @@ async function configureGlobalUnlocked(
 
   const globalChanged =
     !globalState.value.exists || !configurationsEqual(currentConfiguration, nextCheck.value)
-  if (!globalChanged && replacementConfigurations.size === 0) {
-    return success({ scope: 'global', changed: false })
-  }
 
   const confirm = input.confirm ?? input.prompt?.confirm ?? (async () => true)
   if (
@@ -689,7 +684,7 @@ async function configureGlobalUnlocked(
   const written = await publishProjectState({
     devboxHome: paths.home,
     globalConfiguration: nextCheck.value,
-    globalPrevious: globalState.value,
+    globalPrevious: globalChanged ? globalState.value : undefined,
     projects: Object.entries(registryCheck.value.projects).map(([root, registration]) => ({
       root,
       name: registration.name,
@@ -698,13 +693,12 @@ async function configureGlobalUnlocked(
       localPrevious: replacementConfigurations.has(root)
         ? { exists: true, content: localConfigurationSources.get(root)! }
         : undefined,
-      skipUnchangedDefinition: true,
     })),
   })
   if (!written.ok) {
     return written
   }
-  return success({ scope: 'global', changed: true })
+  return success({ scope: 'global', changed: written.value })
 }
 export async function removeProject(
   input: RemoveProjectInput = {},
@@ -829,22 +823,25 @@ async function runSandboxCommandUnlocked(
   }
 
   const environment = input.environment ?? currentHostEnvironment()
-  if (command === 'up') {
-    const globalState = await readOptionalFile(paths.globalConfiguration)
-    if (!globalState.ok) {
-      return globalState
-    }
-    if (!globalState.value.exists) {
-      return missingConfiguration('global', paths.globalConfiguration)
-    }
-    const globalCheck = parseGlobalConfiguration(globalState.value.content)
-    if (!globalCheck.ok) {
-      return globalCheck
-    }
-    await ensureSharedAgentVolumes(globalCheck.value.agent, environment)
-  }
-
   const composePath = join(projectStateDirectory(registration.identity, paths.home), 'compose.yaml')
+  if (command === 'up') {
+    const composeState = await readOptionalFile(composePath)
+    if (!composeState.ok) {
+      return composeState
+    }
+    if (!composeState.value.exists) {
+      return failure({
+        kind: 'operational',
+        code: 'missing-project-compose',
+        observed: `Sandbox definition is missing: ${composePath}.`,
+        nextAction: 'Run devbox config to publish the Sandbox definition, then retry devbox up.',
+      })
+    }
+    const volumes = await ensureSharedAgentVolumes(composeState.value.content, environment)
+    if (!volumes.ok) {
+      return volumes
+    }
+  }
   const operation =
     command === 'up'
       ? ['up', '-d']

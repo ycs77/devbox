@@ -34,7 +34,6 @@ export interface PreparedSandboxDefinition extends StateWrite {}
 export interface PublicationProject extends SandboxDefinitionInput {
   readonly localPrevious?: FileState
   readonly preparedDefinition?: PreparedSandboxDefinition
-  readonly skipUnchangedDefinition?: boolean
 }
 
 export interface ProjectStatePublication {
@@ -45,7 +44,7 @@ export interface ProjectStatePublication {
   readonly projects: readonly PublicationProject[]
 }
 
-export async function publishProjectState(input: ProjectStatePublication): Promise<Result<void>> {
+export async function publishProjectState(input: ProjectStatePublication): Promise<Result<boolean>> {
   const definitions: StateWrite[] = []
   for (const project of input.projects) {
     const prepared =
@@ -55,13 +54,7 @@ export async function publishProjectState(input: ProjectStatePublication): Promi
     if (!prepared.ok) {
       return prepared
     }
-    if (
-      !project.skipUnchangedDefinition ||
-      !prepared.value.previous.exists ||
-      prepared.value.content !== prepared.value.previous.content
-    ) {
-      definitions.push(prepared.value)
-    }
+    definitions.push(prepared.value)
   }
 
   const claudeHostConfiguration = await ensureClaudeHostConfiguration(
@@ -103,8 +96,9 @@ export async function publishProjectState(input: ProjectStatePublication): Promi
           },
         ]),
     ...definitions,
-  ]
-  return writeStateTransaction(writes)
+  ].filter(write => !write.previous.exists || write.content !== write.previous.content)
+  const written = await writeStateTransaction(writes)
+  return written.ok ? success(writes.length > 0) : written
 }
 
 export async function prepareSandboxDefinition(

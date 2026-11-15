@@ -6,6 +6,8 @@ Devbox recognizes only the finite set of Runtime family and release-line pairs d
 
 `devbox config` accepts only release lines in the current packaged catalog, regardless of whether the user chooses Global or Local scope. Local and Global configuration loaded after supported manual edits must satisfy the same membership rule; Local `node` must additionally occur in Global `node`. A catalog-external release line fails validation before persistence, so Devbox never saves desired state it cannot interpret.
 
+Supported manual YAML edits take effect in Sandbox definitions through a confirmed `devbox config` operation for the edited scope, even when the form is submitted unchanged. Local scope regenerates the current definition; Global scope regenerates every registered definition. Validation still precedes publication, identical definitions are not rewritten, and lifecycle commands do not reinterpret configuration. When manually removing a Global Node release line, also update any Local selections that reference it before running `devbox config`; invalid persisted Local input fails closed rather than being silently repaired.
+
 ## Historical catalog consequences
 
 

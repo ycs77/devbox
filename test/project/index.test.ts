@@ -598,6 +598,98 @@ describe('initializeProject', () => {
 })
 
 describe('configuration boundaries', () => {
+  it.each(['local', 'global'] as const)(
+    'publishes manually edited %s YAML without form changes and leaves identical files untouched',
+    async scope => {
+      const sandbox = await temporaryDirectory()
+      const firstRoot = join(sandbox, 'first-project')
+      const secondRoot = join(sandbox, 'second-project')
+      const devboxHome = join(sandbox, 'user-state', '.devbox')
+      await Promise.all([mkdir(firstRoot), mkdir(secondRoot)])
+      const first = await createProjectState(firstRoot, devboxHome)
+      const second = await createProjectState(secondRoot, devboxHome)
+      const firstComposePath = join(first.stateDirectory, 'compose.yaml')
+      const secondComposePath = join(second.stateDirectory, 'compose.yaml')
+      const secondBefore = await readFile(secondComposePath, 'utf8')
+      const yamlPath =
+        scope === 'local'
+          ? join(first.stateDirectory, 'config.yaml')
+          : join(devboxHome, 'config.yaml')
+      const manualYaml =
+        scope === 'local'
+          ? '# manual ports\nversion: 1\nnode: "24"\nports:\n  - 3000:3000\n'
+          : '# manual Agents\nversion: 1\nnode: ["24"]\nagent: [codex]\nagent_notifications: false\n'
+      await writeFile(yamlPath, manualYaml)
+      // Global refresh includes retained registrations whose Project root is absent.
+      if (scope === 'global') {
+        await rm(secondRoot, { recursive: true })
+      }
+      const configure = () =>
+        scope === 'local'
+          ? configureLocalProject({
+              root: firstRoot,
+              devboxHome,
+              prompt: { editLocal: async current => current, confirm: async () => true },
+            })
+          : configureGlobal({
+              devboxHome,
+              prompt: { editGlobal: async current => current, confirm: async () => true },
+            })
+
+      expect(await configure()).toMatchObject({ ok: true, value: { scope, changed: true } })
+      const definition = parse(await readFile(firstComposePath, 'utf8'))
+      if (scope === 'local') {
+        expect(definition.services.devbox.ports).toEqual(['3000:3000'])
+        await expect(readFile(secondComposePath, 'utf8')).resolves.toBe(secondBefore)
+      } else {
+        for (const path of [firstComposePath, secondComposePath]) {
+          expect(parse(await readFile(path, 'utf8')).volumes).toEqual({
+            'devbox-codex': { name: 'devbox-codex', external: true },
+          })
+        }
+      }
+      await expect(readFile(yamlPath, 'utf8')).resolves.toBe(manualYaml)
+
+      const paths = [
+        yamlPath,
+        join(devboxHome, 'projects.yaml'),
+        firstComposePath,
+        secondComposePath,
+      ]
+      const before = await Promise.all(paths.map(path => stat(path)))
+      expect(await configure()).toMatchObject({ ok: true, value: { scope, changed: false } })
+      const after = await Promise.all(paths.map(path => stat(path)))
+      expect(after.map(value => [value.ino, value.mtimeMs])).toEqual(
+        before.map(value => [value.ino, value.mtimeMs]),
+      )
+    },
+  )
+
+  it.each(['local', 'global'] as const)(
+    'does not refresh definitions after declining an unchanged %s form',
+    async scope => {
+      const sandbox = await temporaryDirectory()
+      const root = join(sandbox, 'project')
+      const devboxHome = join(sandbox, 'user-state', '.devbox')
+      await mkdir(root)
+      const project = await createProjectState(root, devboxHome)
+      const composePath = join(project.stateDirectory, 'compose.yaml')
+      const retained = await readFile(composePath, 'utf8')
+      await writeFile(
+        join(project.stateDirectory, 'config.yaml'),
+        'version: 1\nnode: "24"\nports: ["3000:3000"]\n',
+      )
+
+      const result =
+        scope === 'local'
+          ? await configureLocalProject({ root, devboxHome, confirm: async () => false })
+          : await configureGlobal({ devboxHome, confirm: async () => false })
+
+      expect(result).toMatchObject({ ok: true, value: { changed: false } })
+      await expect(readFile(composePath, 'utf8')).resolves.toBe(retained)
+    },
+  )
+
   it('edits only the current registered Project Local configuration', async () => {
     const sandbox = await temporaryDirectory()
     const projectRoot = join(sandbox, 'project')
