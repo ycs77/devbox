@@ -56,7 +56,7 @@ Published ports 欄位每行輸入一組對應設定。可使用的 port 設定�
 - `5173:5173`：將主機的 `5173` port 對應到容器的 `5173` port。
 - `APP_PORT:5173:5173`：讀取 `APP_PORT` 環境變數的主機 port（預設 port `5173`），並對應到容器的 `5173` port。
 
-首次設定完成後，或變更全域設定後，請建置共用 Workspace image：
+首次設定完成、變更全域設定，或升級 Devbox 套件後，請建置共用 Workspace image：
 
 ```bash
 devbox build

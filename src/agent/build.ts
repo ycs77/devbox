@@ -8,6 +8,12 @@ export interface AgentBuildContextAsset {
   readonly content: string
 }
 
+export const AGENT_BUILD_CONTEXT_ASSETS = {
+  instructions: { relativePath: 'AGENTS.md', content: agentInstructions },
+  claude: { relativePath: '.claude/settings.json', content: claudeSettings },
+  omp: { relativePath: '.omp/agent/config.yml', content: ompAgentConfig },
+} satisfies Record<string, AgentBuildContextAsset>
+
 export interface AgentWorkspaceContribution {
   readonly buildContextAssets: readonly AgentBuildContextAsset[]
   readonly dockerignoreEntries: readonly string[]
@@ -109,13 +115,13 @@ function selectBuildContextAssets(
 ): readonly AgentBuildContextAsset[] {
   const assets: AgentBuildContextAsset[] = []
   if (agents.length > 0) {
-    assets.push({ relativePath: 'AGENTS.md', content: agentInstructions })
+    assets.push(AGENT_BUILD_CONTEXT_ASSETS.instructions)
   }
   if (agents.some(agent => agent.name === 'claude-code')) {
-    assets.push({ relativePath: '.claude/settings.json', content: claudeSettings })
+    assets.push(AGENT_BUILD_CONTEXT_ASSETS.claude)
   }
   if (agents.some(agent => agent.name === 'omp')) {
-    assets.push({ relativePath: '.omp/agent/config.yml', content: ompAgentConfig })
+    assets.push(AGENT_BUILD_CONTEXT_ASSETS.omp)
   }
   return assets
 }

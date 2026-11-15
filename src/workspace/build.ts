@@ -1,9 +1,10 @@
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 import {
+  AGENT_BUILD_CONTEXT_ASSETS,
   createAgentWorkspaceContribution,
   type AgentWorkspaceContribution,
 } from '../agent/build.js'
@@ -118,7 +119,7 @@ async function buildWorkspaceUnlocked(input: BuildWorkspaceInput): Promise<Build
   const buildContextAssets = [...BASE_WORKSPACE_IMAGE_DEFAULTS, ...agent.buildContextAssets]
   const dockerfile = renderBuildDockerfile({ node, agent })
   await mkdir(paths.buildContext, { recursive: true })
-  await seedBuildContextAssets(paths.buildContext, buildContextAssets)
+  await refreshBuildContextAssets(paths.buildContext, buildContextAssets)
   await Promise.all([
     writeFile(join(paths.buildContext, 'Dockerfile'), dockerfile),
     writeFile(
@@ -258,26 +259,22 @@ function renderDockerignore(
   return `${lines.join('\n')}\n`
 }
 
-async function seedBuildContextAssets(
+async function refreshBuildContextAssets(
   buildContext: string,
   assets: readonly WorkspaceImageDefault[],
 ): Promise<void> {
+  const requiredPaths = new Set(assets.map(asset => asset.relativePath))
+  for (const asset of Object.values(AGENT_BUILD_CONTEXT_ASSETS)) {
+    if (!requiredPaths.has(asset.relativePath)) {
+      await rm(join(buildContext, asset.relativePath), { force: true })
+    }
+  }
+
   await Promise.all(
     assets.map(async asset => {
       const destination = join(buildContext, asset.relativePath)
       await mkdir(dirname(destination), { recursive: true })
-      try {
-        await writeFile(destination, asset.content, { flag: 'wx' })
-      } catch (error) {
-        if (
-          typeof error !== 'object' ||
-          error === null ||
-          !('code' in error) ||
-          error.code !== 'EEXIST'
-        ) {
-          throw error
-        }
-      }
+      await writeFile(destination, asset.content)
     }),
   )
 }

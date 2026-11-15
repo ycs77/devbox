@@ -1,7 +1,9 @@
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import claudeSettings from '../../src/agent/image-defaults/.claude/settings.json?raw'
+import ompAgentConfig from '../../src/agent/image-defaults/.omp/agent/config.yml?raw'
 import agentInstructions from '../../src/agent/image-defaults/AGENTS.md?raw'
 import { failure, success } from '../../src/result.js'
 import { withStateLocks } from '../../src/state-lock/index.js'
@@ -10,6 +12,8 @@ import {
   type DockerBuildInvocation,
   WORKSPACE_IMAGE,
 } from '../../src/workspace/build.js'
+import bashAliases from '../../src/workspace/image-defaults/.bash_aliases?raw'
+import gitconfig from '../../src/workspace/image-defaults/.gitconfig?raw'
 
 const temporaryDirectories: string[] = []
 
@@ -71,33 +75,139 @@ describe('buildWorkspace', () => {
     vi.spyOn(process, 'getgid').mockImplementation(() => hostGroupId)
   })
 
-  it('preserves user Build context inputs and initializes missing Workspace image defaults', async () => {
+  it('refreshes all packaged assets before every Docker build without changing user configuration', async () => {
     const sandbox = await temporaryDirectory()
     const devboxHome = join(sandbox, '.devbox')
     const buildContext = join(devboxHome, 'build')
-    await writeGlobalConfiguration(devboxHome, { node: ['24'], agent: [] })
-    await mkdir(buildContext, { recursive: true })
-    await writeFile(join(buildContext, 'stale.txt'), 'stale')
-    await writeFile(join(buildContext, '.gitconfig'), '[user]\n\tname = Devbox User\n')
-    const before = await readFile(join(devboxHome, 'config.yaml'), 'utf8')
-
-    const result = await buildWorkspace({
-      devboxHome,
-      executeDockerBuild: async () => success(undefined),
+    await writeGlobalConfiguration(devboxHome, {
+      node: ['24'],
+      agent: ['claude-code', 'omp'],
     })
+    const defaults = [
+      ['.bash_aliases', bashAliases],
+      ['.gitconfig', gitconfig],
+      ['AGENTS.md', agentInstructions],
+      ['.claude/settings.json', claudeSettings],
+      ['.omp/agent/config.yml', ompAgentConfig],
+    ] as const
+    const before = await readFile(join(devboxHome, 'config.yaml'), 'utf8')
+    await mkdir(buildContext, { recursive: true })
+    await writeFile(join(buildContext, 'unrelated.txt'), 'unrelated')
 
-    expect(result).toEqual({ ok: true, value: { image: WORKSPACE_IMAGE } })
-    expect(await readFile(join(buildContext, 'stale.txt'), 'utf8')).toBe('stale')
-    expect(await readFile(join(buildContext, '.gitconfig'), 'utf8')).toBe(
-      '[user]\n\tname = Devbox User\n',
-    )
-    await expect(readFile(join(buildContext, '.bash_aliases'), 'utf8')).resolves.toContain(
-      "alias ..='cd ..'",
-    )
-    await expect(readFile(join(buildContext, '.dockerignore'), 'utf8')).resolves.toContain(
-      '!entrypoint.sh',
-    )
+    for (const staleContent of ['previous package version', 'manual build context edit']) {
+      for (const [relativePath] of defaults) {
+        const destination = join(buildContext, relativePath)
+        await mkdir(dirname(destination), { recursive: true })
+        await writeFile(destination, staleContent)
+      }
+
+      const result = await buildWorkspace({
+        devboxHome,
+        executeDockerBuild: async input => {
+          for (const [relativePath, content] of defaults) {
+            expect(await readFile(join(input.context, relativePath), 'utf8')).toBe(content)
+          }
+          const dockerignore = await readFile(join(input.context, '.dockerignore'), 'utf8')
+          expect(dockerignore.split('\n')).toContain('*')
+          expect(dockerignore).not.toContain('!unrelated.txt')
+          return success(undefined)
+        },
+      })
+
+      expect(result).toEqual({ ok: true, value: { image: WORKSPACE_IMAGE } })
+    }
+    expect(await readFile(join(buildContext, 'unrelated.txt'), 'utf8')).toBe('unrelated')
     expect(await readFile(join(devboxHome, 'config.yaml'), 'utf8')).toBe(before)
+  })
+
+  it.each([{ agents: ['codex'] }, { agents: [] }])(
+    'removes unused packaged Agent assets while retaining persistent Agent data with Agents $agents',
+    async ({ agents }) => {
+      const sandbox = await temporaryDirectory()
+      const devboxHome = join(sandbox, '.devbox')
+      const buildContext = join(devboxHome, 'build')
+      await writeGlobalConfiguration(devboxHome, {
+        node: [],
+        agent: ['claude-code', 'omp', 'codex'],
+      })
+      expect(
+        await buildWorkspace({
+          devboxHome,
+          executeDockerBuild: async () => success(undefined),
+        }),
+      ).toEqual({ ok: true, value: { image: WORKSPACE_IMAGE } })
+
+      const claudeHostConfiguration = join(devboxHome, 'agents', 'claude', '.claude.json')
+      await mkdir(dirname(claudeHostConfiguration), { recursive: true })
+      await writeFile(claudeHostConfiguration, '{"theme":"custom"}')
+      await writeFile(join(buildContext, '.claude', 'unrelated.txt'), 'not a packaged asset')
+      await writeGlobalConfiguration(devboxHome, { node: [], agent: agents })
+      const before = await readFile(join(devboxHome, 'config.yaml'), 'utf8')
+
+      const result = await buildWorkspace({
+        devboxHome,
+        executeDockerBuild: async input => {
+          for (const relativePath of ['.claude/settings.json', '.omp/agent/config.yml']) {
+            await expect(readFile(join(input.context, relativePath))).rejects.toMatchObject({
+              code: 'ENOENT',
+            })
+          }
+          if (agents.length > 0) {
+            expect(await readFile(join(input.context, 'AGENTS.md'), 'utf8')).toBe(agentInstructions)
+          } else {
+            await expect(readFile(join(input.context, 'AGENTS.md'))).rejects.toMatchObject({
+              code: 'ENOENT',
+            })
+          }
+          const dockerfile = await readFile(join(input.context, 'Dockerfile'), 'utf8')
+          const dockerignore = await readFile(join(input.context, '.dockerignore'), 'utf8')
+          expect(dockerfile).not.toContain('COPY --chown=devbox:devbox .claude/')
+          expect(dockerfile).not.toContain('COPY --chown=devbox:devbox .omp/')
+          expect(dockerignore).not.toContain('!.claude')
+          expect(dockerignore).not.toContain('!.omp')
+          if (agents.length === 0) {
+            expect(dockerfile).not.toContain('COPY --chown=devbox:devbox AGENTS.md')
+            expect(dockerignore).not.toContain('!AGENTS.md')
+          }
+          return success(undefined)
+        },
+      })
+
+      expect(result).toEqual({ ok: true, value: { image: WORKSPACE_IMAGE } })
+      expect(await readFile(claudeHostConfiguration, 'utf8')).toBe('{"theme":"custom"}')
+      expect(await readFile(join(buildContext, '.claude', 'unrelated.txt'), 'utf8')).toBe(
+        'not a packaged asset',
+      )
+      expect(await readFile(join(devboxHome, 'config.yaml'), 'utf8')).toBe(before)
+    },
+  )
+
+  it('does not build stale assets when an asset cannot be overwritten and recovers on retry', async () => {
+    const sandbox = await temporaryDirectory()
+    const devboxHome = join(sandbox, '.devbox')
+    await writeGlobalConfiguration(devboxHome, { node: [], agent: [] })
+    const blockedAsset = join(devboxHome, 'build', '.gitconfig')
+    await mkdir(blockedAsset, { recursive: true })
+    await writeFile(join(blockedAsset, 'sentinel'), 'keep')
+    let buildAttempts = 0
+    const executeDockerBuild = async () => {
+      buildAttempts += 1
+      return success(undefined)
+    }
+
+    await expect(buildWorkspace({ devboxHome, executeDockerBuild })).rejects.toMatchObject({
+      code: 'EISDIR',
+    })
+    expect(buildAttempts).toBe(0)
+    expect(await readFile(join(blockedAsset, 'sentinel'), 'utf8')).toBe('keep')
+
+    await rm(blockedAsset, { recursive: true })
+    expect(await buildWorkspace({ devboxHome, executeDockerBuild })).toEqual({
+      ok: true,
+      value: { image: WORKSPACE_IMAGE },
+    })
+    expect(buildAttempts).toBe(1)
+    expect(await readFile(blockedAsset, 'utf8')).toBe(gitconfig)
   })
 
   it('builds the Workspace image with the invoking host numeric identity', async () => {

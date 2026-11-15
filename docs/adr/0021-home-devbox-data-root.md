@@ -6,6 +6,8 @@ ADR-0032 supersedes this decision's fingerprinted Workspace-tag retention model:
 
 ADR-0033 defines the machine-owned generated Workspace build context directly at `~/.devbox/build/`; it is derived input for BuildKit rather than a supported configuration or cache interface.
 
+Every `build` refreshes packaged files in this generated directory and removes known packaged Agent assets not required by the current build set. Manual edits there are not preserved. This machine-owned boundary does not include persistent Agent homes in Docker volumes or Claude's user-owned host configuration under `~/.devbox/agents/`, whose retention is defined by ADR-0010 and ADR-0050.
+
 ADR-0035 removes Devbox-owned Base tags entirely.
 
 ADR-0042 adds the machine-owned `~/.devbox/projects.yaml` Project registry and supersedes Local `config.yaml` presence as registration truth. ADR-0045 adds the machine-owned `~/.devbox/locks/` command-marker directory and supersedes the former OS advisory-lock and `devbox-host` assumptions. Global configuration and a registered Project's Local configuration are the only human-editable Devbox files.
