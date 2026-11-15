@@ -44,7 +44,9 @@ export interface ProjectStatePublication {
   readonly projects: readonly PublicationProject[]
 }
 
-export async function publishProjectState(input: ProjectStatePublication): Promise<Result<boolean>> {
+export async function publishProjectState(
+  input: ProjectStatePublication,
+): Promise<Result<boolean>> {
   const definitions: StateWrite[] = []
   for (const project of input.projects) {
     const prepared =

@@ -89,14 +89,6 @@ Run these commands from the initialized project directory:
 | `devbox rm` | Stop and remove the current Project's Sandbox, then remove its Devbox state. |
 | `devbox config` | Change global settings or this project's configuration. |
 
-### Apply manually edited YAML
-
-Global settings live in `~/.devbox/config.yaml`; each registered Project's Local settings live in `~/.devbox/projects/<Sandbox identity>/config.yaml`. Do not edit the generated `compose.yaml`.
-
-After editing YAML, run `devbox config` from an initialized project, select **Global** or **Local** to match the edited file, and confirm without changing the form. Local refreshes this project's Sandbox definition; Global refreshes every registered project's definition. Identical contents are not rewritten. If you remove a Global Node.js version manually, update any Local selections that still reference it before applying.
-
-Then run `devbox up` to apply the refreshed definition. If Global image inputs changed, run `devbox build` before `devbox up`. `up`, `down`, `stop`, and `sh` never regenerate definitions; repeating `devbox init` for a registered project does not refresh them either. `up` creates the external Agent volumes required by the existing definition, not by unapplied Global edits.
-
 ## Troubleshooting
 
 ### Devbox reports that a command marker is in use

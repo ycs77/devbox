@@ -89,14 +89,6 @@ devbox sh
 | `devbox rm` | 停止並移除目前專案的沙箱，再刪除其 Devbox 狀態。 |
 | `devbox config` | 變更全域設定，或目前專案的設定。 |
 
-### 套用手動編輯的 YAML
-
-全域設定在 `~/.devbox/config.yaml`；各已註冊專案的本機設定在 `~/.devbox/projects/<Sandbox identity>/config.yaml`。請勿編輯自動產生的 `compose.yaml`。
-
-手動修改 YAML 後，在已初始化的專案目錄執行 `devbox config`，依修改的檔案選擇 **Global** 或 **Local**，不修改表單直接確認送出。Local 會重新產生目前專案的沙箱定義；Global 會重新產生所有已註冊專案的沙箱定義。內容相同就不寫入。若手動移除全域 Node.js 版本，請先一併修改仍選用該版本的本機設定。
-
-接著執行 `devbox up`，套用新的沙箱定義。若改了全域 image 建置設定，請先執行 `devbox build`，再執行 `devbox up`。`up`、`down`、`stop`、`sh` 都不會重新產生定義；對已註冊專案重跑 `devbox init` 也不會更新。`up` 會建立現有定義所需的外部 Agent volumes，不會跟隨尚未套用的全域設定。
-
 ## 疑難排解
 
 ### Devbox 顯示指令標記正在使用中
