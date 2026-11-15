@@ -4,6 +4,7 @@ import { basename, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
 import {
+  InterruptedError,
   configureGlobal,
   configureLocalProject,
   escapePathSegment,
@@ -63,7 +64,7 @@ afterEach(async () => {
 })
 
 describe('initializeProject', () => {
-  it('does not write Global, Local, or registry state before confirmation', async () => {
+  it('does not write Global, Local, registry, or Claude state before confirmation', async () => {
     const sandbox = await temporaryDirectory()
     const projectRoot = join(sandbox, 'project')
     const devboxHome = join(sandbox, 'user-state', '.devbox')
@@ -78,6 +79,12 @@ describe('initializeProject', () => {
         confirmationMessage = message
         return false
       },
+      initialGlobalConfiguration: {
+        version: 1,
+        node: ['24'],
+        agent: ['claude-code'],
+        agent_notifications: true,
+      },
     })
 
     expect(result).toMatchObject({
@@ -85,6 +92,31 @@ describe('initializeProject', () => {
       value: { root: projectRoot, created: false, confirmed: false },
     })
     expect(confirmationMessage).toBe('Save configuration?')
+    await expect(stat(devboxHome)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('does not write Claude state when confirmation is cancelled', async () => {
+    const sandbox = await temporaryDirectory()
+    const projectRoot = join(sandbox, 'project')
+    const devboxHome = join(sandbox, 'user-state', '.devbox')
+    await mkdir(projectRoot)
+
+    await expect(
+      initializeProject({
+        root: projectRoot,
+        devboxHome,
+        validateHost: async () => success(undefined),
+        confirm: async () => {
+          throw new InterruptedError()
+        },
+        initialGlobalConfiguration: {
+          version: 1,
+          node: ['24'],
+          agent: ['claude-code'],
+          agent_notifications: true,
+        },
+      }),
+    ).rejects.toBeInstanceOf(InterruptedError)
     await expect(stat(devboxHome)).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
