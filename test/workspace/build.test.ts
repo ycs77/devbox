@@ -5,8 +5,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import claudeSettings from '../../src/agent/image-defaults/.claude/settings.json?raw'
 import ompAgentConfig from '../../src/agent/image-defaults/.omp/agent/config.yml?raw'
 import agentInstructions from '../../src/agent/image-defaults/AGENTS.md?raw'
-import bashAliases from '../../src/workspace/image-defaults/.bash_aliases?raw'
-import gitconfig from '../../src/workspace/image-defaults/.gitconfig?raw'
 import { failure, success } from '../../src/result.js'
 import { withStateLocks } from '../../src/state-lock/index.js'
 import {
@@ -14,6 +12,8 @@ import {
   type DockerBuildInvocation,
   WORKSPACE_IMAGE,
 } from '../../src/workspace/build.js'
+import bashAliases from '../../src/workspace/image-defaults/.bash_aliases?raw'
+import gitconfig from '../../src/workspace/image-defaults/.gitconfig?raw'
 
 const temporaryDirectories: string[] = []
 
@@ -153,9 +153,7 @@ describe('buildWorkspace', () => {
             })
           }
           if (agents.length > 0) {
-            expect(await readFile(join(input.context, 'AGENTS.md'), 'utf8')).toBe(
-              agentInstructions,
-            )
+            expect(await readFile(join(input.context, 'AGENTS.md'), 'utf8')).toBe(agentInstructions)
           } else {
             await expect(readFile(join(input.context, 'AGENTS.md'))).rejects.toMatchObject({
               code: 'ENOENT',

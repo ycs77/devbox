@@ -62,8 +62,6 @@ Build the shared Workspace image after setup, changes to global configuration, o
 devbox build
 ```
 
-Each build overwrites packaged defaults in the generated `~/.devbox/build/` directory with the current package version and removes known Agent assets no longer needed. Do not customize files there. Persistent Agent homes, credentials, and Claude's `~/.devbox/agents/claude/.claude.json` are untouched; updated image defaults do not replace settings in existing Agent homes.
-
 Start the project sandbox:
 
 ```bash

@@ -62,8 +62,6 @@ Published ports 欄位每行輸入一組對應設定。可使用的 port 設定�
 devbox build
 ```
 
-每次建置都會將自動產生的 `~/.devbox/build/` 目錄內的套件預設素材覆寫成目前套件版本，並移除已不需要的已知 Agent 素材。請勿在這裡客製設定。持久化的 Agent home、憑證，以及 Claude 的 `~/.devbox/agents/claude/.claude.json` 都不受影響；新版 image 的預設素材不會取代既有 Agent home 中的設定。
-
 啟動專案沙箱：
 
 ```bash
