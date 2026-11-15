@@ -56,11 +56,13 @@ Published ports accept one mapping per line. The following are the supported por
 - `5173:5173` maps host port `5173` to container port `5173`.
 - `APP_PORT:5173:5173` maps the host port from the `APP_PORT` environment variable (default port: `5173`) to container port `5173`.
 
-Build the shared Workspace image once after setup or whenever you change global configuration:
+Build the shared Workspace image after setup, changes to global configuration, or a Devbox package upgrade:
 
 ```bash
 devbox build
 ```
+
+Each build overwrites packaged defaults in the generated `~/.devbox/build/` directory with the current package version and removes known Agent assets no longer needed. Do not customize files there. Persistent Agent homes, credentials, and Claude's `~/.devbox/agents/claude/.claude.json` are untouched; updated image defaults do not replace settings in existing Agent homes.
 
 Start the project sandbox:
 
