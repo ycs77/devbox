@@ -1,4 +1,4 @@
-import { mkdir, readFile, rename } from 'node:fs/promises'
+import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fs, vol } from 'memfs'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -50,6 +50,43 @@ async function createProjectState(): Promise<{
 }
 
 describe('Project filesystem failures', () => {
+  it('restores every definition when an unchanged Global refresh fails partway through', async () => {
+    await createProjectState()
+    const secondRoot = '/workspace/second-project'
+    await mkdir(secondRoot, { recursive: true })
+    const second = await initializeProject({
+      root: secondRoot,
+      devboxHome,
+      validateHost: async () => success(undefined),
+    })
+    if (!second.ok) {
+      throw new Error(second.error.observed)
+    }
+    const firstDirectory = projectStateDirectory(sandboxIdentity(projectRoot), devboxHome)
+    const composePaths = [
+      join(firstDirectory, 'compose.yaml'),
+      join(second.value.stateDirectory, 'compose.yaml'),
+    ]
+    const before = await Promise.all(composePaths.map(path => readFile(path, 'utf8')))
+    const globalPath = join(devboxHome, 'config.yaml')
+    const manualYaml =
+      '# manually selected Agent\nversion: 1\nnode: ["24"]\nagent: [codex]\nagent_notifications: false\n'
+    await writeFile(globalPath, manualYaml)
+    vi.mocked(rename)
+      .mockImplementationOnce(memfsRename)
+      .mockRejectedValueOnce(new Error('disk full'))
+      .mockImplementation(memfsRename)
+
+    const result = await configureGlobal({
+      devboxHome,
+      prompt: { editGlobal: async current => current, confirm: async () => true },
+    })
+
+    expect(result).toMatchObject({ ok: false, error: { code: 'state-write-failed' } })
+    expect(await Promise.all(composePaths.map(path => readFile(path, 'utf8')))).toEqual(before)
+    await expect(readFile(globalPath, 'utf8')).resolves.toBe(manualYaml)
+  })
+
   it('returns a state-read failure when the Project registry cannot be read', async () => {
     const { devboxHome, projectRoot } = await createProjectState()
     vi.mocked(readFile).mockRejectedValueOnce(

@@ -14,4 +14,6 @@ Devbox stores all host-side user-scope files under `~/.devbox` on the supported 
 
 Global `~/.devbox/config.yaml` and each registered Project's Local `config.yaml` are the current human-editable Devbox configuration interfaces. Command markers, temporary Build inputs, generated Compose definitions, and other Devbox state remain separate from those files; there is no current Platform lock file.
 
+After manually editing either YAML interface, run `devbox config`, select the edited scope, and confirm without changing the form. Local scope refreshes the current Project's Sandbox definition; Global scope refreshes every registered Project's definition, including Missing-root Project registrations. Identical generated contents are not written, and an unchanged form does not rewrite the user-owned YAML. Run `devbox build` when Global image inputs changed, then `devbox up` to apply the published definition. Lifecycle commands and repeated `init` never regenerate it.
+
 The initial release creates no host-side log or cache directory. It creates `~/.devbox/locks/` only for short-lived command markers; commands report directly through terminal output, while Docker and BuildKit retain their own rebuildable cache. Global configuration and each Project's retained state remain user-scoped.

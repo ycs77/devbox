@@ -133,7 +133,7 @@ describe('Sandbox shell sessions', () => {
 })
 
 describe('Sandbox lifecycle commands', () => {
-  it('uses retained Compose and provisions its configured Agent volumes before up', async () => {
+  it('provisions retained Compose volumes even after Global Agents change manually', async () => {
     const sandbox = await temporaryDirectory()
     const root = join(sandbox, 'project')
     const devboxHome = join(sandbox, 'user-state', '.devbox')
@@ -142,6 +142,11 @@ describe('Sandbox lifecycle commands', () => {
     const composePath = join(stateDirectory, 'compose.yaml')
     const retainedCompose = `${await readFile(composePath, 'utf8')}# retained lifecycle definition\n`
     await writeFile(composePath, retainedCompose)
+    await writeFile(
+      join(devboxHome, 'config.yaml'),
+      'version: 1\nnode: ["24"]\nagent: [codex]\nagent_notifications: false\n',
+    )
+    await writeFile(join(stateDirectory, 'config.yaml'), 'invalid Local YAML: [')
     const invocations: Array<{ readonly file: string; readonly args: readonly string[] }> = []
 
     const result = await runSandboxLifecycle('up', {
@@ -164,6 +169,43 @@ describe('Sandbox lifecycle commands', () => {
       { file: 'docker', args: ['compose', '--file', composePath, 'up', '-d'] },
     ])
   })
+
+  it.each(['missing', 'invalid'] as const)(
+    'fails before invoking Docker when the retained Compose definition is %s',
+    async state => {
+      const sandbox = await temporaryDirectory()
+      const root = join(sandbox, 'project')
+      const devboxHome = join(sandbox, 'user-state', '.devbox')
+      await mkdir(root)
+      const { stateDirectory } = await createProjectState(root, devboxHome)
+      const composePath = join(stateDirectory, 'compose.yaml')
+      if (state === 'missing') {
+        await rm(composePath)
+      } else {
+        await writeFile(composePath, 'volumes: [')
+      }
+      const invocations: string[] = []
+
+      const result = await runSandboxLifecycle('up', {
+        root,
+        devboxHome,
+        environment: {
+          run: async file => {
+            invocations.push(file)
+          },
+        },
+      })
+
+      expect(result).toMatchObject({
+        ok: false,
+        error: {
+          code: state === 'missing' ? 'missing-project-compose' : 'invalid-project-compose',
+          nextAction: expect.stringContaining('devbox config'),
+        },
+      })
+      expect(invocations).toEqual([])
+    },
+  )
 
   it('returns Docker’s missing image failure without starting a Workspace build', async () => {
     const sandbox = await temporaryDirectory()
