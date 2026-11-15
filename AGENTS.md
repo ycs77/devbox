@@ -1,3 +1,18 @@
+# AGENTS.md
+
+## Constraints
+
+- Node.js v26
+- TypeScript formatting: 2 spaces, single quotes, no semicolons, trailing commas
+
+## Commands
+
+- `pnpm build`
+- `pnpm lint`
+- `pnpm fmt`
+- `pnpm typecheck`
+- `pnpm smoke`
+
 ## Agent skills
 
 ### Product brief
