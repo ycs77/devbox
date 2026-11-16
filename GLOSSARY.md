@@ -22,8 +22,10 @@ A packaged, catalog-owned declarative definition of a Runtime release line, incl
 
 **Runtime recipe implementation**:
 A family-owned behavior that interprets a Runtime recipe configuration to make that Runtime available in a Workspace image.
+
 **Agent catalog**:
 The finite package-managed set of AI Agents that Devbox can install into a Workspace image through an official Runtime-independent path compatible with the current Base profile and runnable by the Sandbox user without elevation. An AI Agent enters the catalog only through a Devbox package update.
+
 **Agent recipe**:
 The pairing of an Agent recipe configuration and its Agent recipe implementation for one AI Agent.
 
@@ -69,9 +71,9 @@ An Agent-owned extension installed in a Workspace image that enables Agent notif
 **Agent skills**:
 The curated skills installed during a Workspace build when a Build Node Runtime exists and Claude Code, Codex, or OMP is enabled. OMP shares the skills installed for Codex, and AGY reads the shared skills without its own installation.
 
-
 **Agent instruction default**:
 A package-distributed instruction document that initializes the home of each enabled AI Agent when its Agent home is first created. It does not replace files in an existing Agent home.
+
 **Agent credentials**:
 The authentication material stored in an Agent home, shared across Devbox projects but kept separate from the developer's normal host credentials.
 
@@ -87,7 +89,6 @@ The fixed-name external Docker volume that stores one Agent home for every Sandb
 **Sandbox**:
 The Project-scoped execution environment with its own container, workspace mount, process space, Compose network, writable layer, and lifecycle. Its writable boundary includes the current Project workspace and shared Agent homes but excludes the rest of the developer's machine by default. It protects the host environment, not Project contents or one Project's Agent credentials and state from another Project.
 
-
 **Sandbox lifecycle command**:
 A Project-scoped CLI command that starts, stops, or removes a Sandbox through an already generated Sandbox definition without changing configuration, building a Workspace image, or rendering a replacement definition.
 
@@ -96,7 +97,6 @@ An interactive session attached to an existing Sandbox by `devbox sh`. It is ind
 
 **Sandbox user**:
 The non-root `devbox` account whose numeric UID and GID match the host user that built its Workspace image. It runs interactive shells, commands, project tools, and available AI Agents inside a Sandbox. The Workspace image grants this account passwordless `sudo`; the container entrypoint and idle supervisor start as root, while `devbox sh` executes as `devbox`.
-
 
 **Service**:
 A Devbox-supported dependency that runs alongside a Sandbox but is not part of its Toolchain, such as a database, cache, or local mail server.
@@ -152,10 +152,8 @@ _Avoid_: Sandbox identity, Project state directory
 **Initialization**:
 The interactive registration operation for the current Project. When Global configuration is absent it collects Global and then Local configuration; otherwise it collects only Local configuration.
 
-
 **Missing-root Project registration**:
 A retained Project registration whose exact absolute Project root cannot be found at observation time. It does not imply that the root was permanently deleted or relocated.
-
 
 **Local configuration**:
 The complete user-owned configuration for one Project, stored in user scope and never supplied or fixed by files in the Project workspace. It contains the Project's Selected Node Runtime and published port mappings.
