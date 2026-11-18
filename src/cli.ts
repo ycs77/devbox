@@ -10,12 +10,11 @@ import {
   configureGlobal,
   configureLocalProject,
   initializeProject,
-  InterruptedError,
   removeProject,
   runSandboxLifecycle,
   runSandboxShell,
 } from './project/index.js'
-import { failure, success, type Result } from './result.js'
+import { failure, InterruptedError, success, type Result } from './result.js'
 import { buildWorkspace } from './workspace/build.js'
 
 interface CliSuccess {
@@ -49,7 +48,13 @@ function createCli(signal: AbortSignal, interactive: boolean): CAC {
       showLogo()
       console.log()
       intro(c.bgCyan(' devbox '))
-      const result = await initializeProject({ signal, prompt })
+      const result = await initializeProject(
+        {},
+        {
+          signal,
+          prompt,
+        },
+      )
       if (!result.ok) {
         return result
       }
@@ -86,7 +91,7 @@ function createCli(signal: AbortSignal, interactive: boolean): CAC {
       intro(c.bgCyan(' devbox '))
       const scope = await prompt.selectConfigurationScope()
       if (scope === 'global') {
-        const result = await configureGlobal({ signal, prompt })
+        const result = await configureGlobal({}, { signal, prompt })
         if (!result.ok) {
           return result
         }
@@ -100,7 +105,7 @@ function createCli(signal: AbortSignal, interactive: boolean): CAC {
         return success({})
       }
 
-      const result = await configureLocalProject({ signal, prompt })
+      const result = await configureLocalProject({}, { signal, prompt })
       if (!result.ok) {
         return result
       }

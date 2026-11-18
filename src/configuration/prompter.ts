@@ -1,12 +1,46 @@
 import type { Readable, Writable } from 'node:stream'
 import * as p from '@clack/prompts'
 import c from 'picocolors'
+import { InterruptedError } from '../result.js'
 import {
-  InterruptedError,
-  type ConfigurationPrompter,
-  type ConfirmationDetails,
-} from '../project/index.js'
-import { normalizePortMappings } from './index.js'
+  normalizePortMappings,
+  type GlobalConfiguration,
+  type LocalConfiguration,
+  type RuntimeCatalog,
+} from './index.js'
+
+export interface ConfirmationSection {
+  readonly title: string
+  readonly current: string
+  readonly next: string
+}
+
+export interface ConfirmationDetails {
+  readonly title: string
+  readonly sections: readonly ConfirmationSection[]
+}
+
+export type ConfirmationHandler = (
+  message: string,
+  details?: ConfirmationDetails,
+) => Promise<boolean>
+
+export interface ConfigurationPrompter {
+  readonly confirm: ConfirmationHandler
+  readonly editGlobal: (
+    configuration: GlobalConfiguration,
+    catalog: RuntimeCatalog,
+  ) => Promise<GlobalConfiguration>
+  readonly editLocal: (
+    configuration: LocalConfiguration,
+    catalog: RuntimeCatalog,
+    globalConfiguration: GlobalConfiguration,
+  ) => Promise<LocalConfiguration>
+  readonly selectNodeReplacement: (
+    configuration: LocalConfiguration,
+    globalConfiguration: GlobalConfiguration,
+  ) => Promise<LocalConfiguration>
+}
 
 export interface ConfigurationPrompterOptions {
   readonly signal: AbortSignal
@@ -23,6 +57,24 @@ export function createConfigurationPrompter({
   output,
 }: ConfigurationPrompterOptions): InteractiveConfigurationPrompter {
   const common = { signal, input, output }
+  const selectNodeReplacement: ConfigurationPrompter['selectNodeReplacement'] = async (
+    configuration,
+    globalConfiguration,
+  ) => {
+    p.log.step(c.bold(c.cyan('Project configuration')), common)
+    const node = await promptValue(
+      p.select<string | null>({
+        message: 'Selected Node release line',
+        options: [
+          { value: null, label: 'None' },
+          ...globalConfiguration.node.map(value => ({ value, label: value })),
+        ],
+        initialValue: configuration.node,
+        ...common,
+      }),
+    )
+    return { ...configuration, node }
+  }
 
   return {
     confirm: async (message, details) => {
@@ -77,22 +129,9 @@ export function createConfigurationPrompter({
       )
       return { version: 1, node, agent, agent_notifications }
     },
-    editLocal: async (configuration, catalog, globalConfiguration, editPorts = true) => {
-      p.log.step(c.bold(c.cyan('Project configuration')), common)
-      const node = await promptValue(
-        p.select<string | null>({
-          message: 'Selected Node release line',
-          options: [
-            { value: null, label: 'None' },
-            ...(globalConfiguration.node ?? []).map(value => ({ value, label: value })),
-          ],
-          initialValue: configuration.node,
-          ...common,
-        }),
-      )
-      if (!editPorts) {
-        return { ...configuration, node }
-      }
+    selectNodeReplacement,
+    editLocal: async (configuration, _catalog, globalConfiguration) => {
+      const { node } = await selectNodeReplacement(configuration, globalConfiguration)
 
       const source = await promptValue(
         p.multiline({

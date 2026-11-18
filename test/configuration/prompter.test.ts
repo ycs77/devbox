@@ -2,7 +2,7 @@ import { Readable, Writable } from 'node:stream'
 import { stripVTControlCharacters } from 'node:util'
 import { describe, expect, it } from 'vitest'
 import { createConfigurationPrompter } from '../../src/configuration/prompter.js'
-import { InterruptedError } from '../../src/project/index.js'
+import { InterruptedError } from '../../src/result.js'
 
 class PromptInput extends Readable {
   _read(): void {}
@@ -32,7 +32,7 @@ describe('createConfigurationPrompter', () => {
       input,
       output,
     })
-    const editing = prompt.editGlobal!(
+    const editing = prompt.editGlobal(
       { version: 1, node: ['24'], agent: ['codex'], agent_notifications: true },
       { runtimes: { node: ['24', '22'] }, agents: ['codex'] },
     )
@@ -84,7 +84,7 @@ describe('createConfigurationPrompter', () => {
       input,
       output,
     })
-    const editing = prompt.editLocal!(
+    const editing = prompt.editLocal(
       { version: 1, node: null, ports: [] },
       { runtimes: { node: ['24', '22'] }, agents: [] },
       { version: 1, node: ['24'], agent: [], agent_notifications: true },
@@ -115,7 +115,7 @@ describe('createConfigurationPrompter', () => {
       input,
       output,
     })
-    const editing = prompt.editLocal!(
+    const editing = prompt.editLocal(
       { version: 1, node: null, ports: ['APP_PORT:5173:5173'] },
       { runtimes: { node: ['24', '22'] }, agents: [] },
       { version: 1, node: ['24'], agent: [], agent_notifications: true },
@@ -143,11 +143,9 @@ describe('createConfigurationPrompter', () => {
       input,
       output,
     })
-    const editing = prompt.editLocal!(
+    const editing = prompt.selectNodeReplacement(
       { version: 1, node: '24', ports: ['APP_PORT:5173:5173'] },
-      { runtimes: { node: ['24', '22'] }, agents: [] },
       { version: 1, node: ['22'], agent: [], agent_notifications: true },
-      false,
     )
 
     input.emit('keypress', '', { name: 'down' })

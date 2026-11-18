@@ -10,6 +10,7 @@ import {
   sandboxIdentity,
 } from '../../src/project/index.js'
 import { success } from '../../src/result.js'
+import { configurationPrompter } from '../helpers/configuration-prompter.js'
 
 vi.mock('node:fs/promises', async () => {
   // The mock factory runs before static imports, so memfs must load inside it.
@@ -38,12 +39,16 @@ async function createProjectState(): Promise<{
 }> {
   await mkdir(projectRoot, { recursive: true })
 
-  const result = await initializeProject({
-    root: projectRoot,
-    devboxHome,
-    validateHost: async () => success(undefined),
-    confirm: async () => true,
-  })
+  const result = await initializeProject(
+    {
+      root: projectRoot,
+    },
+    {
+      devboxHome,
+      validateHost: async () => success(undefined),
+      prompt: configurationPrompter({ confirm: async () => true }),
+    },
+  )
   expect(result).toMatchObject({ ok: true, value: { root: projectRoot, created: true } })
 
   return { devboxHome, projectRoot }
@@ -54,11 +59,15 @@ describe('Project filesystem failures', () => {
     await createProjectState()
     const secondRoot = '/workspace/second-project'
     await mkdir(secondRoot, { recursive: true })
-    const second = await initializeProject({
-      root: secondRoot,
-      devboxHome,
-      validateHost: async () => success(undefined),
-    })
+    const second = await initializeProject(
+      {
+        root: secondRoot,
+      },
+      {
+        devboxHome,
+        validateHost: async () => success(undefined),
+      },
+    )
     if (!second.ok) {
       throw new Error(second.error.observed)
     }
@@ -77,10 +86,16 @@ describe('Project filesystem failures', () => {
       .mockRejectedValueOnce(new Error('disk full'))
       .mockImplementation(memfsRename)
 
-    const result = await configureGlobal({
-      devboxHome,
-      prompt: { editGlobal: async current => current, confirm: async () => true },
-    })
+    const result = await configureGlobal(
+      {},
+      {
+        devboxHome,
+        prompt: configurationPrompter({
+          editGlobal: async current => current,
+          confirm: async () => true,
+        }),
+      },
+    )
 
     expect(result).toMatchObject({ ok: false, error: { code: 'state-write-failed' } })
     expect(await Promise.all(composePaths.map(path => readFile(path, 'utf8')))).toEqual(before)
@@ -93,7 +108,7 @@ describe('Project filesystem failures', () => {
       Object.assign(new Error('permission denied'), { code: 'EACCES' }),
     )
 
-    const result = await configureLocalProject({ root: projectRoot, devboxHome })
+    const result = await configureLocalProject({ root: projectRoot }, { devboxHome })
 
     expect(result).toMatchObject({
       ok: false,
@@ -116,12 +131,16 @@ describe('Project filesystem failures', () => {
       .mockImplementationOnce(memfsRename)
       .mockRejectedValueOnce(new Error('disk full'))
 
-    const result = await configureLocalProject({
-      root: projectRoot,
-      devboxHome,
-      nextConfiguration: { version: 1, node: null, ports: [] },
-      confirm: async () => true,
-    })
+    const result = await configureLocalProject(
+      {
+        root: projectRoot,
+        nextConfiguration: { version: 1, node: null, ports: [] },
+      },
+      {
+        devboxHome,
+        prompt: configurationPrompter({ confirm: async () => true }),
+      },
+    )
 
     expect(result).toMatchObject({
       ok: false,
@@ -135,12 +154,16 @@ describe('Project filesystem failures', () => {
     const { devboxHome, projectRoot } = await createProjectState()
     const secondProjectRoot = '/workspace/second-project'
     await mkdir(secondProjectRoot, { recursive: true })
-    const secondProject = await initializeProject({
-      root: secondProjectRoot,
-      devboxHome,
-      validateHost: async () => success(undefined),
-      confirm: async () => true,
-    })
+    const secondProject = await initializeProject(
+      {
+        root: secondProjectRoot,
+      },
+      {
+        devboxHome,
+        validateHost: async () => success(undefined),
+        prompt: configurationPrompter({ confirm: async () => true }),
+      },
+    )
     expect(secondProject).toMatchObject({ ok: true, value: { created: true } })
     if (!secondProject.ok) {
       throw new Error('Second Project initialization failed.')
@@ -158,15 +181,19 @@ describe('Project filesystem failures', () => {
       .mockRejectedValueOnce(new Error('disk full'))
       .mockImplementation(memfsRename)
 
-    const result = await configureGlobal({
-      devboxHome,
-      nextConfiguration: { version: 1, node: [], agent: [], agent_notifications: true },
-      nextLocalConfigurations: {
-        [projectRoot]: { version: 1, node: null, ports: [] },
-        [secondProjectRoot]: { version: 1, node: null, ports: [] },
+    const result = await configureGlobal(
+      {
+        nextConfiguration: { version: 1, node: [], agent: [], agent_notifications: true },
+        nextLocalConfigurations: {
+          [projectRoot]: { version: 1, node: null, ports: [] },
+          [secondProjectRoot]: { version: 1, node: null, ports: [] },
+        },
       },
-      confirm: async () => true,
-    })
+      {
+        devboxHome,
+        prompt: configurationPrompter({ confirm: async () => true }),
+      },
+    )
 
     expect(result).toMatchObject({
       ok: false,
