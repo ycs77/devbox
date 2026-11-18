@@ -6,9 +6,9 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { initializeProject } from '../src/project/index.js'
 import { success } from '../src/result.js'
 import { buildWorkspace } from '../src/workspace/build.js'
+import { configurationPrompter } from './helpers/configuration-prompter.js'
 
 const fixtureDirectory = fileURLToPath(new URL('./fixtures/generated/', import.meta.url))
-import { configurationPrompter } from './helpers/configuration-prompter.js'
 
 const temporaryDirectories: string[] = []
 
