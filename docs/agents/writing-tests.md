@@ -54,3 +54,4 @@ Review every generated or copied test as a first draft. Remove tests that only p
 - Use parameterized tests when several inputs genuinely share one contract.
 - Use snapshots only when the complete snapshot is itself the maintained contract; otherwise assert the relevant behaviour directly.
 - Keep tests deterministic, isolated, and safe to run with the full suite.
+- Project initialization and configuration tests use `test/helpers/configuration-prompter.ts` for a complete `ConfigurationPrompter`, overriding only the interaction relevant to the case. Its editing defaults retain the supplied configuration; cases exercising terminal interaction use the real Clack streams instead. Node replacement uses `selectNodeReplacement` and preserves the Project's ports.

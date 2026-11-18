@@ -15,8 +15,9 @@ import {
   type LocalConfiguration,
   type RuntimeCatalog,
 } from '../configuration/index.js'
+import type { ConfigurationPrompter, ConfirmationHandler } from '../configuration/prompter.js'
 import { currentHostEnvironment, type HostEnvironment, validateSupportedHost } from '../host.js'
-import { failure, success, type Result } from '../result.js'
+import { failure, InterruptedError, success, type Result } from '../result.js'
 import { withStateLocks, type StateLockContext } from '../state-lock/index.js'
 import {
   prepareSandboxDefinition,
@@ -50,36 +51,6 @@ export interface DevboxPaths {
   readonly claudeHostConfiguration: string
 }
 
-export interface ConfirmationSection {
-  readonly title: string
-  readonly current: string
-  readonly next: string
-}
-
-export interface ConfirmationDetails {
-  readonly title: string
-  readonly sections: readonly ConfirmationSection[]
-}
-
-export type ConfirmationHandler = (
-  message: string,
-  details?: ConfirmationDetails,
-) => Promise<boolean>
-
-export interface ConfigurationPrompter {
-  readonly confirm: ConfirmationHandler
-  readonly editGlobal?: (
-    configuration: GlobalConfiguration,
-    catalog: RuntimeCatalog,
-  ) => Promise<GlobalConfiguration>
-  readonly editLocal?: (
-    configuration: LocalConfiguration,
-    catalog: RuntimeCatalog,
-    globalConfiguration: GlobalConfiguration,
-    editPorts?: boolean,
-  ) => Promise<LocalConfiguration>
-}
-
 export interface InitializeProjectInput {
   readonly root?: string
   readonly devboxHome?: string
@@ -87,7 +58,6 @@ export interface InitializeProjectInput {
   readonly signal?: AbortSignal
   readonly catalog?: RuntimeCatalog
   readonly prompt?: ConfigurationPrompter
-  readonly confirm?: ConfirmationHandler
   readonly initialGlobalConfiguration?: GlobalConfiguration
   readonly initialLocalConfiguration?: LocalConfiguration
 }
@@ -98,7 +68,6 @@ export interface ConfigureLocalInput {
   readonly signal?: AbortSignal
   readonly catalog?: RuntimeCatalog
   readonly prompt?: ConfigurationPrompter
-  readonly confirm?: ConfirmationHandler
   readonly nextConfiguration?: LocalConfiguration
 }
 
@@ -107,7 +76,6 @@ export interface ConfigureGlobalInput {
   readonly signal?: AbortSignal
   readonly catalog?: RuntimeCatalog
   readonly prompt?: ConfigurationPrompter
-  readonly confirm?: ConfirmationHandler
   readonly nextConfiguration?: GlobalConfiguration
   readonly nextLocalConfigurations?: Readonly<Record<string, LocalConfiguration>>
 }
@@ -331,7 +299,7 @@ async function initializeProjectUnlocked(
     globalChanged = true
   } else {
     globalConfiguration = defaultGlobalConfiguration(catalog)
-    if (input.prompt?.editGlobal) {
+    if (input.prompt) {
       const editedGlobal = await input.prompt.editGlobal(globalConfiguration, catalog)
       const checkedGlobal = validateGlobalObject(editedGlobal, catalog)
       if (!checkedGlobal.ok) {
@@ -355,7 +323,7 @@ async function initializeProjectUnlocked(
     localConfiguration = initialLocal.value
   } else {
     localConfiguration = defaultLocalConfiguration(globalConfiguration)
-    if (input.prompt?.editLocal) {
+    if (input.prompt) {
       const editedLocal = await input.prompt.editLocal(
         localConfiguration,
         catalog,
@@ -379,7 +347,7 @@ async function initializeProjectUnlocked(
     return definition
   }
 
-  const confirm = input.confirm ?? input.prompt?.confirm ?? (async () => true)
+  const confirm = input.prompt?.confirm ?? (async () => true)
   if (!(await confirm('Save configuration?'))) {
     return success({
       root: projectRoot,
@@ -488,7 +456,7 @@ async function configureLocalProjectUnlocked(
   }
 
   let nextConfiguration = input.nextConfiguration ?? localCheck.value
-  if (input.nextConfiguration === undefined && input.prompt?.editLocal) {
+  if (input.nextConfiguration === undefined && input.prompt) {
     nextConfiguration = await input.prompt.editLocal(localCheck.value, catalog, globalCheck.value)
   }
   const nextCheck = validateLocalObject(nextConfiguration, globalCheck.value, catalog)
@@ -497,7 +465,7 @@ async function configureLocalProjectUnlocked(
   }
   const localChanged = !configurationsEqual(localCheck.value, nextCheck.value)
 
-  const confirm = input.confirm ?? input.prompt?.confirm ?? (async () => true)
+  const confirm = input.prompt?.confirm ?? (async () => true)
   if (
     !(await confirm('Save Project configuration?', {
       title: 'Review configuration',
@@ -591,7 +559,7 @@ async function configureGlobalUnlocked(
   await locks.acquireProjectScopes(Object.keys(registryCheck.value.projects))
 
   let nextConfiguration = input.nextConfiguration ?? currentConfiguration
-  if (input.nextConfiguration === undefined && input.prompt?.editGlobal) {
+  if (input.nextConfiguration === undefined && input.prompt) {
     nextConfiguration = await input.prompt.editGlobal(currentConfiguration, catalog)
   }
   const nextCheck = validateGlobalObject(nextConfiguration, catalog)
@@ -632,12 +600,10 @@ async function configureGlobalUnlocked(
     }
 
     let replacement = input.nextLocalConfigurations?.[root]
-    if (replacement === undefined && input.prompt?.editLocal) {
-      replacement = await input.prompt.editLocal(
+    if (replacement === undefined && input.prompt) {
+      replacement = await input.prompt.selectNodeReplacement(
         localConfiguration,
-        catalog,
         nextCheck.value,
-        false,
       )
     }
     if (replacement === undefined) {
@@ -658,7 +624,7 @@ async function configureGlobalUnlocked(
   const globalChanged =
     !globalState.value.exists || !configurationsEqual(currentConfiguration, nextCheck.value)
 
-  const confirm = input.confirm ?? input.prompt?.confirm ?? (async () => true)
+  const confirm = input.prompt?.confirm ?? (async () => true)
   if (
     !(await confirm('Save Global configuration?', {
       title: 'Review configuration',
@@ -1023,8 +989,3 @@ function isMissingFileError(error: unknown): error is NodeJS.ErrnoException {
   )
 }
 
-export class InterruptedError extends Error {
-  public constructor() {
-    super('Devbox command interrupted.')
-  }
-}

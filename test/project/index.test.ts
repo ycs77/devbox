@@ -4,7 +4,6 @@ import { basename, join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
 import {
-  InterruptedError,
   configureGlobal,
   configureLocalProject,
   escapePathSegment,
@@ -14,10 +13,12 @@ import {
   sandboxIdentity,
   sandboxName,
   unescapePathSegment,
-  type ConfirmationDetails,
 } from '../../src/project/index.js'
-import { success } from '../../src/result.js'
+import type { ConfirmationDetails } from '../../src/configuration/prompter.js'
+import { InterruptedError, success } from '../../src/result.js'
 import { withStateLocks } from '../../src/state-lock/index.js'
+
+import { configurationPrompter } from '../helpers/configuration-prompter.js'
 
 const temporaryDirectories: string[] = []
 
@@ -46,7 +47,7 @@ async function createProjectState(
     root,
     devboxHome,
     validateHost: async () => success(undefined),
-    confirm: async () => true,
+    prompt: configurationPrompter({ confirm: async () => true }),
   })
   expect(result).toMatchObject({ ok: true, value: { root, created: true } })
   if (!result.ok) {
@@ -75,10 +76,12 @@ describe('initializeProject', () => {
       root: projectRoot,
       devboxHome,
       validateHost: async () => success(undefined),
-      confirm: async message => {
-        confirmationMessage = message
-        return false
-      },
+      prompt: configurationPrompter({
+        confirm: async message => {
+          confirmationMessage = message
+          return false
+        },
+      }),
       initialGlobalConfiguration: {
         version: 1,
         node: ['24'],
@@ -106,9 +109,11 @@ describe('initializeProject', () => {
         root: projectRoot,
         devboxHome,
         validateHost: async () => success(undefined),
-        confirm: async () => {
-          throw new InterruptedError()
-        },
+        prompt: configurationPrompter({
+          confirm: async () => {
+            throw new InterruptedError()
+          },
+        }),
         initialGlobalConfiguration: {
           version: 1,
           node: ['24'],
@@ -139,7 +144,7 @@ describe('initializeProject', () => {
         root: projectRoot,
         devboxHome,
         validateHost: async () => success(undefined),
-        confirm: async () => true,
+        prompt: configurationPrompter({ confirm: async () => true }),
       })
 
       expect(result).toMatchObject({
@@ -200,13 +205,13 @@ describe('initializeProject', () => {
       root: firstProjectRoot,
       devboxHome,
       validateHost: async () => success(undefined),
-      confirm: async () => true,
+      prompt: configurationPrompter({ confirm: async () => true }),
     })
     const localOnly = await initializeProject({
       root: secondProjectRoot,
       devboxHome,
       validateHost: async () => success(undefined),
-      confirm: async () => true,
+      prompt: configurationPrompter({ confirm: async () => true }),
     })
 
     expect(initial).toMatchObject({
@@ -229,7 +234,7 @@ describe('initializeProject', () => {
       root: projectRoot,
       devboxHome,
       validateHost: async () => success(undefined),
-      confirm: async () => true,
+      prompt: configurationPrompter({ confirm: async () => true }),
       initialGlobalConfiguration: {
         version: 1,
         node: ['24', '22'],
@@ -315,7 +320,7 @@ describe('initializeProject', () => {
       root: projectRoot,
       devboxHome,
       validateHost: async () => success(undefined),
-      confirm: async () => true,
+      prompt: configurationPrompter({ confirm: async () => true }),
       initialGlobalConfiguration: {
         version: 1,
         node: ['24'],
@@ -332,7 +337,7 @@ describe('initializeProject', () => {
       root: projectRoot,
       devboxHome,
       nextConfiguration: { version: 1, node: '24', ports: ['3000:3000'] },
-      confirm: async () => true,
+      prompt: configurationPrompter({ confirm: async () => true }),
     })
 
     expect(reconfigured).toMatchObject({ ok: true, value: { changed: true } })
@@ -354,10 +359,12 @@ describe('initializeProject', () => {
       root: projectRoot,
       devboxHome,
       validateHost: async () => success(undefined),
-      confirm: async () => {
-        confirmed = true
-        return true
-      },
+      prompt: configurationPrompter({
+        confirm: async () => {
+          confirmed = true
+          return true
+        },
+      }),
       initialLocalConfiguration: { version: 1, node: null, ports: [] },
     })
 
@@ -545,7 +552,7 @@ describe('initializeProject', () => {
       root: firstRoot,
       devboxHome,
       validateHost: async () => success(undefined),
-      prompt: {
+      prompt: configurationPrompter({
         confirm: async () => true,
         editGlobal: async () => ({
           version: 1,
@@ -559,14 +566,14 @@ describe('initializeProject', () => {
           node: globalConfiguration.node[0] ?? null,
           ports: [],
         }),
-      },
+      }),
     })
 
     const secondResult = await initializeProject({
       root: secondRoot,
       devboxHome,
       validateHost: async () => success(undefined),
-      prompt: {
+      prompt: configurationPrompter({
         confirm: async () => true,
         editGlobal: async () => {
           throw new Error('Global configuration prompt must not run when Global state exists.')
@@ -576,7 +583,7 @@ describe('initializeProject', () => {
           node: globalConfiguration.node[0] ?? null,
           ports: [],
         }),
-      },
+      }),
     })
 
     expect(firstResult).toMatchObject({ ok: true, value: { created: true } })
@@ -629,11 +636,17 @@ describe('configuration boundaries', () => {
           ? configureLocalProject({
               root: firstRoot,
               devboxHome,
-              prompt: { editLocal: async current => current, confirm: async () => true },
+              prompt: configurationPrompter({
+                editLocal: async current => current,
+                confirm: async () => true,
+              }),
             })
           : configureGlobal({
               devboxHome,
-              prompt: { editGlobal: async current => current, confirm: async () => true },
+              prompt: configurationPrompter({
+                editGlobal: async current => current,
+                confirm: async () => true,
+              }),
             })
 
       expect(await configure()).toMatchObject({ ok: true, value: { scope, changed: true } })
@@ -682,8 +695,15 @@ describe('configuration boundaries', () => {
 
       const result =
         scope === 'local'
-          ? await configureLocalProject({ root, devboxHome, confirm: async () => false })
-          : await configureGlobal({ devboxHome, confirm: async () => false })
+          ? await configureLocalProject({
+              root,
+              devboxHome,
+              prompt: configurationPrompter({ confirm: async () => false }),
+            })
+          : await configureGlobal({
+              devboxHome,
+              prompt: configurationPrompter({ confirm: async () => false }),
+            })
 
       expect(result).toMatchObject({ ok: true, value: { changed: false } })
       await expect(readFile(composePath, 'utf8')).resolves.toBe(retained)
@@ -708,12 +728,12 @@ describe('configuration boundaries', () => {
       root: projectRoot,
       devboxHome,
       nextConfiguration: { version: 1, node: null, ports: [] },
-      prompt: {
+      prompt: configurationPrompter({
         confirm: async (message, details) => {
           confirmation = { message, details }
           return true
         },
-      },
+      }),
     })
 
     expect(result).toEqual({
@@ -760,10 +780,12 @@ describe('configuration boundaries', () => {
         agent: ['codex'],
         agent_notifications: false,
       },
-      confirm: async (message, details) => {
-        confirmation = { message, details }
-        return true
-      },
+      prompt: configurationPrompter({
+        confirm: async (message, details) => {
+          confirmation = { message, details }
+          return true
+        },
+      }),
     })
 
     expect(result).toEqual({ ok: true, value: { scope: 'global', changed: true } })
@@ -820,12 +842,12 @@ describe('configuration boundaries', () => {
     try {
       const result = await configureGlobal({
         devboxHome,
-        prompt: {
+        prompt: configurationPrompter({
           confirm: async () => true,
           editGlobal: async () => {
             throw new Error('Global configuration prompt must not run while a Project is locked.')
           },
-        },
+        }),
       })
 
       expect(result).toMatchObject({
@@ -849,7 +871,7 @@ describe('configuration boundaries', () => {
     const result = await configureLocalProject({
       root: projectRoot,
       devboxHome,
-      confirm: async () => true,
+      prompt: configurationPrompter({ confirm: async () => true }),
     })
 
     expect(result).toMatchObject({
@@ -871,7 +893,7 @@ describe('configuration boundaries', () => {
       root: projectRoot,
       devboxHome,
       nextConfiguration: { version: 1, node: null, ports: [] },
-      confirm: async () => false,
+      prompt: configurationPrompter({ confirm: async () => false }),
     })
 
     expect(result).toEqual({
@@ -895,7 +917,7 @@ describe('configuration boundaries', () => {
       root: projectRoot,
       devboxHome,
       nextConfiguration: { version: 1, node: null, ports: [] },
-      prompt: { confirm: async () => true },
+      prompt: configurationPrompter({ confirm: async () => true }),
     })
 
     expect(result).toMatchObject({ ok: false, error: { code: 'invalid-local-configuration' } })
@@ -915,7 +937,7 @@ describe('configuration boundaries', () => {
 
     const globalResult = await configureGlobal({
       devboxHome,
-      prompt: {
+      prompt: configurationPrompter({
         confirm: async () => true,
         editGlobal: async () => ({
           version: 1,
@@ -923,15 +945,15 @@ describe('configuration boundaries', () => {
           agent: [],
           agent_notifications: true,
         }),
-      },
+      }),
     })
     const localResult = await configureLocalProject({
       root: projectRoot,
       devboxHome,
-      prompt: {
+      prompt: configurationPrompter({
         confirm: async () => true,
         editLocal: async () => ({ version: 1, node: '26', ports: [] }),
-      },
+      }),
     })
 
     expect(globalResult).toMatchObject({
@@ -957,10 +979,10 @@ describe('configuration boundaries', () => {
     const result = await configureGlobal({
       devboxHome,
       nextConfiguration: { version: 1, node: [], agent: [], agent_notifications: true },
-      prompt: {
+      prompt: configurationPrompter({
         confirm: async () => true,
-        editLocal: async () => ({ version: 1, node: null, ports: [] }),
-      },
+        selectNodeReplacement: async () => ({ version: 1, node: null, ports: [] }),
+      }),
     })
 
     expect(result).toEqual({ ok: true, value: { scope: 'global', changed: true } })

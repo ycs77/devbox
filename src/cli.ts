@@ -10,12 +10,11 @@ import {
   configureGlobal,
   configureLocalProject,
   initializeProject,
-  InterruptedError,
   removeProject,
   runSandboxLifecycle,
   runSandboxShell,
 } from './project/index.js'
-import { failure, success, type Result } from './result.js'
+import { failure, InterruptedError, success, type Result } from './result.js'
 import { buildWorkspace } from './workspace/build.js'
 
 interface CliSuccess {

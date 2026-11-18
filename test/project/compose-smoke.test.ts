@@ -6,6 +6,8 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { initializeProject } from '../../src/project/index.js'
 import { success } from '../../src/result.js'
 
+import { configurationPrompter } from '../helpers/configuration-prompter.js'
+
 const temporaryDirectories: string[] = []
 const dockerComposeAvailable =
   spawnSync('docker', ['compose', 'version'], { stdio: 'ignore' }).status === 0
@@ -40,7 +42,7 @@ describe('published Compose definition', () => {
         root,
         devboxHome,
         validateHost: async () => success(undefined),
-        confirm: async () => true,
+        prompt: configurationPrompter({ confirm: async () => true }),
         initialGlobalConfiguration: {
           version: 1,
           node: ['24'],

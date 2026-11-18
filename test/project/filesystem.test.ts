@@ -11,6 +11,8 @@ import {
 } from '../../src/project/index.js'
 import { success } from '../../src/result.js'
 
+import { configurationPrompter } from '../helpers/configuration-prompter.js'
+
 vi.mock('node:fs/promises', async () => {
   // The mock factory runs before static imports, so memfs must load inside it.
   const { fs } = await import('memfs')
@@ -42,7 +44,7 @@ async function createProjectState(): Promise<{
     root: projectRoot,
     devboxHome,
     validateHost: async () => success(undefined),
-    confirm: async () => true,
+    prompt: configurationPrompter({ confirm: async () => true }),
   })
   expect(result).toMatchObject({ ok: true, value: { root: projectRoot, created: true } })
 
@@ -79,7 +81,10 @@ describe('Project filesystem failures', () => {
 
     const result = await configureGlobal({
       devboxHome,
-      prompt: { editGlobal: async current => current, confirm: async () => true },
+      prompt: configurationPrompter({
+        editGlobal: async current => current,
+        confirm: async () => true,
+      }),
     })
 
     expect(result).toMatchObject({ ok: false, error: { code: 'state-write-failed' } })
@@ -120,7 +125,7 @@ describe('Project filesystem failures', () => {
       root: projectRoot,
       devboxHome,
       nextConfiguration: { version: 1, node: null, ports: [] },
-      confirm: async () => true,
+      prompt: configurationPrompter({ confirm: async () => true }),
     })
 
     expect(result).toMatchObject({
@@ -139,7 +144,7 @@ describe('Project filesystem failures', () => {
       root: secondProjectRoot,
       devboxHome,
       validateHost: async () => success(undefined),
-      confirm: async () => true,
+      prompt: configurationPrompter({ confirm: async () => true }),
     })
     expect(secondProject).toMatchObject({ ok: true, value: { created: true } })
     if (!secondProject.ok) {
@@ -165,7 +170,7 @@ describe('Project filesystem failures', () => {
         [projectRoot]: { version: 1, node: null, ports: [] },
         [secondProjectRoot]: { version: 1, node: null, ports: [] },
       },
-      confirm: async () => true,
+      prompt: configurationPrompter({ confirm: async () => true }),
     })
 
     expect(result).toMatchObject({

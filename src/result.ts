@@ -29,3 +29,9 @@ export function success<T>(value: T): Result<T> {
 export function failure<T>(error: DevboxError): Result<T> {
   return { ok: false, error }
 }
+
+export class InterruptedError extends Error {
+  public constructor() {
+    super('Devbox command interrupted.')
+  }
+}

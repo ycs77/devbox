@@ -6,6 +6,8 @@ import { initializeProject, runSandboxLifecycle, runSandboxShell } from '../../s
 import { success } from '../../src/result.js'
 import { withStateLocks } from '../../src/state-lock/index.js'
 
+import { configurationPrompter } from '../helpers/configuration-prompter.js'
+
 const temporaryDirectories: string[] = []
 
 function deferred(): {
@@ -33,7 +35,7 @@ async function createProjectState(
     root,
     devboxHome,
     validateHost: async () => success(undefined),
-    confirm: async () => true,
+    prompt: configurationPrompter({ confirm: async () => true }),
     initialGlobalConfiguration: {
       version: 1,
       node: ['24'],

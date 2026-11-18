@@ -8,6 +8,8 @@ import { success } from '../src/result.js'
 import { buildWorkspace } from '../src/workspace/build.js'
 
 const fixtureDirectory = fileURLToPath(new URL('./fixtures/generated/', import.meta.url))
+import { configurationPrompter } from './helpers/configuration-prompter.js'
+
 const temporaryDirectories: string[] = []
 
 async function fixture(name: string): Promise<string> {
@@ -71,7 +73,7 @@ describe('generated Workspace and Sandbox artifacts', () => {
       root: projectRoot,
       devboxHome,
       validateHost: async () => success(undefined),
-      confirm: async () => true,
+      prompt: configurationPrompter({ confirm: async () => true }),
       initialLocalConfiguration: {
         version: 1,
         node: '24',
