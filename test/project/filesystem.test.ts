@@ -40,12 +40,16 @@ async function createProjectState(): Promise<{
 }> {
   await mkdir(projectRoot, { recursive: true })
 
-  const result = await initializeProject({
-    root: projectRoot,
-    devboxHome,
-    validateHost: async () => success(undefined),
-    prompt: configurationPrompter({ confirm: async () => true }),
-  })
+  const result = await initializeProject(
+    {
+      root: projectRoot,
+    },
+    {
+      devboxHome,
+      validateHost: async () => success(undefined),
+      prompt: configurationPrompter({ confirm: async () => true }),
+    },
+  )
   expect(result).toMatchObject({ ok: true, value: { root: projectRoot, created: true } })
 
   return { devboxHome, projectRoot }
@@ -56,11 +60,15 @@ describe('Project filesystem failures', () => {
     await createProjectState()
     const secondRoot = '/workspace/second-project'
     await mkdir(secondRoot, { recursive: true })
-    const second = await initializeProject({
-      root: secondRoot,
-      devboxHome,
-      validateHost: async () => success(undefined),
-    })
+    const second = await initializeProject(
+      {
+        root: secondRoot,
+      },
+      {
+        devboxHome,
+        validateHost: async () => success(undefined),
+      },
+    )
     if (!second.ok) {
       throw new Error(second.error.observed)
     }
@@ -140,12 +148,16 @@ describe('Project filesystem failures', () => {
     const { devboxHome, projectRoot } = await createProjectState()
     const secondProjectRoot = '/workspace/second-project'
     await mkdir(secondProjectRoot, { recursive: true })
-    const secondProject = await initializeProject({
-      root: secondProjectRoot,
-      devboxHome,
-      validateHost: async () => success(undefined),
-      prompt: configurationPrompter({ confirm: async () => true }),
-    })
+    const secondProject = await initializeProject(
+      {
+        root: secondProjectRoot,
+      },
+      {
+        devboxHome,
+        validateHost: async () => success(undefined),
+        prompt: configurationPrompter({ confirm: async () => true }),
+      },
+    )
     expect(secondProject).toMatchObject({ ok: true, value: { created: true } })
     if (!secondProject.ok) {
       throw new Error('Second Project initialization failed.')

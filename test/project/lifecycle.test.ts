@@ -31,19 +31,23 @@ async function createProjectState(
   root: string,
   devboxHome: string,
 ): Promise<{ readonly stateDirectory: string }> {
-  const result = await initializeProject({
-    root,
-    devboxHome,
-    validateHost: async () => success(undefined),
-    prompt: configurationPrompter({ confirm: async () => true }),
-    initialGlobalConfiguration: {
-      version: 1,
-      node: ['24'],
-      agent: ['claude-code'],
-      agent_notifications: true,
+  const result = await initializeProject(
+    {
+      root,
+      initialGlobalConfiguration: {
+        version: 1,
+        node: ['24'],
+        agent: ['claude-code'],
+        agent_notifications: true,
+      },
+      initialLocalConfiguration: { version: 1, node: '24', ports: [] },
     },
-    initialLocalConfiguration: { version: 1, node: '24', ports: [] },
-  })
+    {
+      devboxHome,
+      validateHost: async () => success(undefined),
+      prompt: configurationPrompter({ confirm: async () => true }),
+    },
+  )
   expect(result).toMatchObject({ ok: true, value: { root, created: true } })
   if (!result.ok) {
     throw new Error(result.error.observed)

@@ -43,12 +43,16 @@ async function createProjectState(
   root: string,
   devboxHome: string,
 ): Promise<{ readonly root: string; readonly stateDirectory: string }> {
-  const result = await initializeProject({
-    root,
-    devboxHome,
-    validateHost: async () => success(undefined),
-    prompt: configurationPrompter({ confirm: async () => true }),
-  })
+  const result = await initializeProject(
+    {
+      root,
+    },
+    {
+      devboxHome,
+      validateHost: async () => success(undefined),
+      prompt: configurationPrompter({ confirm: async () => true }),
+    },
+  )
   expect(result).toMatchObject({ ok: true, value: { root, created: true } })
   if (!result.ok) {
     throw new Error(result.error.observed)
@@ -72,23 +76,27 @@ describe('initializeProject', () => {
     await mkdir(projectRoot)
 
     let confirmationMessage: string | undefined
-    const result = await initializeProject({
-      root: projectRoot,
-      devboxHome,
-      validateHost: async () => success(undefined),
-      prompt: configurationPrompter({
-        confirm: async message => {
-          confirmationMessage = message
-          return false
+    const result = await initializeProject(
+      {
+        root: projectRoot,
+        initialGlobalConfiguration: {
+          version: 1,
+          node: ['24'],
+          agent: ['claude-code'],
+          agent_notifications: true,
         },
-      }),
-      initialGlobalConfiguration: {
-        version: 1,
-        node: ['24'],
-        agent: ['claude-code'],
-        agent_notifications: true,
       },
-    })
+      {
+        devboxHome,
+        validateHost: async () => success(undefined),
+        prompt: configurationPrompter({
+          confirm: async message => {
+            confirmationMessage = message
+            return false
+          },
+        }),
+      },
+    )
 
     expect(result).toMatchObject({
       ok: true,
@@ -105,22 +113,26 @@ describe('initializeProject', () => {
     await mkdir(projectRoot)
 
     await expect(
-      initializeProject({
-        root: projectRoot,
-        devboxHome,
-        validateHost: async () => success(undefined),
-        prompt: configurationPrompter({
-          confirm: async () => {
-            throw new InterruptedError()
+      initializeProject(
+        {
+          root: projectRoot,
+          initialGlobalConfiguration: {
+            version: 1,
+            node: ['24'],
+            agent: ['claude-code'],
+            agent_notifications: true,
           },
-        }),
-        initialGlobalConfiguration: {
-          version: 1,
-          node: ['24'],
-          agent: ['claude-code'],
-          agent_notifications: true,
         },
-      }),
+        {
+          devboxHome,
+          validateHost: async () => success(undefined),
+          prompt: configurationPrompter({
+            confirm: async () => {
+              throw new InterruptedError()
+            },
+          }),
+        },
+      ),
     ).rejects.toBeInstanceOf(InterruptedError)
     await expect(stat(devboxHome)).rejects.toMatchObject({ code: 'ENOENT' })
   })
@@ -140,12 +152,16 @@ describe('initializeProject', () => {
     await entered.promise
 
     try {
-      const result = await initializeProject({
-        root: projectRoot,
-        devboxHome,
-        validateHost: async () => success(undefined),
-        prompt: configurationPrompter({ confirm: async () => true }),
-      })
+      const result = await initializeProject(
+        {
+          root: projectRoot,
+        },
+        {
+          devboxHome,
+          validateHost: async () => success(undefined),
+          prompt: configurationPrompter({ confirm: async () => true }),
+        },
+      )
 
       expect(result).toMatchObject({
         ok: false,
@@ -201,18 +217,26 @@ describe('initializeProject', () => {
     const secondProjectRoot = join(sandbox, 'second-project')
     await Promise.all([mkdir(firstProjectRoot), mkdir(secondProjectRoot)])
 
-    const initial = await initializeProject({
-      root: firstProjectRoot,
-      devboxHome,
-      validateHost: async () => success(undefined),
-      prompt: configurationPrompter({ confirm: async () => true }),
-    })
-    const localOnly = await initializeProject({
-      root: secondProjectRoot,
-      devboxHome,
-      validateHost: async () => success(undefined),
-      prompt: configurationPrompter({ confirm: async () => true }),
-    })
+    const initial = await initializeProject(
+      {
+        root: firstProjectRoot,
+      },
+      {
+        devboxHome,
+        validateHost: async () => success(undefined),
+        prompt: configurationPrompter({ confirm: async () => true }),
+      },
+    )
+    const localOnly = await initializeProject(
+      {
+        root: secondProjectRoot,
+      },
+      {
+        devboxHome,
+        validateHost: async () => success(undefined),
+        prompt: configurationPrompter({ confirm: async () => true }),
+      },
+    )
 
     expect(initial).toMatchObject({
       ok: true,
@@ -230,23 +254,27 @@ describe('initializeProject', () => {
     const devboxHome = join(sandbox, 'user-state', '.devbox')
     await mkdir(projectRoot)
 
-    const project = await initializeProject({
-      root: projectRoot,
-      devboxHome,
-      validateHost: async () => success(undefined),
-      prompt: configurationPrompter({ confirm: async () => true }),
-      initialGlobalConfiguration: {
-        version: 1,
-        node: ['24', '22'],
-        agent: ['claude-code', 'agy'],
-        agent_notifications: true,
+    const project = await initializeProject(
+      {
+        root: projectRoot,
+        initialGlobalConfiguration: {
+          version: 1,
+          node: ['24', '22'],
+          agent: ['claude-code', 'agy'],
+          agent_notifications: true,
+        },
+        initialLocalConfiguration: {
+          version: 1,
+          node: '22',
+          ports: ['3000:3000', 'APP_PORT:5173:5173'],
+        },
       },
-      initialLocalConfiguration: {
-        version: 1,
-        node: '22',
-        ports: ['3000:3000', 'APP_PORT:5173:5173'],
+      {
+        devboxHome,
+        validateHost: async () => success(undefined),
+        prompt: configurationPrompter({ confirm: async () => true }),
       },
-    })
+    )
     if (!project.ok) {
       throw new Error(project.error.observed)
     }
@@ -316,19 +344,23 @@ describe('initializeProject', () => {
     const projectRoot = join(sandbox, 'project')
     const devboxHome = join(sandbox, 'user-state', '.devbox')
     await mkdir(projectRoot)
-    const project = await initializeProject({
-      root: projectRoot,
-      devboxHome,
-      validateHost: async () => success(undefined),
-      prompt: configurationPrompter({ confirm: async () => true }),
-      initialGlobalConfiguration: {
-        version: 1,
-        node: ['24'],
-        agent: ['claude-code'],
-        agent_notifications: false,
+    const project = await initializeProject(
+      {
+        root: projectRoot,
+        initialGlobalConfiguration: {
+          version: 1,
+          node: ['24'],
+          agent: ['claude-code'],
+          agent_notifications: false,
+        },
+        initialLocalConfiguration: { version: 1, node: '24', ports: [] },
       },
-      initialLocalConfiguration: { version: 1, node: '24', ports: [] },
-    })
+      {
+        devboxHome,
+        validateHost: async () => success(undefined),
+        prompt: configurationPrompter({ confirm: async () => true }),
+      },
+    )
     expect(project).toMatchObject({ ok: true, value: { created: true } })
     const configuration = join(devboxHome, 'agents', 'claude', '.claude.json')
     await writeFile(configuration, '{"theme":"dark"}\n')
@@ -355,18 +387,22 @@ describe('initializeProject', () => {
     await rm(join(project.stateDirectory, 'compose.yaml'))
 
     let confirmed = false
-    const result = await initializeProject({
-      root: projectRoot,
-      devboxHome,
-      validateHost: async () => success(undefined),
-      prompt: configurationPrompter({
-        confirm: async () => {
-          confirmed = true
-          return true
-        },
-      }),
-      initialLocalConfiguration: { version: 1, node: null, ports: [] },
-    })
+    const result = await initializeProject(
+      {
+        root: projectRoot,
+        initialLocalConfiguration: { version: 1, node: null, ports: [] },
+      },
+      {
+        devboxHome,
+        validateHost: async () => success(undefined),
+        prompt: configurationPrompter({
+          confirm: async () => {
+            confirmed = true
+            return true
+          },
+        }),
+      },
+    )
 
     expect(result).toMatchObject({ ok: true, value: { created: false } })
     expect(confirmed).toBe(false)
@@ -492,11 +528,15 @@ describe('initializeProject', () => {
       `version: 1\nprojects:\n  ${projectRoot}: legacy-identity\n`,
     )
 
-    const result = await initializeProject({
-      root: projectRoot,
-      devboxHome,
-      validateHost: async () => success(undefined),
-    })
+    const result = await initializeProject(
+      {
+        root: projectRoot,
+      },
+      {
+        devboxHome,
+        validateHost: async () => success(undefined),
+      },
+    )
 
     expect(result).toMatchObject({ ok: false, error: { code: 'invalid-project-registry' } })
     await expect(stat(join(devboxHome, 'config.yaml'))).rejects.toMatchObject({ code: 'ENOENT' })
@@ -513,11 +553,15 @@ describe('initializeProject', () => {
       `version: 1\nprojects:\n  ${projectRoot}:\n    identity: valid-identity\n    name: "project\\n"\n`,
     )
 
-    const result = await initializeProject({
-      root: projectRoot,
-      devboxHome,
-      validateHost: async () => success(undefined),
-    })
+    const result = await initializeProject(
+      {
+        root: projectRoot,
+      },
+      {
+        devboxHome,
+        validateHost: async () => success(undefined),
+      },
+    )
 
     expect(result).toMatchObject({ ok: false, error: { code: 'invalid-project-registry' } })
   })
@@ -533,11 +577,15 @@ describe('initializeProject', () => {
       `version: 1\nprojects:\n  ${projectRoot}:\n    identity: valid-identity\n    name: a\n`,
     )
 
-    const result = await initializeProject({
-      root: projectRoot,
-      devboxHome,
-      validateHost: async () => success(undefined),
-    })
+    const result = await initializeProject(
+      {
+        root: projectRoot,
+      },
+      {
+        devboxHome,
+        validateHost: async () => success(undefined),
+      },
+    )
 
     expect(result).toMatchObject({ ok: false, error: { code: 'invalid-project-registry' } })
   })
@@ -548,43 +596,51 @@ describe('initializeProject', () => {
     const secondRoot = join(sandbox, 'second')
     const devboxHome = join(sandbox, 'user-state', '.devbox')
     await Promise.all([mkdir(firstRoot), mkdir(secondRoot)])
-    const firstResult = await initializeProject({
-      root: firstRoot,
-      devboxHome,
-      validateHost: async () => success(undefined),
-      prompt: configurationPrompter({
-        confirm: async () => true,
-        editGlobal: async () => ({
-          version: 1,
-          node: ['22'],
+    const firstResult = await initializeProject(
+      {
+        root: firstRoot,
+      },
+      {
+        devboxHome,
+        validateHost: async () => success(undefined),
+        prompt: configurationPrompter({
+          confirm: async () => true,
+          editGlobal: async () => ({
+            version: 1,
+            node: ['22'],
 
-          agent: [],
-          agent_notifications: false,
+            agent: [],
+            agent_notifications: false,
+          }),
+          editLocal: async (_configuration, _catalog, globalConfiguration) => ({
+            version: 1,
+            node: globalConfiguration.node[0] ?? null,
+            ports: [],
+          }),
         }),
-        editLocal: async (_configuration, _catalog, globalConfiguration) => ({
-          version: 1,
-          node: globalConfiguration.node[0] ?? null,
-          ports: [],
-        }),
-      }),
-    })
+      },
+    )
 
-    const secondResult = await initializeProject({
-      root: secondRoot,
-      devboxHome,
-      validateHost: async () => success(undefined),
-      prompt: configurationPrompter({
-        confirm: async () => true,
-        editGlobal: async () => {
-          throw new Error('Global configuration prompt must not run when Global state exists.')
-        },
-        editLocal: async (_configuration, _catalog, globalConfiguration) => ({
-          version: 1,
-          node: globalConfiguration.node[0] ?? null,
-          ports: [],
+    const secondResult = await initializeProject(
+      {
+        root: secondRoot,
+      },
+      {
+        devboxHome,
+        validateHost: async () => success(undefined),
+        prompt: configurationPrompter({
+          confirm: async () => true,
+          editGlobal: async () => {
+            throw new Error('Global configuration prompt must not run when Global state exists.')
+          },
+          editLocal: async (_configuration, _catalog, globalConfiguration) => ({
+            version: 1,
+            node: globalConfiguration.node[0] ?? null,
+            ports: [],
+          }),
         }),
-      }),
-    })
+      },
+    )
 
     expect(firstResult).toMatchObject({ ok: true, value: { created: true } })
     expect(secondResult).toMatchObject({ ok: true, value: { created: true } })

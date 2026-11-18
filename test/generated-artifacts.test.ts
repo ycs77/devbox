@@ -69,17 +69,21 @@ describe('generated Workspace and Sandbox artifacts', () => {
     await mkdir(projectRoot)
     await prepareAllFeaturesGlobalConfiguration(devboxHome)
 
-    const project = await initializeProject({
-      root: projectRoot,
-      devboxHome,
-      validateHost: async () => success(undefined),
-      prompt: configurationPrompter({ confirm: async () => true }),
-      initialLocalConfiguration: {
-        version: 1,
-        node: '24',
-        ports: ['3000:3000', 'APP_PORT:5173:5173'],
+    const project = await initializeProject(
+      {
+        root: projectRoot,
+        initialLocalConfiguration: {
+          version: 1,
+          node: '24',
+          ports: ['3000:3000', 'APP_PORT:5173:5173'],
+        },
       },
-    })
+      {
+        devboxHome,
+        validateHost: async () => success(undefined),
+        prompt: configurationPrompter({ confirm: async () => true }),
+      },
+    )
 
     expect(project).toMatchObject({ ok: true, value: { created: true } })
     if (!project.ok) {

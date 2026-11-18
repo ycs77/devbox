@@ -38,23 +38,27 @@ describe('published Compose definition', () => {
       const devboxHome = join(sandbox, 'user-state', '.devbox')
       await mkdir(root)
 
-      const project = await initializeProject({
-        root,
-        devboxHome,
-        validateHost: async () => success(undefined),
-        prompt: configurationPrompter({ confirm: async () => true }),
-        initialGlobalConfiguration: {
-          version: 1,
-          node: ['24'],
-          agent: [],
-          agent_notifications: false,
+      const project = await initializeProject(
+        {
+          root,
+          initialGlobalConfiguration: {
+            version: 1,
+            node: ['24'],
+            agent: [],
+            agent_notifications: false,
+          },
+          initialLocalConfiguration: {
+            version: 1,
+            node: '24',
+            ports: ['3000:3000', 'APP_PORT:5173:5173'],
+          },
         },
-        initialLocalConfiguration: {
-          version: 1,
-          node: '24',
-          ports: ['3000:3000', 'APP_PORT:5173:5173'],
+        {
+          devboxHome,
+          validateHost: async () => success(undefined),
+          prompt: configurationPrompter({ confirm: async () => true }),
         },
-      })
+      )
 
       expect(project).toMatchObject({ ok: true, value: { created: true } })
       if (!project.ok) {

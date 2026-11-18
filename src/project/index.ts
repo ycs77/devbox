@@ -39,7 +39,7 @@ export interface RegisteredProject {
   readonly sandboxName: string
   readonly created: boolean
   readonly globalConfigurationCreated: boolean
-  readonly confirmed?: boolean
+  readonly confirmed: boolean
 }
 
 export interface DevboxPaths {
@@ -53,13 +53,16 @@ export interface DevboxPaths {
 
 export interface InitializeProjectInput {
   readonly root?: string
+  readonly initialGlobalConfiguration?: GlobalConfiguration
+  readonly initialLocalConfiguration?: LocalConfiguration
+}
+
+export interface InitializeProjectDependencies {
   readonly devboxHome?: string
-  readonly validateHost?: () => Promise<Result<void>>
   readonly signal?: AbortSignal
   readonly catalog?: RuntimeCatalog
   readonly prompt?: ConfigurationPrompter
-  readonly initialGlobalConfiguration?: GlobalConfiguration
-  readonly initialLocalConfiguration?: LocalConfiguration
+  readonly validateHost?: () => Promise<Result<void>>
 }
 
 export interface ConfigureLocalInput {
@@ -204,44 +207,46 @@ export function unescapePathSegment(segment: string): string {
 
 export async function initializeProject(
   input: InitializeProjectInput = {},
+  dependencies: InitializeProjectDependencies = {},
 ): Promise<Result<RegisteredProject>> {
   return withStateLocks(
     {
-      devboxHome: input.devboxHome ?? join(homedir(), '.devbox'),
+      devboxHome: dependencies.devboxHome ?? join(homedir(), '.devbox'),
       global: true,
       projectRoots: [input.root ?? process.cwd()],
-      signal: input.signal,
+      signal: dependencies.signal,
     },
-    () => initializeProjectUnlocked(input),
+    () => initializeProjectUnlocked(input, dependencies),
   )
 }
 
 async function initializeProjectUnlocked(
-  input: InitializeProjectInput = {},
+  input: InitializeProjectInput,
+  dependencies: InitializeProjectDependencies,
 ): Promise<Result<RegisteredProject>> {
   const projectRoot = input.root ?? process.cwd()
   const rootCheck = await validateProjectRoot(projectRoot)
   if (!rootCheck.ok) {
     return rootCheck
   }
-  if (input.signal?.aborted) {
+  if (dependencies.signal?.aborted) {
     throw new InterruptedError()
   }
 
-  const hostCheck = await (input.validateHost ?? validateSupportedHost)()
+  const hostCheck = await (dependencies.validateHost ?? validateSupportedHost)()
   if (!hostCheck.ok) {
     return hostCheck
   }
-  if (input.signal?.aborted) {
+  if (dependencies.signal?.aborted) {
     throw new InterruptedError()
   }
 
-  const catalogCheck = normalizeCatalog(input.catalog)
+  const catalogCheck = normalizeCatalog(dependencies.catalog)
   if (!catalogCheck.ok) {
     return catalogCheck
   }
   const catalog = catalogCheck.value
-  const paths = devboxPaths(input.devboxHome)
+  const paths = devboxPaths(dependencies.devboxHome)
   const registryState = await readOptionalFile(paths.projectRegistry)
   if (!registryState.ok) {
     return registryState
@@ -262,6 +267,7 @@ async function initializeProjectUnlocked(
       sandboxName: registration.name,
       created: false,
       globalConfigurationCreated: false,
+      confirmed: true,
     })
   }
 
@@ -299,8 +305,8 @@ async function initializeProjectUnlocked(
     globalChanged = true
   } else {
     globalConfiguration = defaultGlobalConfiguration(catalog)
-    if (input.prompt) {
-      const editedGlobal = await input.prompt.editGlobal(globalConfiguration, catalog)
+    if (dependencies.prompt) {
+      const editedGlobal = await dependencies.prompt.editGlobal(globalConfiguration, catalog)
       const checkedGlobal = validateGlobalObject(editedGlobal, catalog)
       if (!checkedGlobal.ok) {
         return checkedGlobal
@@ -323,8 +329,8 @@ async function initializeProjectUnlocked(
     localConfiguration = initialLocal.value
   } else {
     localConfiguration = defaultLocalConfiguration(globalConfiguration)
-    if (input.prompt) {
-      const editedLocal = await input.prompt.editLocal(
+    if (dependencies.prompt) {
+      const editedLocal = await dependencies.prompt.editLocal(
         localConfiguration,
         catalog,
         globalConfiguration,
@@ -347,8 +353,7 @@ async function initializeProjectUnlocked(
     return definition
   }
 
-  const confirm = input.prompt?.confirm ?? (async () => true)
-  if (!(await confirm('Save configuration?'))) {
+  if (dependencies.prompt && !(await dependencies.prompt.confirm('Save configuration?'))) {
     return success({
       root: projectRoot,
       stateDirectory,
