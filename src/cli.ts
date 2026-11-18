@@ -91,7 +91,7 @@ function createCli(signal: AbortSignal, interactive: boolean): CAC {
       intro(c.bgCyan(' devbox '))
       const scope = await prompt.selectConfigurationScope()
       if (scope === 'global') {
-        const result = await configureGlobal({ signal, prompt })
+        const result = await configureGlobal({}, { signal, prompt })
         if (!result.ok) {
           return result
         }
@@ -105,7 +105,7 @@ function createCli(signal: AbortSignal, interactive: boolean): CAC {
         return success({})
       }
 
-      const result = await configureLocalProject({ signal, prompt })
+      const result = await configureLocalProject({}, { signal, prompt })
       if (!result.ok) {
         return result
       }

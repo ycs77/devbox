@@ -365,12 +365,16 @@ describe('initializeProject', () => {
     const configuration = join(devboxHome, 'agents', 'claude', '.claude.json')
     await writeFile(configuration, '{"theme":"dark"}\n')
 
-    const reconfigured = await configureLocalProject({
-      root: projectRoot,
-      devboxHome,
-      nextConfiguration: { version: 1, node: '24', ports: ['3000:3000'] },
-      prompt: configurationPrompter({ confirm: async () => true }),
-    })
+    const reconfigured = await configureLocalProject(
+      {
+        root: projectRoot,
+        nextConfiguration: { version: 1, node: '24', ports: ['3000:3000'] },
+      },
+      {
+        devboxHome,
+        prompt: configurationPrompter({ confirm: async () => true }),
+      },
+    )
 
     expect(reconfigured).toMatchObject({ ok: true, value: { changed: true } })
     await expect(readFile(configuration, 'utf8')).resolves.toBe('{"theme":"dark"}\n')
@@ -689,21 +693,26 @@ describe('configuration boundaries', () => {
       }
       const configure = () =>
         scope === 'local'
-          ? configureLocalProject({
-              root: firstRoot,
-              devboxHome,
-              prompt: configurationPrompter({
-                editLocal: async current => current,
-                confirm: async () => true,
-              }),
-            })
-          : configureGlobal({
-              devboxHome,
-              prompt: configurationPrompter({
-                editGlobal: async current => current,
-                confirm: async () => true,
-              }),
-            })
+          ? configureLocalProject(
+              { root: firstRoot },
+              {
+                devboxHome,
+                prompt: configurationPrompter({
+                  editLocal: async current => current,
+                  confirm: async () => true,
+                }),
+              },
+            )
+          : configureGlobal(
+              {},
+              {
+                devboxHome,
+                prompt: configurationPrompter({
+                  editGlobal: async current => current,
+                  confirm: async () => true,
+                }),
+              },
+            )
 
       expect(await configure()).toMatchObject({ ok: true, value: { scope, changed: true } })
       const definition = parse(await readFile(firstComposePath, 'utf8'))
@@ -751,15 +760,20 @@ describe('configuration boundaries', () => {
 
       const result =
         scope === 'local'
-          ? await configureLocalProject({
-              root,
-              devboxHome,
-              prompt: configurationPrompter({ confirm: async () => false }),
-            })
-          : await configureGlobal({
-              devboxHome,
-              prompt: configurationPrompter({ confirm: async () => false }),
-            })
+          ? await configureLocalProject(
+              { root },
+              {
+                devboxHome,
+                prompt: configurationPrompter({ confirm: async () => false }),
+              },
+            )
+          : await configureGlobal(
+              {},
+              {
+                devboxHome,
+                prompt: configurationPrompter({ confirm: async () => false }),
+              },
+            )
 
       expect(result).toMatchObject({ ok: true, value: { changed: false } })
       await expect(readFile(composePath, 'utf8')).resolves.toBe(retained)
@@ -780,17 +794,21 @@ describe('configuration boundaries', () => {
     let confirmation:
       | { readonly message: string; readonly details?: ConfirmationDetails }
       | undefined
-    const result = await configureLocalProject({
-      root: projectRoot,
-      devboxHome,
-      nextConfiguration: { version: 1, node: null, ports: [] },
-      prompt: configurationPrompter({
-        confirm: async (message, details) => {
-          confirmation = { message, details }
-          return true
-        },
-      }),
-    })
+    const result = await configureLocalProject(
+      {
+        root: projectRoot,
+        nextConfiguration: { version: 1, node: null, ports: [] },
+      },
+      {
+        devboxHome,
+        prompt: configurationPrompter({
+          confirm: async (message, details) => {
+            confirmation = { message, details }
+            return true
+          },
+        }),
+      },
+    )
 
     expect(result).toEqual({
       ok: true,
@@ -828,21 +846,25 @@ describe('configuration boundaries', () => {
     let confirmation:
       | { readonly message: string; readonly details?: ConfirmationDetails }
       | undefined
-    const result = await configureGlobal({
-      devboxHome,
-      nextConfiguration: {
-        version: 1,
-        node: ['24'],
-        agent: ['codex'],
-        agent_notifications: false,
-      },
-      prompt: configurationPrompter({
-        confirm: async (message, details) => {
-          confirmation = { message, details }
-          return true
+    const result = await configureGlobal(
+      {
+        nextConfiguration: {
+          version: 1,
+          node: ['24'],
+          agent: ['codex'],
+          agent_notifications: false,
         },
-      }),
-    })
+      },
+      {
+        devboxHome,
+        prompt: configurationPrompter({
+          confirm: async (message, details) => {
+            confirmation = { message, details }
+            return true
+          },
+        }),
+      },
+    )
 
     expect(result).toEqual({ ok: true, value: { scope: 'global', changed: true } })
     expect(confirmation).toMatchObject({
@@ -896,15 +918,18 @@ describe('configuration boundaries', () => {
     await entered.promise
 
     try {
-      const result = await configureGlobal({
-        devboxHome,
-        prompt: configurationPrompter({
-          confirm: async () => true,
-          editGlobal: async () => {
-            throw new Error('Global configuration prompt must not run while a Project is locked.')
-          },
-        }),
-      })
+      const result = await configureGlobal(
+        {},
+        {
+          devboxHome,
+          prompt: configurationPrompter({
+            confirm: async () => true,
+            editGlobal: async () => {
+              throw new Error('Global configuration prompt must not run while a Project is locked.')
+            },
+          }),
+        },
+      )
 
       expect(result).toMatchObject({
         ok: false,
@@ -924,11 +949,13 @@ describe('configuration boundaries', () => {
     const project = await createProjectState(projectRoot, devboxHome)
     await rm(join(project.stateDirectory, 'config.yaml'))
 
-    const result = await configureLocalProject({
-      root: projectRoot,
-      devboxHome,
-      prompt: configurationPrompter({ confirm: async () => true }),
-    })
+    const result = await configureLocalProject(
+      { root: projectRoot },
+      {
+        devboxHome,
+        prompt: configurationPrompter({ confirm: async () => true }),
+      },
+    )
 
     expect(result).toMatchObject({
       ok: false,
@@ -945,12 +972,16 @@ describe('configuration boundaries', () => {
     const localPath = join(project.stateDirectory, 'config.yaml')
     const before = await readFile(localPath, 'utf8')
 
-    const result = await configureLocalProject({
-      root: projectRoot,
-      devboxHome,
-      nextConfiguration: { version: 1, node: null, ports: [] },
-      prompt: configurationPrompter({ confirm: async () => false }),
-    })
+    const result = await configureLocalProject(
+      {
+        root: projectRoot,
+        nextConfiguration: { version: 1, node: null, ports: [] },
+      },
+      {
+        devboxHome,
+        prompt: configurationPrompter({ confirm: async () => false }),
+      },
+    )
 
     expect(result).toEqual({
       ok: true,
@@ -969,12 +1000,16 @@ describe('configuration boundaries', () => {
     await writeFile(localPath, 'version: 1\nnode: "24"\nunknown: true\n')
     const invalidBefore = await readFile(localPath, 'utf8')
 
-    const result = await configureLocalProject({
-      root: projectRoot,
-      devboxHome,
-      nextConfiguration: { version: 1, node: null, ports: [] },
-      prompt: configurationPrompter({ confirm: async () => true }),
-    })
+    const result = await configureLocalProject(
+      {
+        root: projectRoot,
+        nextConfiguration: { version: 1, node: null, ports: [] },
+      },
+      {
+        devboxHome,
+        prompt: configurationPrompter({ confirm: async () => true }),
+      },
+    )
 
     expect(result).toMatchObject({ ok: false, error: { code: 'invalid-local-configuration' } })
     await expect(readFile(localPath, 'utf8')).resolves.toBe(invalidBefore)
@@ -991,26 +1026,31 @@ describe('configuration boundaries', () => {
     const globalBefore = await readFile(globalPath, 'utf8')
     const localBefore = await readFile(localPath, 'utf8')
 
-    const globalResult = await configureGlobal({
-      devboxHome,
-      prompt: configurationPrompter({
-        confirm: async () => true,
-        editGlobal: async () => ({
-          version: 1,
-          node: ['26'],
-          agent: [],
-          agent_notifications: true,
+    const globalResult = await configureGlobal(
+      {},
+      {
+        devboxHome,
+        prompt: configurationPrompter({
+          confirm: async () => true,
+          editGlobal: async () => ({
+            version: 1,
+            node: ['26'],
+            agent: [],
+            agent_notifications: true,
+          }),
         }),
-      }),
-    })
-    const localResult = await configureLocalProject({
-      root: projectRoot,
-      devboxHome,
-      prompt: configurationPrompter({
-        confirm: async () => true,
-        editLocal: async () => ({ version: 1, node: '26', ports: [] }),
-      }),
-    })
+      },
+    )
+    const localResult = await configureLocalProject(
+      { root: projectRoot },
+      {
+        devboxHome,
+        prompt: configurationPrompter({
+          confirm: async () => true,
+          editLocal: async () => ({ version: 1, node: '26', ports: [] }),
+        }),
+      },
+    )
 
     expect(globalResult).toMatchObject({
       ok: false,
@@ -1032,14 +1072,18 @@ describe('configuration boundaries', () => {
     const project = await createProjectState(projectRoot, devboxHome)
     await rm(projectRoot, { recursive: true, force: true })
 
-    const result = await configureGlobal({
-      devboxHome,
-      nextConfiguration: { version: 1, node: [], agent: [], agent_notifications: true },
-      prompt: configurationPrompter({
-        confirm: async () => true,
-        selectNodeReplacement: async () => ({ version: 1, node: null, ports: [] }),
-      }),
-    })
+    const result = await configureGlobal(
+      {
+        nextConfiguration: { version: 1, node: [], agent: [], agent_notifications: true },
+      },
+      {
+        devboxHome,
+        prompt: configurationPrompter({
+          confirm: async () => true,
+          selectNodeReplacement: async () => ({ version: 1, node: null, ports: [] }),
+        }),
+      },
+    )
 
     expect(result).toEqual({ ok: true, value: { scope: 'global', changed: true } })
     expect(parse(await readFile(join(devboxHome, 'config.yaml'), 'utf8'))).toMatchObject({

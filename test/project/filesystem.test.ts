@@ -87,13 +87,16 @@ describe('Project filesystem failures', () => {
       .mockRejectedValueOnce(new Error('disk full'))
       .mockImplementation(memfsRename)
 
-    const result = await configureGlobal({
-      devboxHome,
-      prompt: configurationPrompter({
-        editGlobal: async current => current,
-        confirm: async () => true,
-      }),
-    })
+    const result = await configureGlobal(
+      {},
+      {
+        devboxHome,
+        prompt: configurationPrompter({
+          editGlobal: async current => current,
+          confirm: async () => true,
+        }),
+      },
+    )
 
     expect(result).toMatchObject({ ok: false, error: { code: 'state-write-failed' } })
     expect(await Promise.all(composePaths.map(path => readFile(path, 'utf8')))).toEqual(before)
@@ -106,7 +109,7 @@ describe('Project filesystem failures', () => {
       Object.assign(new Error('permission denied'), { code: 'EACCES' }),
     )
 
-    const result = await configureLocalProject({ root: projectRoot, devboxHome })
+    const result = await configureLocalProject({ root: projectRoot }, { devboxHome })
 
     expect(result).toMatchObject({
       ok: false,
@@ -129,12 +132,16 @@ describe('Project filesystem failures', () => {
       .mockImplementationOnce(memfsRename)
       .mockRejectedValueOnce(new Error('disk full'))
 
-    const result = await configureLocalProject({
-      root: projectRoot,
-      devboxHome,
-      nextConfiguration: { version: 1, node: null, ports: [] },
-      prompt: configurationPrompter({ confirm: async () => true }),
-    })
+    const result = await configureLocalProject(
+      {
+        root: projectRoot,
+        nextConfiguration: { version: 1, node: null, ports: [] },
+      },
+      {
+        devboxHome,
+        prompt: configurationPrompter({ confirm: async () => true }),
+      },
+    )
 
     expect(result).toMatchObject({
       ok: false,
@@ -175,15 +182,19 @@ describe('Project filesystem failures', () => {
       .mockRejectedValueOnce(new Error('disk full'))
       .mockImplementation(memfsRename)
 
-    const result = await configureGlobal({
-      devboxHome,
-      nextConfiguration: { version: 1, node: [], agent: [], agent_notifications: true },
-      nextLocalConfigurations: {
-        [projectRoot]: { version: 1, node: null, ports: [] },
-        [secondProjectRoot]: { version: 1, node: null, ports: [] },
+    const result = await configureGlobal(
+      {
+        nextConfiguration: { version: 1, node: [], agent: [], agent_notifications: true },
+        nextLocalConfigurations: {
+          [projectRoot]: { version: 1, node: null, ports: [] },
+          [secondProjectRoot]: { version: 1, node: null, ports: [] },
+        },
       },
-      prompt: configurationPrompter({ confirm: async () => true }),
-    })
+      {
+        devboxHome,
+        prompt: configurationPrompter({ confirm: async () => true }),
+      },
+    )
 
     expect(result).toMatchObject({
       ok: false,
