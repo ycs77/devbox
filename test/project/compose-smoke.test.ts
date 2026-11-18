@@ -5,7 +5,6 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { initializeProject } from '../../src/project/index.js'
 import { success } from '../../src/result.js'
-
 import { configurationPrompter } from '../helpers/configuration-prompter.js'
 
 const temporaryDirectories: string[] = []

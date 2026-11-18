@@ -5,7 +5,6 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { initializeProject, runSandboxLifecycle, runSandboxShell } from '../../src/project/index.js'
 import { success } from '../../src/result.js'
 import { withStateLocks } from '../../src/state-lock/index.js'
-
 import { configurationPrompter } from '../helpers/configuration-prompter.js'
 
 const temporaryDirectories: string[] = []

@@ -1,3 +1,4 @@
+import type { ConfigurationPrompter, ConfirmationHandler } from '../configuration/prompter.js'
 import { lstat, rm } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { basename, isAbsolute, join, parse, relative, sep } from 'node:path'
@@ -15,7 +16,6 @@ import {
   type LocalConfiguration,
   type RuntimeCatalog,
 } from '../configuration/index.js'
-import type { ConfigurationPrompter, ConfirmationHandler } from '../configuration/prompter.js'
 import { currentHostEnvironment, type HostEnvironment, validateSupportedHost } from '../host.js'
 import { failure, InterruptedError, success, type Result } from '../result.js'
 import { withStateLocks, type StateLockContext } from '../state-lock/index.js'
@@ -1029,4 +1029,3 @@ function isMissingFileError(error: unknown): error is NodeJS.ErrnoException {
     (error as NodeJS.ErrnoException).code === 'ENOENT'
   )
 }
-

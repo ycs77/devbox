@@ -1,3 +1,4 @@
+import type { ConfirmationDetails } from '../../src/configuration/prompter.js'
 import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
@@ -14,10 +15,8 @@ import {
   sandboxName,
   unescapePathSegment,
 } from '../../src/project/index.js'
-import type { ConfirmationDetails } from '../../src/configuration/prompter.js'
 import { InterruptedError, success } from '../../src/result.js'
 import { withStateLocks } from '../../src/state-lock/index.js'
-
 import { configurationPrompter } from '../helpers/configuration-prompter.js'
 
 const temporaryDirectories: string[] = []

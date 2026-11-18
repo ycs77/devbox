@@ -10,7 +10,6 @@ import {
   sandboxIdentity,
 } from '../../src/project/index.js'
 import { success } from '../../src/result.js'
-
 import { configurationPrompter } from '../helpers/configuration-prompter.js'
 
 vi.mock('node:fs/promises', async () => {
