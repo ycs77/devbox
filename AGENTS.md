@@ -5,13 +5,14 @@
 - Node.js v26
 - TypeScript formatting: 2 spaces, single quotes, no semicolons, trailing commas
 
-## Commands
+## AI team
 
-- `pnpm build`
-- `pnpm lint`
-- `pnpm fmt`
-- `pnpm typecheck`
-- `pnpm smoke`
+Each role runs in its namesake Herdr tab:
+
+- **orchestrator**: Dispatch tasks across tabs and schedule review fixes at integration checkpoints.
+- **plan**: Clarify scope and tradeoffs with the user; produce specs and tasks.
+- **build**: Sole writer. Implement specs, pass `pnpm check`, commit, and report the hash to **orchestrator**.
+- **review**: Read-only. Audit the specified revision against the spec and report findings to **orchestrator**.
 
 ## Agent skills
 
