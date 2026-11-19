@@ -1,17 +1,24 @@
 {
-  "version": 1,
+  "version": 2,
   "skills": {
     "cac": {
       "source": "cacjs/cac",
       "sourceType": "github",
       "skillPath": "skills/cac/SKILL.md",
-      "computedHash": "135ab59eb9f6e22a2fa3038ab77fcf7daf0de3ae27a145b07e9a9dd3f0ac4bbc"
+      "computedHash": "a92da6b4c187b672a3b8b49d6a9da91a9ea6154dd025e3f6fc533c5e5398dfd6"
+    },
+    "maintain-verification-skill": {
+      "source": "ycs77/skills",
+      "commit": "3343f3e5a2a3aa63dd524edf738d19a47291235a",
+      "sourceType": "github",
+      "skillPath": "skills/maintain-verification-skill/SKILL.md",
+      "computedHash": "936081ec1f938ed81607388848e01e657b5e24cad2ad25605c73286d6cb9be5e"
     },
     "vitest": {
       "source": "antfu/skills",
       "sourceType": "github",
       "skillPath": "skills/vitest/SKILL.md",
-      "computedHash": "943d436114c677802426741980146c07560bf375297666b03062444f4b98a785"
+      "computedHash": "f9125ac2bc936894e78858037d05ba83d5b211dfa90a6717a3f710586d963a18"
     }
   }
 }
