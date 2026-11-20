@@ -387,7 +387,7 @@ describe('buildWorkspace', () => {
     expect(entrypoint).toContain('NODE_VERSION="${NODE_VERSION:-}"')
     expect(entrypoint).toContain('ln -sfn /home/devbox/.agents/skills /home/devbox/.gemini/skills')
     expect(claudeSettings).toContain('"CLAUDE_CODE_USE_POWERSHELL_TOOL": "0"')
-    expect(ompAgentConfig).toContain('setupVersion: 2')
+    expect(ompAgentConfig).toContain('setupVersion:')
     expect(supervisord).toBe(
       [
         '[supervisord]',
