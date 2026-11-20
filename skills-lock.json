@@ -3,9 +3,10 @@
   "skills": {
     "cac": {
       "source": "cacjs/cac",
+      "commit": "12a5e8278719dfd9a4b7197a6690e7bf01b20b07",
       "sourceType": "github",
       "skillPath": "skills/cac/SKILL.md",
-      "computedHash": "a92da6b4c187b672a3b8b49d6a9da91a9ea6154dd025e3f6fc533c5e5398dfd6"
+      "computedHash": "84c43825ee0c33cf56acfdc6e95e51aff3edce9ea695b1c6c7404d3075c379a7"
     },
     "maintain-verification-skill": {
       "source": "ycs77/skills",
@@ -16,9 +17,10 @@
     },
     "vitest": {
       "source": "antfu/skills",
+      "commit": "4a6bb39e7b45e26402eb215393c51ccf5df1ca4c",
       "sourceType": "github",
       "skillPath": "skills/vitest/SKILL.md",
-      "computedHash": "f9125ac2bc936894e78858037d05ba83d5b211dfa90a6717a3f710586d963a18"
+      "computedHash": "bd95e41d66d76da9008893c9bc48c30f0a68f352cd2b00017767f5e4c129501d"
     }
   }
 }
