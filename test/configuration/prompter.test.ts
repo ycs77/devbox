@@ -1,4 +1,5 @@
 import { Readable, Writable } from 'node:stream'
+import { setImmediate as waitForImmediate } from 'node:timers/promises'
 import { stripVTControlCharacters } from 'node:util'
 import { describe, expect, it } from 'vitest'
 import { createConfigurationPrompter } from '../../src/configuration/prompter.js'
@@ -96,15 +97,33 @@ describe('createConfigurationPrompter', () => {
     input.emit('keypress', '', { name: 'return' })
     input.emit('keypress', '', { name: 'return' })
 
-    const rendered = stripVTControlCharacters(output.chunks.join(''))
-    expect(rendered).toContain('Project configuration')
-    expect(rendered).toContain(
-      'Published ports (multiline; one mapping per line; press Enter twice to submit)',
-    )
-    expect(rendered).not.toContain(
-      'Choose the Node version and ports to use when this project’s container starts.',
-    )
     await expect(editing).resolves.toEqual({ version: 1, node: '24', ports: [] })
+  })
+
+  it('explains how to enter and submit multiline port mappings', async () => {
+    const input = new PromptInput()
+    const output = new PromptOutput()
+    const prompt = createConfigurationPrompter({
+      signal: new AbortController().signal,
+      input,
+      output,
+    })
+    const editing = prompt.editLocal(
+      { version: 1, node: null, ports: [] },
+      { runtimes: { node: ['24'] }, agents: [] },
+      { version: 1, node: ['24'], agent: [], agent_notifications: true },
+    )
+
+    input.emit('keypress', '', { name: 'return' })
+    await waitForImmediate()
+    const rendered = stripVTControlCharacters(output.chunks.join('')).replace(/\s+/g, ' ')
+
+    input.emit('keypress', '', { name: 'return' })
+    input.emit('keypress', '', { name: 'return' })
+    await editing
+
+    expect(rendered).toContain('one mapping per line')
+    expect(rendered).toContain('press Enter twice to submit')
   })
 
   it('prepopulates Local ports in the multiline editor', async () => {

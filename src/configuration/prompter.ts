@@ -167,10 +167,10 @@ function renderConfirmationDetails(details: ConfirmationDetails): string {
     .join('\n\n')
 }
 
-async function promptValue<T>(prompt: Promise<T | symbol>): Promise<T> {
+async function promptValue<T>(prompt: Promise<T>): Promise<Exclude<T, symbol>> {
   const value = await prompt
   if (p.isCancel(value)) {
     throw new InterruptedError()
   }
-  return value as T
+  return value as Exclude<T, symbol>
 }

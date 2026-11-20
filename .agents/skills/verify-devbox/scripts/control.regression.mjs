@@ -109,6 +109,7 @@ const ttyGone = h => {
   )
 }
 
+const errors = []
 try {
   const h = harness(false)
   h.ok('doctor')
@@ -229,8 +230,9 @@ try {
     true,
   )
   console.log('通過：Docker 無 socket 保留資料、清掉 TTY、無 pane 重試')
+} catch (error) {
+  errors.push(error)
 } finally {
-  const errors = []
   for (const h of runs) {
     try {
       if (!existsSync(join(h.proof, 'run.json'))) continue
@@ -255,5 +257,11 @@ try {
       errors.push(error)
     }
   }
-  if (errors.length) throw new AggregateError(errors, '回歸測試 teardown 失敗；保留尚未確認的資源')
+}
+
+if (errors.length === 1) {
+  throw errors[0]
+}
+if (errors.length > 1) {
+  throw new AggregateError(errors, '回歸測試或 teardown 失敗；保留尚未確認的資源')
 }

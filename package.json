@@ -45,23 +45,23 @@
     "prepack": "pnpm build"
   },
   "dependencies": {
-    "@clack/prompts": "^1.7.0",
-    "cac": "^7.0.0",
+    "@clack/prompts": "^1.9.0",
+    "cac": "^7.1.0",
     "picocolors": "^1.1.1",
-    "yaml": "^2.9.0"
+    "yaml": "^2.9.1"
   },
   "devDependencies": {
-    "@types/node": "^26.2.0",
+    "@types/node": "^26.6.6",
     "actionspack": "^0.1.5",
-    "bumpp": "^12.2.0",
-    "memfs": "^4.68.1",
-    "oxfmt": "^0.63.0",
-    "oxlint": "^1.78.0",
-    "oxlint-tsgolint": "^7.0.2001",
-    "tsdown": "^0.22.14",
-    "tsx": "^4.23.13",
+    "bumpp": "^12.3.0",
+    "memfs": "^4.80.1",
+    "oxfmt": "^0.79.0",
+    "oxlint": "^1.94.0",
+    "oxlint-tsgolint": "^7.0.2007",
+    "tsdown": "0.23.5",
+    "tsx": "^4.23.15",
     "typescript": "^7.0.2",
-    "vitest": "^4.1.10"
+    "vitest": "^5.1.1"
   },
   "engines": {
     "node": ">=22"
