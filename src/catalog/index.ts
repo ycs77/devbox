@@ -44,23 +44,28 @@ const NODE_RELEASE_KEYS = [
 ]
 
 export const PACKAGED_NODE_RECIPES: Readonly<Record<string, NodeRuntimeRecipe>> = {
+  '26': {
+    releaseLine: '26',
+    version: '26.13.1',
+    runtimeRoot: '/opt/devbox/runtimes/node/26',
+    distributionBaseUrl: 'https://nodejs.org/dist',
+    trustedReleaseKeys: NODE_RELEASE_KEYS,
+  },
   '24': {
     releaseLine: '24',
-    version: '24.19.0',
+    version: '24.22.3',
     runtimeRoot: '/opt/devbox/runtimes/node/24',
     distributionBaseUrl: 'https://nodejs.org/dist',
     trustedReleaseKeys: NODE_RELEASE_KEYS,
   },
   '22': {
     releaseLine: '22',
-    version: '22.23.2',
+    version: '22.23.5',
     runtimeRoot: '/opt/devbox/runtimes/node/22',
     distributionBaseUrl: 'https://nodejs.org/dist',
     trustedReleaseKeys: NODE_RELEASE_KEYS,
   },
 }
-
-export const PACKAGED_NODE_RELEASE_LINES = ['24', '22'] as const
 
 export const PACKAGED_AGENTS: Readonly<Record<string, PackagedAgent>> = {
   'claude-code': {
@@ -105,6 +110,8 @@ export const PACKAGED_AGENTS: Readonly<Record<string, PackagedAgent>> = {
 }
 
 export const PACKAGED_RUNTIME_CATALOG = {
-  runtimes: { node: PACKAGED_NODE_RELEASE_LINES },
+  runtimes: {
+    node: Object.keys(PACKAGED_NODE_RECIPES),
+  },
   agents: Object.keys(PACKAGED_AGENTS),
 }

@@ -64,7 +64,7 @@ RUN userdel -r ubuntu \
     && echo "devbox ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/devbox \
     && chmod 0440 /etc/sudoers.d/devbox
 
-# Install Node.js 22
+# Install Node.js 24
 RUN ARCH= OPENSSL_ARCH= && dpkgArch="$(dpkg --print-architecture)" \
     && case "${dpkgArch##*-}" in \
       amd64) ARCH='x64' OPENSSL_ARCH='linux-x86_64';; \
@@ -74,8 +74,8 @@ RUN ARCH= OPENSSL_ARCH= && dpkgArch="$(dpkg --print-architecture)" \
       *) echo "unsupported architecture"; exit 1 ;; \
     esac \
     && set -eux \
-    && NODE_RUNTIME_VERSION=22.23.2 \
-    && NODE_RUNTIME_ROOT=/opt/devbox/runtimes/node/22 \
+    && NODE_RUNTIME_VERSION=24.22.3 \
+    && NODE_RUNTIME_ROOT=/opt/devbox/runtimes/node/24 \
     && mkdir -p "$NODE_RUNTIME_ROOT" /tmp/node-source \
     && cd /tmp/node-source \
     # use pre-existing gpg directory
@@ -114,7 +114,7 @@ RUN ARCH= OPENSSL_ARCH= && dpkgArch="$(dpkg --print-architecture)" \
     && "$NODE_RUNTIME_ROOT/bin/npm" --version \
     && rm -rf /tmp/node-source
 
-# Install Node.js 24
+# Install Node.js 26
 RUN ARCH= OPENSSL_ARCH= && dpkgArch="$(dpkg --print-architecture)" \
     && case "${dpkgArch##*-}" in \
       amd64) ARCH='x64' OPENSSL_ARCH='linux-x86_64';; \
@@ -124,8 +124,8 @@ RUN ARCH= OPENSSL_ARCH= && dpkgArch="$(dpkg --print-architecture)" \
       *) echo "unsupported architecture"; exit 1 ;; \
     esac \
     && set -eux \
-    && NODE_RUNTIME_VERSION=24.19.0 \
-    && NODE_RUNTIME_ROOT=/opt/devbox/runtimes/node/24 \
+    && NODE_RUNTIME_VERSION=26.13.1 \
+    && NODE_RUNTIME_ROOT=/opt/devbox/runtimes/node/26 \
     && mkdir -p "$NODE_RUNTIME_ROOT" /tmp/node-source \
     && cd /tmp/node-source \
     # use pre-existing gpg directory
@@ -195,7 +195,7 @@ ENV PATH="/home/devbox/.local/bin:${PATH}"
 # Install Agent Skills
 RUN set -eux \
     && mkdir -p /home/devbox/.agents/skills \
-    && export PATH="/opt/devbox/runtimes/node/24/bin:$PATH" \
+    && export PATH="/opt/devbox/runtimes/node/26/bin:$PATH" \
     && npx -y skills add ycs77/skills -g -a claude-code -a codex -s '*' -y
 
 USER root
