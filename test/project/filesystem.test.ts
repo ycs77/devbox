@@ -146,7 +146,7 @@ describe('Project filesystem failures', () => {
       Object.assign(new Error('permission denied'), { code: 'EACCES' }),
     )
 
-    const result = await configureLocalProject({ root: projectRoot }, { devboxHome })
+    const result = await configureLocalProject({ root: projectRoot, devboxHome })
 
     expect(result).toMatchObject({
       ok: false,
@@ -173,15 +173,8 @@ describe('Project filesystem failures', () => {
       await writeFile(localPath, `# edited while confirming\n${localBefore}`)
       return true
     })
-    const result = await configureLocalProject(
-      {
-        root: projectRoot,
-        nextConfiguration: { version: 1, node: null, ports: [] },
-      },
-      {
-        devboxHome,
-      },
-    )
+    vi.mocked(editLocal).mockResolvedValueOnce({ version: 1, node: null, ports: [] })
+    const result = await configureLocalProject({ root: projectRoot, devboxHome })
 
     expect(result).toMatchObject({
       ok: false,

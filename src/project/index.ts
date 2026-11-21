@@ -46,15 +46,10 @@ export interface InitializeProjectOptions {
   readonly signal?: AbortSignal
 }
 
-export interface ConfigureLocalInput {
+export interface ConfigureLocalOptions {
   readonly root?: string
-  readonly nextConfiguration?: LocalConfiguration
-}
-
-export interface ConfigureLocalDependencies {
   readonly devboxHome?: string
   readonly signal?: AbortSignal
-  readonly catalog?: RuntimeCatalog
 }
 
 export interface ConfigureGlobalOptions {
@@ -251,34 +246,32 @@ async function initializeProjectUnlocked(
 }
 
 export async function configureLocalProject(
-  input: ConfigureLocalInput = {},
-  dependencies: ConfigureLocalDependencies = {},
+  options: ConfigureLocalOptions = {},
 ): Promise<Result<ConfigurationOperation>> {
   return withStateLocks(
     {
-      devboxHome: dependencies.devboxHome ?? join(homedir(), '.devbox'),
+      devboxHome: options.devboxHome ?? join(homedir(), '.devbox'),
       global: true,
-      projectRoots: [input.root ?? process.cwd()],
-      signal: dependencies.signal,
+      projectRoots: [options.root ?? process.cwd()],
+      signal: options.signal,
     },
-    () => configureLocalProjectUnlocked(input, dependencies),
+    () => configureLocalProjectUnlocked(options),
   )
 }
 
 async function configureLocalProjectUnlocked(
-  input: ConfigureLocalInput,
-  dependencies: ConfigureLocalDependencies,
+  options: ConfigureLocalOptions,
 ): Promise<Result<ConfigurationOperation>> {
-  if (dependencies.signal?.aborted) {
+  if (options.signal?.aborted) {
     throw new InterruptedError()
   }
-  const catalogCheck = normalizeCatalog(dependencies.catalog)
+  const catalogCheck = normalizeCatalog()
   if (!catalogCheck.ok) {
     return catalogCheck
   }
   const catalog = catalogCheck.value
-  const projectRoot = input.root ?? process.cwd()
-  const paths = devboxPaths(dependencies.devboxHome)
+  const projectRoot = options.root ?? process.cwd()
+  const paths = devboxPaths(options.devboxHome)
   const publication = new ProjectPublication(paths.home)
   const registryCheck = await readRegistry(paths.projectRegistry)
   if (!registryCheck.ok) {
@@ -295,7 +288,12 @@ async function configureLocalProjectUnlocked(
   }
   const globalConfiguration = globalCheck.value
   if (globalConfiguration === undefined) {
-    return missingConfiguration('global', paths.globalConfiguration)
+    return failure({
+      kind: 'validation',
+      code: 'missing-global-configuration',
+      observed: `Devbox could not find the global configuration: ${paths.globalConfiguration}.`,
+      nextAction: 'Restore the supported version-1 global YAML configuration and try again.',
+    })
   }
 
   const stateDirectory = projectStateDirectory(registration.identity, paths.home)
@@ -305,9 +303,9 @@ async function configureLocalProjectUnlocked(
   }
   const currentConfiguration = localCheck.value
 
-  const nextConfiguration =
-    input.nextConfiguration ??
-    (await editLocal(currentConfiguration, globalConfiguration, { signal: dependencies.signal }))
+  const nextConfiguration = await editLocal(currentConfiguration, globalConfiguration, {
+    signal: options.signal,
+  })
   const nextCheck = validateLocalObject(nextConfiguration, globalConfiguration, catalog)
   if (!nextCheck.ok) {
     return nextCheck
@@ -327,12 +325,12 @@ async function configureLocalProjectUnlocked(
           },
         ],
       },
-      { signal: dependencies.signal },
+      { signal: options.signal },
     ))
   ) {
     return success({ scope: 'local', root: projectRoot, changed: false })
   }
-  if (dependencies.signal?.aborted) {
+  if (options.signal?.aborted) {
     throw new InterruptedError()
   }
   const written = await publication.publish({
@@ -736,14 +734,5 @@ function notRegistered(projectRoot: string): Result<never> {
     code: 'project-not-registered',
     observed: `The exact Project directory is not registered: ${projectRoot}.`,
     nextAction: 'Run devbox init from this exact existing directory first.',
-  })
-}
-
-function missingConfiguration(scope: 'global' | 'local', path: string): Result<never> {
-  return failure({
-    kind: 'validation',
-    code: `missing-${scope}-configuration`,
-    observed: `Devbox could not find the ${scope} configuration: ${path}.`,
-    nextAction: `Restore the supported version-1 ${scope} YAML configuration and try again.`,
   })
 }

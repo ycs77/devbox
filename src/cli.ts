@@ -97,7 +97,7 @@ function createCli(signal: AbortSignal, interactive: boolean): CAC {
         return success({})
       }
 
-      const result = await configureLocalProject({}, { signal })
+      const result = await configureLocalProject({ signal })
       if (!result.ok) {
         return result
       }

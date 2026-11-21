@@ -324,15 +324,8 @@ describe('initializeProject', () => {
     const configuration = join(devboxHome, 'agents', 'claude', '.claude.json')
     await writeFile(configuration, '{"theme":"dark"}\n')
 
-    const reconfigured = await configureLocalProject(
-      {
-        root: projectRoot,
-        nextConfiguration: { version: 1, node: '24', ports: ['3000:3000'] },
-      },
-      {
-        devboxHome,
-      },
-    )
+    vi.mocked(editLocal).mockResolvedValueOnce({ version: 1, node: '24', ports: ['3000:3000'] })
+    const reconfigured = await configureLocalProject({ root: projectRoot, devboxHome })
 
     expect(reconfigured).toMatchObject({ ok: true, value: { changed: true } })
     await expect(readFile(configuration, 'utf8')).resolves.toBe('{"theme":"dark"}\n')
@@ -626,12 +619,7 @@ describe('configuration boundaries', () => {
       }
       const configure = () =>
         scope === 'local'
-          ? configureLocalProject(
-              { root: firstRoot },
-              {
-                devboxHome,
-              },
-            )
+          ? configureLocalProject({ root: firstRoot, devboxHome })
           : configureGlobal({ devboxHome })
 
       expect(await configure()).toMatchObject({ ok: true, value: { scope, changed: true } })
@@ -681,12 +669,7 @@ describe('configuration boundaries', () => {
       vi.mocked(confirm).mockImplementation(async () => false)
       const result =
         scope === 'local'
-          ? await configureLocalProject(
-              { root },
-              {
-                devboxHome,
-              },
-            )
+          ? await configureLocalProject({ root, devboxHome })
           : await configureGlobal({ devboxHome })
 
       expect(result).toMatchObject({ ok: true, value: { changed: false } })
@@ -700,6 +683,14 @@ describe('configuration boundaries', () => {
     const devboxHome = join(sandbox, 'user-state', '.devbox')
     await mkdir(projectRoot)
     const project = await createProjectState(projectRoot, devboxHome)
+    const unrelatedRoot = join(sandbox, 'unrelated-project')
+    await mkdir(unrelatedRoot)
+    const unrelated = await createProjectState(unrelatedRoot, devboxHome)
+    const unrelatedLocalPath = join(unrelated.stateDirectory, 'config.yaml')
+    const unrelatedComposePath = join(unrelated.stateDirectory, 'compose.yaml')
+    const unrelatedYaml = 'invalid unrelated Local YAML: ['
+    await writeFile(unrelatedLocalPath, unrelatedYaml)
+    const unrelatedCompose = await readFile(unrelatedComposePath, 'utf8')
     const globalPath = join(devboxHome, 'config.yaml')
     const registryPath = join(devboxHome, 'projects.yaml')
     const globalBefore = await readFile(globalPath, 'utf8')
@@ -712,15 +703,8 @@ describe('configuration boundaries', () => {
       confirmation = { message, details }
       return true
     })
-    const result = await configureLocalProject(
-      {
-        root: projectRoot,
-        nextConfiguration: { version: 1, node: null, ports: [] },
-      },
-      {
-        devboxHome,
-      },
-    )
+    vi.mocked(editLocal).mockResolvedValueOnce({ version: 1, node: null, ports: [] })
+    const result = await configureLocalProject({ root: projectRoot, devboxHome })
 
     expect(result).toEqual({
       ok: true,
@@ -735,6 +719,8 @@ describe('configuration boundaries', () => {
     })
     await expect(readFile(globalPath, 'utf8')).resolves.toBe(globalBefore)
     await expect(readFile(registryPath, 'utf8')).resolves.toBe(registryBefore)
+    await expect(readFile(unrelatedLocalPath, 'utf8')).resolves.toBe(unrelatedYaml)
+    await expect(readFile(unrelatedComposePath, 'utf8')).resolves.toBe(unrelatedCompose)
     await expect(readFile(join(project.stateDirectory, 'config.yaml'), 'utf8')).resolves.toContain(
       'node: null',
     )
@@ -837,26 +823,88 @@ describe('configuration boundaries', () => {
     }
   })
 
-  it('fails closed when a registered Project Local configuration is missing', async () => {
-    const sandbox = await temporaryDirectory()
-    const projectRoot = join(sandbox, 'project')
-    const devboxHome = join(sandbox, 'user-state', '.devbox')
-    await mkdir(projectRoot)
-    const project = await createProjectState(projectRoot, devboxHome)
-    await rm(join(project.stateDirectory, 'config.yaml'))
+  it.each(['global', 'local'] as const)(
+    'fails closed when the required %s configuration is missing',
+    async scope => {
+      const sandbox = await temporaryDirectory()
+      const projectRoot = join(sandbox, 'project')
+      const devboxHome = join(sandbox, 'user-state', '.devbox')
+      await mkdir(projectRoot)
+      const project = await createProjectState(projectRoot, devboxHome)
+      await rm(join(scope === 'global' ? devboxHome : project.stateDirectory, 'config.yaml'))
 
-    const result = await configureLocalProject(
-      { root: projectRoot },
-      {
-        devboxHome,
-      },
-    )
+      const result = await configureLocalProject({ root: projectRoot, devboxHome })
 
-    expect(result).toMatchObject({
-      ok: false,
-      error: { code: 'missing-local-configuration' },
-    })
-  })
+      expect(result).toMatchObject({
+        ok: false,
+        error: { code: `missing-${scope}-configuration` },
+      })
+    },
+  )
+
+  it.each(['editor', 'confirmation'] as const)(
+    'preserves configuration and definition when Local %s is cancelled',
+    async stage => {
+      const sandbox = await temporaryDirectory()
+      const root = join(sandbox, 'project')
+      const devboxHome = join(sandbox, 'user-state', '.devbox')
+      await mkdir(root)
+      const project = await createProjectState(root, devboxHome)
+      const paths = [
+        join(devboxHome, 'config.yaml'),
+        join(project.stateDirectory, 'config.yaml'),
+        join(project.stateDirectory, 'compose.yaml'),
+      ]
+      const before = await Promise.all(paths.map(path => readFile(path, 'utf8')))
+      vi.mocked(stage === 'editor' ? editLocal : confirm).mockRejectedValueOnce(
+        new InterruptedError(),
+      )
+
+      await expect(configureLocalProject({ root, devboxHome })).rejects.toBeInstanceOf(
+        InterruptedError,
+      )
+
+      expect(await Promise.all(paths.map(path => readFile(path, 'utf8')))).toEqual(before)
+    },
+  )
+
+  it.each(['global', 'project'] as const)(
+    'does not enter Local interaction while the required %s lock is busy',
+    async scope => {
+      const sandbox = await temporaryDirectory()
+      const root = join(sandbox, 'project')
+      const devboxHome = join(sandbox, 'user-state', '.devbox')
+      await mkdir(root)
+      await createProjectState(root, devboxHome)
+      vi.mocked(editLocal).mockClear()
+      vi.mocked(confirm).mockClear()
+      const entered = deferred()
+      const release = deferred()
+      const running = withStateLocks(
+        {
+          devboxHome,
+          global: scope === 'global',
+          projectRoots: scope === 'project' ? [root] : [],
+        },
+        async () => {
+          entered.resolve()
+          await release.promise
+          return success(undefined)
+        },
+      )
+      await entered.promise
+      try {
+        const result = await configureLocalProject({ root, devboxHome })
+
+        expect(result).toMatchObject({ ok: false, error: { code: 'command-lock-busy' } })
+        expect(editLocal).not.toHaveBeenCalled()
+        expect(confirm).not.toHaveBeenCalled()
+      } finally {
+        release.resolve()
+        await running
+      }
+    },
+  )
 
   it('does not write Local configuration when configuration confirmation is declined', async () => {
     const sandbox = await temporaryDirectory()
@@ -868,13 +916,8 @@ describe('configuration boundaries', () => {
     const before = await readFile(localPath, 'utf8')
 
     vi.mocked(confirm).mockResolvedValue(false)
-    const result = await configureLocalProject(
-      {
-        root: projectRoot,
-        nextConfiguration: { version: 1, node: null, ports: [] },
-      },
-      { devboxHome },
-    )
+    vi.mocked(editLocal).mockResolvedValueOnce({ version: 1, node: null, ports: [] })
+    const result = await configureLocalProject({ root: projectRoot, devboxHome })
 
     expect(result).toEqual({
       ok: true,
@@ -893,15 +936,7 @@ describe('configuration boundaries', () => {
     await writeFile(localPath, 'version: 1\nnode: "24"\nunknown: true\n')
     const invalidBefore = await readFile(localPath, 'utf8')
 
-    const result = await configureLocalProject(
-      {
-        root: projectRoot,
-        nextConfiguration: { version: 1, node: null, ports: [] },
-      },
-      {
-        devboxHome,
-      },
-    )
+    const result = await configureLocalProject({ root: projectRoot, devboxHome })
 
     expect(result).toMatchObject({ ok: false, error: { code: 'invalid-local-configuration' } })
     await expect(readFile(localPath, 'utf8')).resolves.toBe(invalidBefore)
@@ -926,12 +961,7 @@ describe('configuration boundaries', () => {
     }))
     const globalResult = await configureGlobal({ devboxHome })
     vi.mocked(editLocal).mockImplementation(async () => ({ version: 1, node: '26', ports: [] }))
-    const localResult = await configureLocalProject(
-      { root: projectRoot },
-      {
-        devboxHome,
-      },
-    )
+    const localResult = await configureLocalProject({ root: projectRoot, devboxHome })
 
     expect(globalResult).toMatchObject({
       ok: false,
