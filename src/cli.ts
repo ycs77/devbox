@@ -83,7 +83,7 @@ function createCli(signal: AbortSignal, interactive: boolean): CAC {
       intro(c.bgCyan(' devbox '))
       const scope = await selectConfigurationScope({ signal })
       if (scope === 'global') {
-        const result = await configureGlobal({}, { signal })
+        const result = await configureGlobal({ signal })
         if (!result.ok) {
           return result
         }

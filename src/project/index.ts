@@ -20,13 +20,7 @@ import { confirm, editGlobal, editLocal, selectNodeReplacement } from '../config
 import { currentHostEnvironment, type HostEnvironment, validateSupportedHost } from '../host.js'
 import { failure, InterruptedError, success, type Result } from '../result.js'
 import { withStateLocks, type StateLockContext } from '../state-lock/index.js'
-import {
-  prepareSandboxDefinition,
-  publishProjectState,
-  readOptionalFile,
-  writeAtomically,
-  type FileState,
-} from './publication.js'
+import { ProjectPublication, readOptionalText, writeAtomically } from './publication.js'
 import {
   allocateSandboxIdentity,
   allocateSandboxName,
@@ -63,15 +57,9 @@ export interface ConfigureLocalDependencies {
   readonly catalog?: RuntimeCatalog
 }
 
-export interface ConfigureGlobalInput {
-  readonly nextConfiguration?: GlobalConfiguration
-  readonly nextLocalConfigurations?: Readonly<Record<string, LocalConfiguration>>
-}
-
-export interface ConfigureGlobalDependencies {
+export interface ConfigureGlobalOptions {
   readonly devboxHome?: string
   readonly signal?: AbortSignal
-  readonly catalog?: RuntimeCatalog
 }
 
 export interface RemoveProjectInput {
@@ -147,18 +135,12 @@ async function initializeProjectUnlocked(
   }
   const catalog = catalogCheck.value
   const paths = devboxPaths(options.devboxHome)
-  const registryState = await readOptionalFile(paths.projectRegistry)
-  if (!registryState.ok) {
-    return registryState
-  }
-
-  const registryCheck = registryState.value.exists
-    ? parseProjectRegistry(registryState.value.content)
-    : success<ProjectRegistry>({ version: 1, projects: {} })
+  const publication = new ProjectPublication(paths.home)
+  const registryCheck = await publication.readRegistry()
   if (!registryCheck.ok) {
     return registryCheck
   }
-  const registry = registryCheck.value
+  const registry = registryCheck.value ?? { version: 1, projects: {} }
   const registration = registry.projects[projectRoot]
   if (registration !== undefined) {
     return success({
@@ -183,19 +165,15 @@ async function initializeProjectUnlocked(
   const name = allocatedName.value
   const stateDirectory = projectStateDirectory(identity, paths.home)
 
-  const globalState = await readOptionalFile(paths.globalConfiguration)
-  if (!globalState.ok) {
-    return globalState
+  const globalCheck = await publication.readGlobal(catalog)
+  if (!globalCheck.ok) {
+    return globalCheck
   }
 
   let globalConfiguration: GlobalConfiguration
   let globalChanged = false
-  if (globalState.value.exists) {
-    const parsedGlobal = parseGlobalConfiguration(globalState.value.content, catalog)
-    if (!parsedGlobal.ok) {
-      return parsedGlobal
-    }
-    globalConfiguration = parsedGlobal.value
+  if (globalCheck.value !== undefined) {
+    globalConfiguration = globalCheck.value
   } else {
     const editedGlobal = await editGlobal(defaultGlobalConfiguration(catalog), catalog, {
       signal: options.signal,
@@ -219,7 +197,7 @@ async function initializeProjectUnlocked(
   }
   const localConfiguration = checkedLocal.value
 
-  const definition = await prepareSandboxDefinition(paths.home, globalConfiguration, {
+  const definition = await publication.prepareDefinition(globalConfiguration, {
     root: projectRoot,
     name,
     stateDirectory,
@@ -244,19 +222,17 @@ async function initializeProjectUnlocked(
     version: 1,
     projects: { ...registry.projects, [projectRoot]: { identity, name } },
   }
-  const written = await publishProjectState({
-    devboxHome: paths.home,
+  const written = await publication.publish({
     globalConfiguration,
-    globalPrevious: globalChanged ? globalState.value : undefined,
-    registry: { value: nextRegistry, previous: registryState.value },
+    globalConfigurationChanged: globalChanged,
+    registry: nextRegistry,
     projects: [
       {
         root: projectRoot,
         name,
         stateDirectory,
         localConfiguration,
-        localPrevious: { exists: false, content: '' },
-        preparedDefinition: definition.value,
+        configurationChange: 'create',
       },
     ],
   })
@@ -303,6 +279,7 @@ async function configureLocalProjectUnlocked(
   const catalog = catalogCheck.value
   const projectRoot = input.root ?? process.cwd()
   const paths = devboxPaths(dependencies.devboxHome)
+  const publication = new ProjectPublication(paths.home)
   const registryCheck = await readRegistry(paths.projectRegistry)
   if (!registryCheck.ok) {
     return registryCheck
@@ -312,22 +289,21 @@ async function configureLocalProjectUnlocked(
     return notRegistered(projectRoot)
   }
 
-  const globalState = await readOptionalGlobalConfiguration(paths.globalConfiguration, catalog)
-  if (!globalState.ok) {
-    return globalState
+  const globalCheck = await publication.readGlobal(catalog)
+  if (!globalCheck.ok) {
+    return globalCheck
   }
-  const globalConfiguration = globalState.value.configuration
+  const globalConfiguration = globalCheck.value
   if (globalConfiguration === undefined) {
     return missingConfiguration('global', paths.globalConfiguration)
   }
 
   const stateDirectory = projectStateDirectory(registration.identity, paths.home)
-  const localPath = join(stateDirectory, 'config.yaml')
-  const localState = await readLocalConfiguration(localPath, globalConfiguration, catalog)
-  if (!localState.ok) {
-    return localState
+  const localCheck = await publication.readLocal(stateDirectory, globalConfiguration, catalog)
+  if (!localCheck.ok) {
+    return localCheck
   }
-  const currentConfiguration = localState.value.configuration
+  const currentConfiguration = localCheck.value
 
   const nextConfiguration =
     input.nextConfiguration ??
@@ -359,8 +335,7 @@ async function configureLocalProjectUnlocked(
   if (dependencies.signal?.aborted) {
     throw new InterruptedError()
   }
-  const written = await publishProjectState({
-    devboxHome: paths.home,
+  const written = await publication.publish({
     globalConfiguration,
     projects: [
       {
@@ -368,7 +343,7 @@ async function configureLocalProjectUnlocked(
         name: registration.name,
         stateDirectory,
         localConfiguration: nextCheck.value,
-        localPrevious: localChanged ? localState.value.state : undefined,
+        configurationChange: localChanged ? 'update' : 'none',
       },
     ],
   })
@@ -379,42 +354,40 @@ async function configureLocalProjectUnlocked(
 }
 
 export async function configureGlobal(
-  input: ConfigureGlobalInput = {},
-  dependencies: ConfigureGlobalDependencies = {},
+  options: ConfigureGlobalOptions = {},
 ): Promise<Result<ConfigurationOperation>> {
   return withStateLocks(
     {
-      devboxHome: dependencies.devboxHome ?? join(homedir(), '.devbox'),
+      devboxHome: options.devboxHome ?? join(homedir(), '.devbox'),
       global: true,
       projectRoots: [],
-      signal: dependencies.signal,
+      signal: options.signal,
     },
-    context => configureGlobalUnlocked(input, dependencies, context),
+    context => configureGlobalUnlocked(options, context),
   )
 }
 
 async function configureGlobalUnlocked(
-  input: ConfigureGlobalInput,
-  dependencies: ConfigureGlobalDependencies,
+  options: ConfigureGlobalOptions,
   locks: StateLockContext,
 ): Promise<Result<ConfigurationOperation>> {
-  if (dependencies.signal?.aborted) {
+  if (options.signal?.aborted) {
     throw new InterruptedError()
   }
-  const catalogCheck = normalizeCatalog(dependencies.catalog)
+  const catalogCheck = normalizeCatalog()
   if (!catalogCheck.ok) {
     return catalogCheck
   }
   const catalog = catalogCheck.value
-  const paths = devboxPaths(dependencies.devboxHome)
-  const globalState = await readOptionalGlobalConfiguration(paths.globalConfiguration, catalog)
-  if (!globalState.ok) {
-    return globalState
+  const paths = devboxPaths(options.devboxHome)
+  const publication = new ProjectPublication(paths.home)
+  const globalCheck = await publication.readGlobal(catalog)
+  if (!globalCheck.ok) {
+    return globalCheck
   }
-  const currentConfiguration =
-    globalState.value.configuration ?? defaultGlobalConfiguration(catalog)
+  const currentConfiguration = globalCheck.value ?? defaultGlobalConfiguration(catalog)
 
-  const registryCheck = await readOptionalRegistry(paths.projectRegistry)
+  const registryCheck = await publication.readRegistry()
   if (!registryCheck.ok) {
     return registryCheck
   }
@@ -422,24 +395,25 @@ async function configureGlobalUnlocked(
 
   await locks.acquireProjectScopes(Object.keys(registry.projects))
 
-  const nextConfiguration =
-    input.nextConfiguration ??
-    (await editGlobal(currentConfiguration, catalog, { signal: dependencies.signal }))
+  const nextConfiguration = await editGlobal(currentConfiguration, catalog, {
+    signal: options.signal,
+  })
   const nextCheck = validateGlobalObject(nextConfiguration, catalog)
   if (!nextCheck.ok) {
     return nextCheck
   }
 
   const localConfigurations = new Map<string, LocalConfiguration>()
-  const localConfigurationSources = new Map<string, string>()
   for (const [root, registration] of Object.entries(registry.projects)) {
-    const localPath = join(paths.projects, registration.identity, 'config.yaml')
-    const localState = await readLocalConfiguration(localPath, currentConfiguration, catalog)
-    if (!localState.ok) {
-      return localState
+    const localCheck = await publication.readLocal(
+      join(paths.projects, registration.identity),
+      currentConfiguration,
+      catalog,
+    )
+    if (!localCheck.ok) {
+      return localCheck
     }
-    localConfigurations.set(root, localState.value.configuration)
-    localConfigurationSources.set(root, localState.value.state.content)
+    localConfigurations.set(root, localCheck.value)
   }
 
   const removedNode = new Set(
@@ -451,11 +425,9 @@ async function configureGlobalUnlocked(
       continue
     }
 
-    const replacement =
-      input.nextLocalConfigurations?.[root] ??
-      (await selectNodeReplacement(localConfiguration, nextCheck.value, {
-        signal: dependencies.signal,
-      }))
+    const replacement = await selectNodeReplacement(localConfiguration, nextCheck.value, {
+      signal: options.signal,
+    })
     const replacementCheck = validateLocalObject(replacement, nextCheck.value, catalog)
     if (!replacementCheck.ok) {
       return replacementCheck
@@ -464,7 +436,7 @@ async function configureGlobalUnlocked(
   }
 
   const globalChanged =
-    !globalState.value.state.exists || !configurationsEqual(currentConfiguration, nextCheck.value)
+    globalCheck.value === undefined || !configurationsEqual(currentConfiguration, nextCheck.value)
 
   if (
     !(await confirm(
@@ -484,26 +456,23 @@ async function configureGlobalUnlocked(
           })),
         ],
       },
-      { signal: dependencies.signal },
+      { signal: options.signal },
     ))
   ) {
     return success({ scope: 'global', changed: false })
   }
-  if (dependencies.signal?.aborted) {
+  if (options.signal?.aborted) {
     throw new InterruptedError()
   }
-  const written = await publishProjectState({
-    devboxHome: paths.home,
+  const written = await publication.publish({
     globalConfiguration: nextCheck.value,
-    globalPrevious: globalChanged ? globalState.value.state : undefined,
+    globalConfigurationChanged: globalChanged,
     projects: Object.entries(registry.projects).map(([root, registration]) => ({
       root,
       name: registration.name,
       stateDirectory: projectStateDirectory(registration.identity, paths.home),
       localConfiguration: replacementConfigurations.get(root) ?? localConfigurations.get(root)!,
-      localPrevious: replacementConfigurations.has(root)
-        ? { exists: true, content: localConfigurationSources.get(root)! }
-        : undefined,
+      configurationChange: replacementConfigurations.has(root) ? 'update' : 'none',
     })),
   })
   if (!written.ok) {
@@ -636,11 +605,11 @@ async function runSandboxCommandUnlocked(
   const environment = input.environment ?? currentHostEnvironment()
   const composePath = join(projectStateDirectory(registration.identity, paths.home), 'compose.yaml')
   if (command === 'up') {
-    const composeState = await readOptionalFile(composePath)
+    const composeState = await readOptionalText(composePath)
     if (!composeState.ok) {
       return composeState
     }
-    if (!composeState.value.exists) {
+    if (composeState.value === undefined) {
       return failure({
         kind: 'operational',
         code: 'missing-project-compose',
@@ -648,7 +617,7 @@ async function runSandboxCommandUnlocked(
         nextAction: 'Run devbox config to publish the Sandbox definition, then retry devbox up.',
       })
     }
-    const volumes = await ensureSharedAgentVolumes(composeState.value.content, environment)
+    const volumes = await ensureSharedAgentVolumes(composeState.value, environment)
     if (!volumes.ok) {
       return volumes
     }
@@ -717,58 +686,11 @@ async function readRegistry(path: string): Promise<Result<ProjectRegistry>> {
 }
 
 async function readOptionalRegistry(path: string): Promise<Result<ProjectRegistry | undefined>> {
-  const state = await readOptionalFile(path)
+  const state = await readOptionalText(path)
   if (!state.ok) {
     return state
   }
-  return state.value.exists ? parseProjectRegistry(state.value.content) : success(undefined)
-}
-
-async function readOptionalGlobalConfiguration(
-  path: string,
-  catalog: RuntimeCatalog,
-): Promise<
-  Result<{
-    readonly configuration: GlobalConfiguration | undefined
-    readonly state: FileState
-  }>
-> {
-  const state = await readOptionalFile(path)
-  if (!state.ok) {
-    return state
-  }
-  if (!state.value.exists) {
-    return success({ configuration: undefined, state: state.value })
-  }
-  const configuration = parseGlobalConfiguration(state.value.content, catalog)
-  if (!configuration.ok) {
-    return configuration
-  }
-  return success({ configuration: configuration.value, state: state.value })
-}
-
-async function readLocalConfiguration(
-  path: string,
-  globalConfiguration: GlobalConfiguration,
-  catalog: RuntimeCatalog,
-): Promise<
-  Result<{
-    readonly configuration: LocalConfiguration
-    readonly state: FileState
-  }>
-> {
-  const state = await readOptionalFile(path)
-  if (!state.ok) {
-    return state
-  }
-  if (!state.value.exists) {
-    return missingConfiguration('local', path)
-  }
-  const configuration = parseLocalConfiguration(state.value.content, globalConfiguration, catalog)
-  if (!configuration.ok) {
-    return configuration
-  }
-  return success({ configuration: configuration.value, state: state.value })
+  return state.value === undefined ? success(undefined) : parseProjectRegistry(state.value)
 }
 
 function validateGlobalObject(

@@ -632,12 +632,7 @@ describe('configuration boundaries', () => {
                 devboxHome,
               },
             )
-          : configureGlobal(
-              {},
-              {
-                devboxHome,
-              },
-            )
+          : configureGlobal({ devboxHome })
 
       expect(await configure()).toMatchObject({ ok: true, value: { scope, changed: true } })
       const definition = parse(await readFile(firstComposePath, 'utf8'))
@@ -692,12 +687,7 @@ describe('configuration boundaries', () => {
                 devboxHome,
               },
             )
-          : await configureGlobal(
-              {},
-              {
-                devboxHome,
-              },
-            )
+          : await configureGlobal({ devboxHome })
 
       expect(result).toMatchObject({ ok: true, value: { changed: false } })
       await expect(readFile(composePath, 'utf8')).resolves.toBe(retained)
@@ -772,19 +762,13 @@ describe('configuration boundaries', () => {
       confirmation = { message, details }
       return true
     })
-    const result = await configureGlobal(
-      {
-        nextConfiguration: {
-          version: 1,
-          node: ['24'],
-          agent: ['codex'],
-          agent_notifications: false,
-        },
-      },
-      {
-        devboxHome,
-      },
-    )
+    vi.mocked(editGlobal).mockResolvedValueOnce({
+      version: 1,
+      node: ['24'],
+      agent: ['codex'],
+      agent_notifications: false,
+    })
+    const result = await configureGlobal({ devboxHome })
 
     expect(result).toEqual({ ok: true, value: { scope: 'global', changed: true } })
     expect(confirmation).toMatchObject({
@@ -841,12 +825,7 @@ describe('configuration boundaries', () => {
       vi.mocked(editGlobal).mockImplementation(async () => {
         throw new Error('Global configuration prompt must not run while a Project is locked.')
       })
-      const result = await configureGlobal(
-        {},
-        {
-          devboxHome,
-        },
-      )
+      const result = await configureGlobal({ devboxHome })
 
       expect(result).toMatchObject({
         ok: false,
@@ -945,12 +924,7 @@ describe('configuration boundaries', () => {
       agent: [],
       agent_notifications: true,
     }))
-    const globalResult = await configureGlobal(
-      {},
-      {
-        devboxHome,
-      },
-    )
+    const globalResult = await configureGlobal({ devboxHome })
     vi.mocked(editLocal).mockImplementation(async () => ({ version: 1, node: '26', ports: [] }))
     const localResult = await configureLocalProject(
       { root: projectRoot },
@@ -979,19 +953,17 @@ describe('configuration boundaries', () => {
     const project = await createProjectState(projectRoot, devboxHome)
     await rm(projectRoot, { recursive: true, force: true })
 
-    vi.mocked(selectNodeReplacement).mockImplementation(async () => ({
-      version: 1,
+    vi.mocked(selectNodeReplacement).mockImplementation(async configuration => ({
+      ...configuration,
       node: null,
-      ports: [],
     }))
-    const result = await configureGlobal(
-      {
-        nextConfiguration: { version: 1, node: [], agent: [], agent_notifications: true },
-      },
-      {
-        devboxHome,
-      },
-    )
+    vi.mocked(editGlobal).mockResolvedValueOnce({
+      version: 1,
+      node: [],
+      agent: [],
+      agent_notifications: true,
+    })
+    const result = await configureGlobal({ devboxHome })
 
     expect(result).toEqual({ ok: true, value: { scope: 'global', changed: true } })
     expect(parse(await readFile(join(devboxHome, 'config.yaml'), 'utf8'))).toMatchObject({
@@ -1001,6 +973,7 @@ describe('configuration boundaries', () => {
       parse(await readFile(join(project.stateDirectory, 'config.yaml'), 'utf8')),
     ).toMatchObject({
       node: null,
+      ports: ['APP_PORT:5173:5173'],
     })
   })
 })

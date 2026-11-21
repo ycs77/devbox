@@ -1,9 +1,14 @@
 import type * as Host from '../../src/host.js'
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fs, vol } from 'memfs'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { confirm, editGlobal, editLocal } from '../../src/configuration/prompter.js'
+import {
+  confirm,
+  editGlobal,
+  editLocal,
+  selectNodeReplacement,
+} from '../../src/configuration/prompter.js'
 import { validateSupportedHost } from '../../src/host.js'
 import {
   configureGlobal,
@@ -20,6 +25,7 @@ vi.mock('node:fs/promises', async () => {
     ...fs.promises,
     readFile: vi.fn(fs.promises.readFile),
     rename: vi.fn(fs.promises.rename),
+    writeFile: vi.fn(fs.promises.writeFile),
   }
 })
 
@@ -27,6 +33,7 @@ vi.mock('../../src/configuration/prompter.js', () => ({
   confirm: vi.fn(),
   editGlobal: vi.fn(),
   editLocal: vi.fn(),
+  selectNodeReplacement: vi.fn(),
 }))
 
 vi.mock('../../src/host.js', async importOriginal => ({
@@ -35,6 +42,7 @@ vi.mock('../../src/host.js', async importOriginal => ({
 }))
 
 beforeEach(() => {
+  vi.mocked(selectNodeReplacement).mockReset()
   vi.mocked(confirm).mockReset().mockResolvedValue(true)
   vi.mocked(editGlobal)
     .mockReset()
@@ -49,11 +57,13 @@ const projectRoot = '/workspace/project'
 const devboxHome = '/workspace/user-state/.devbox'
 const memfsReadFile = fs.promises.readFile.bind(fs.promises) as typeof readFile
 const memfsRename = fs.promises.rename.bind(fs.promises) as typeof rename
+const memfsWriteFile = fs.promises.writeFile.bind(fs.promises) as typeof writeFile
 
 beforeEach(() => {
   vol.reset()
   vi.mocked(readFile).mockReset().mockImplementation(memfsReadFile)
   vi.mocked(rename).mockReset().mockImplementation(memfsRename)
+  vi.mocked(writeFile).mockReset().mockImplementation(memfsWriteFile)
 })
 
 async function createProjectState(): Promise<{
@@ -78,6 +88,11 @@ async function createProjectState(): Promise<{
 describe('Project filesystem failures', () => {
   it('does not retain partial registration when initial publication fails', async () => {
     await mkdir(projectRoot, { recursive: true })
+    vi.mocked(confirm).mockImplementationOnce(async () => {
+      await mkdir(devboxHome, { recursive: true })
+      await writeFile(join(devboxHome, 'config.yaml'), '# created while confirming\n')
+      return true
+    })
     vi.mocked(rename)
       .mockImplementationOnce(memfsRename)
       .mockRejectedValueOnce(new Error('disk full'))
@@ -119,13 +134,7 @@ describe('Project filesystem failures', () => {
       .mockRejectedValueOnce(new Error('disk full'))
       .mockImplementation(memfsRename)
 
-    const result = await configureGlobal(
-      {},
-      {
-        devboxHome,
-      },
-    )
-
+    const result = await configureGlobal({ devboxHome })
     expect(result).toMatchObject({ ok: false, error: { code: 'state-write-failed' } })
     expect(await Promise.all(composePaths.map(path => readFile(path, 'utf8')))).toEqual(before)
     await expect(readFile(globalPath, 'utf8')).resolves.toBe(manualYaml)
@@ -160,6 +169,10 @@ describe('Project filesystem failures', () => {
       .mockImplementationOnce(memfsRename)
       .mockRejectedValueOnce(new Error('disk full'))
 
+    vi.mocked(confirm).mockImplementationOnce(async () => {
+      await writeFile(localPath, `# edited while confirming\n${localBefore}`)
+      return true
+    })
     const result = await configureLocalProject(
       {
         root: projectRoot,
@@ -194,24 +207,28 @@ describe('Project filesystem failures', () => {
     const globalBefore = await readFile(globalPath, 'utf8')
     const localBefore = await readFile(localPath, 'utf8')
     const secondLocalBefore = await readFile(secondLocalPath, 'utf8')
+    vi.mocked(confirm).mockImplementationOnce(async () => {
+      await writeFile(globalPath, `# edited while confirming\n${globalBefore}`)
+      await writeFile(localPath, `# edited while confirming\n${localBefore}`)
+      return true
+    })
     vi.mocked(rename)
       .mockImplementationOnce(memfsRename)
       .mockImplementationOnce(memfsRename)
       .mockRejectedValueOnce(new Error('disk full'))
       .mockImplementation(memfsRename)
 
-    const result = await configureGlobal(
-      {
-        nextConfiguration: { version: 1, node: [], agent: [], agent_notifications: true },
-        nextLocalConfigurations: {
-          [projectRoot]: { version: 1, node: null, ports: [] },
-          [secondProjectRoot]: { version: 1, node: null, ports: [] },
-        },
-      },
-      {
-        devboxHome,
-      },
-    )
+    vi.mocked(editGlobal).mockResolvedValueOnce({
+      version: 1,
+      node: [],
+      agent: [],
+      agent_notifications: true,
+    })
+    vi.mocked(selectNodeReplacement).mockImplementation(async configuration => ({
+      ...configuration,
+      node: null,
+    }))
+    const result = await configureGlobal({ devboxHome })
 
     expect(result).toMatchObject({
       ok: false,
@@ -220,5 +237,41 @@ describe('Project filesystem failures', () => {
     await expect(readFile(globalPath, 'utf8')).resolves.toBe(globalBefore)
     await expect(readFile(localPath, 'utf8')).resolves.toBe(localBefore)
     await expect(readFile(secondLocalPath, 'utf8')).resolves.toBe(secondLocalBefore)
+  })
+  it('leaves published files untouched when staging a later definition fails', async () => {
+    await createProjectState()
+    const globalPath = join(devboxHome, 'config.yaml')
+    const composePath = '/workspace/user-state/.devbox/projects/workspace-project/compose.yaml'
+    const paths = [globalPath, composePath]
+    const before = await Promise.all(
+      paths.map(async path => ({
+        content: await readFile(path, 'utf8'),
+        ino: (await stat(path)).ino,
+      })),
+    )
+    vi.mocked(editGlobal).mockResolvedValueOnce({
+      version: 1,
+      node: ['24'],
+      agent: ['codex'],
+      agent_notifications: false,
+    })
+    vi.mocked(writeFile).mockImplementation(async (path, ...args) => {
+      if (typeof path === 'string' && path.includes('.compose.yaml-')) {
+        throw new Error('disk full')
+      }
+      return memfsWriteFile(path, ...args)
+    })
+
+    const result = await configureGlobal({ devboxHome })
+
+    expect(result).toMatchObject({ ok: false, error: { code: 'state-write-failed' } })
+    expect(
+      await Promise.all(
+        paths.map(async path => ({
+          content: await readFile(path, 'utf8'),
+          ino: (await stat(path)).ino,
+        })),
+      ),
+    ).toEqual(before)
   })
 })
