@@ -39,6 +39,8 @@ Use the default canonical labels: `needs-triage`, `needs-info`, `ready-for-agent
 
 This is a single-context repo using root `GLOSSARY.md` and `docs/adr/`. See `docs/agents/domain.md`.
 
+ADRs must be self-contained: record only decisions, reasons, trade-offs, and long-term contracts, with necessary context inline; omit issue/PR numbers, external tracking links, task/slice or phase identifiers, and execution progress.
+
 ### Writing tests
 
 When adding or changing tests, follow `docs/agents/writing-tests.md` for behaviour-first test selection, seam choice, failure-case priority, mocking, isolation, and verification.
