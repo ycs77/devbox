@@ -32,9 +32,13 @@ Use concise names that describe the behaviour, such as `rejects an expired token
 
 ### 4. Keep the test boundary honest
 
-Use the real implementation for modules owned by the project. Replace only dependencies at genuine system boundaries, such as external services, clocks, randomness, or deliberately isolated filesystem and database adapters.
+Use the real implementation for internal modules owned by the project, including publication, Project registration, and command-lock logic. Replace only dependencies at genuine system boundaries, such as terminal I/O, external processes, clocks, randomness, or deliberately isolated filesystem and database adapters.
 
-Do not assert private method calls, collaborator call order, incidental serialization, or a mock's own configuration. Restore spies and mocks after each test and clean every temporary resource.
+System-boundary adapters may be replaced with `vi.mock`, even when the adapter module is owned by the project. For initialization and configuration flows, prefer module mocks for terminal interaction and host-process adapters rather than adding dependency parameters solely for tests; this is a deliberate style preference, not a ban on dependency injection (ADR-0055). Filesystem failure tests may use `node:fs/promises` with memfs. This does not permit mocking internal collaborators.
+
+Do not assert private method calls, internal collaborator call order, incidental serialization, or a mock's own configuration. At a system boundary, arguments or the presence or absence of a call may represent observable behaviour: for example, confirmation details shown to a user or no prompt when a required command lock is busy. Assert that behaviour, not incidental call counts or orchestration.
+
+Reset module-mock implementations and call history between cases, restore spies, and clean every temporary resource. Do not share mutable mock state across concurrent cases.
 
 **Done when:** the test observes the chosen seam rather than reconstructing the implementation behind it.
 
