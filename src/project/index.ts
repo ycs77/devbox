@@ -1,7 +1,7 @@
 import type { ConfirmationHandler } from '../configuration/prompter.js'
 import { lstat, rm } from 'node:fs/promises'
 import { homedir } from 'node:os'
-import { basename, isAbsolute, join, parse, relative, sep } from 'node:path'
+import { isAbsolute, join } from 'node:path'
 import { ensureSharedAgentVolumes } from '../agent/volumes.js'
 import {
   configurationsEqual,
@@ -28,8 +28,10 @@ import {
   type FileState,
 } from './publication.js'
 import {
-  isSafeSandboxName,
-  isSafeStateDirectoryName,
+  allocateSandboxIdentity,
+  allocateSandboxName,
+  devboxPaths,
+  projectStateDirectory,
   parseProjectRegistry,
   serializeProjectRegistry,
   type ProjectRegistry,
@@ -44,25 +46,10 @@ export interface RegisteredProject {
   readonly confirmed: boolean
 }
 
-export interface DevboxPaths {
-  readonly home: string
-  readonly globalConfiguration: string
-  readonly projectRegistry: string
-  readonly projects: string
-  readonly buildContext: string
-  readonly claudeHostConfiguration: string
-}
-
-export interface InitializeProjectInput {
+export interface InitializeProjectOptions {
   readonly root?: string
-  readonly initialGlobalConfiguration?: GlobalConfiguration
-  readonly initialLocalConfiguration?: LocalConfiguration
-}
-
-export interface InitializeProjectDependencies {
   readonly devboxHome?: string
   readonly signal?: AbortSignal
-  readonly catalog?: RuntimeCatalog
 }
 
 export interface ConfigureLocalInput {
@@ -120,120 +107,29 @@ export interface ProjectRemoval {
 
 export type SandboxCommandResult = Result<void>
 
-export function devboxPaths(devboxHome = join(homedir(), '.devbox')): DevboxPaths {
-  return {
-    home: devboxHome,
-    globalConfiguration: join(devboxHome, 'config.yaml'),
-    projectRegistry: join(devboxHome, 'projects.yaml'),
-    projects: join(devboxHome, 'projects'),
-    buildContext: join(devboxHome, 'build'),
-    claudeHostConfiguration: join(devboxHome, 'agents', 'claude', '.claude.json'),
-  }
-}
-
-export function sandboxIdentity(projectRoot: string): string {
-  const root = parse(projectRoot).root
-  const pathWithinRoot = relative(root, projectRoot)
-
-  if (
-    !isAbsolute(projectRoot) ||
-    pathWithinRoot === '..' ||
-    pathWithinRoot.startsWith(`..${sep}`)
-  ) {
-    throw new TypeError('Project root must be an absolute path.')
-  }
-
-  return pathWithinRoot === '' ? 'root' : pathWithinRoot.split(sep).map(escapePathSegment).join('-')
-}
-
-export function projectStateDirectory(sandboxIdentity: string, devboxHome: string): string {
-  if (!isSafeStateDirectoryName(sandboxIdentity)) {
-    throw new TypeError('Sandbox identity must be a safe state directory name.')
-  }
-
-  return join(devboxHome, 'projects', sandboxIdentity)
-}
-
-export function sandboxName(projectRoot: string): string {
-  const normalized = basename(projectRoot)
-    .toLowerCase()
-    .replace(/[^a-z0-9_-]+/g, '-')
-    .replace(/^[^a-z0-9]+/, '')
-    .replace(/-+$/, '')
-
-  return normalized.length < 2 ? `project-${normalized || 'root'}` : normalized
-}
-
-export function escapePathSegment(segment: string): string {
-  const bytes = new TextEncoder().encode(segment)
-  let escaped = ''
-
-  for (const byte of bytes) {
-    if (
-      (byte >= 0x41 && byte <= 0x5a) ||
-      (byte >= 0x61 && byte <= 0x7a) ||
-      (byte >= 0x30 && byte <= 0x39) ||
-      byte === 0x2d ||
-      byte === 0x5f
-    ) {
-      escaped += String.fromCharCode(byte)
-    } else {
-      escaped += `%${byte.toString(16).toUpperCase().padStart(2, '0')}`
-    }
-  }
-
-  return escaped
-}
-
-export function unescapePathSegment(segment: string): string {
-  const bytes: number[] = []
-
-  for (let index = 0; index < segment.length; index += 1) {
-    if (segment[index] === '%') {
-      const hex = segment.slice(index + 1, index + 3)
-      if (!/^[0-9A-F]{2}$/i.test(hex)) {
-        throw new TypeError(`Invalid escaped Project path segment: ${segment}`)
-      }
-      bytes.push(Number.parseInt(hex, 16))
-      index += 2
-      continue
-    }
-
-    const codePoint = segment.codePointAt(index)
-    if (codePoint === undefined || codePoint > 0x7f) {
-      throw new TypeError(`Invalid escaped Project path segment: ${segment}`)
-    }
-    bytes.push(codePoint)
-  }
-
-  return new TextDecoder().decode(new Uint8Array(bytes))
-}
-
 export async function initializeProject(
-  input: InitializeProjectInput = {},
-  dependencies: InitializeProjectDependencies = {},
+  options: InitializeProjectOptions = {},
 ): Promise<Result<RegisteredProject>> {
   return withStateLocks(
     {
-      devboxHome: dependencies.devboxHome ?? join(homedir(), '.devbox'),
+      devboxHome: options.devboxHome ?? join(homedir(), '.devbox'),
       global: true,
-      projectRoots: [input.root ?? process.cwd()],
-      signal: dependencies.signal,
+      projectRoots: [options.root ?? process.cwd()],
+      signal: options.signal,
     },
-    () => initializeProjectUnlocked(input, dependencies),
+    () => initializeProjectUnlocked(options),
   )
 }
 
 async function initializeProjectUnlocked(
-  input: InitializeProjectInput,
-  dependencies: InitializeProjectDependencies,
+  options: InitializeProjectOptions,
 ): Promise<Result<RegisteredProject>> {
-  const projectRoot = input.root ?? process.cwd()
+  const projectRoot = options.root ?? process.cwd()
   const rootCheck = await validateProjectRoot(projectRoot)
   if (!rootCheck.ok) {
     return rootCheck
   }
-  if (dependencies.signal?.aborted) {
+  if (options.signal?.aborted) {
     throw new InterruptedError()
   }
 
@@ -241,16 +137,16 @@ async function initializeProjectUnlocked(
   if (!hostCheck.ok) {
     return hostCheck
   }
-  if (dependencies.signal?.aborted) {
+  if (options.signal?.aborted) {
     throw new InterruptedError()
   }
 
-  const catalogCheck = normalizeCatalog(dependencies.catalog)
+  const catalogCheck = normalizeCatalog()
   if (!catalogCheck.ok) {
     return catalogCheck
   }
   const catalog = catalogCheck.value
-  const paths = devboxPaths(dependencies.devboxHome)
+  const paths = devboxPaths(options.devboxHome)
   const registryState = await readOptionalFile(paths.projectRegistry)
   if (!registryState.ok) {
     return registryState
@@ -300,16 +196,9 @@ async function initializeProjectUnlocked(
       return parsedGlobal
     }
     globalConfiguration = parsedGlobal.value
-  } else if (input.initialGlobalConfiguration !== undefined) {
-    const initialGlobal = validateGlobalObject(input.initialGlobalConfiguration, catalog)
-    if (!initialGlobal.ok) {
-      return initialGlobal
-    }
-    globalConfiguration = initialGlobal.value
-    globalChanged = true
   } else {
     const editedGlobal = await editGlobal(defaultGlobalConfiguration(catalog), catalog, {
-      signal: dependencies.signal,
+      signal: options.signal,
     })
     const checkedGlobal = validateGlobalObject(editedGlobal, catalog)
     if (!checkedGlobal.ok) {
@@ -319,29 +208,16 @@ async function initializeProjectUnlocked(
     globalChanged = true
   }
 
-  let localConfiguration: LocalConfiguration
-  if (input.initialLocalConfiguration !== undefined) {
-    const initialLocal = validateLocalObject(
-      input.initialLocalConfiguration,
-      globalConfiguration,
-      catalog,
-    )
-    if (!initialLocal.ok) {
-      return initialLocal
-    }
-    localConfiguration = initialLocal.value
-  } else {
-    const editedLocal = await editLocal(
-      defaultLocalConfiguration(globalConfiguration),
-      globalConfiguration,
-      { signal: dependencies.signal },
-    )
-    const checkedLocal = validateLocalObject(editedLocal, globalConfiguration, catalog)
-    if (!checkedLocal.ok) {
-      return checkedLocal
-    }
-    localConfiguration = checkedLocal.value
+  const editedLocal = await editLocal(
+    defaultLocalConfiguration(globalConfiguration),
+    globalConfiguration,
+    { signal: options.signal },
+  )
+  const checkedLocal = validateLocalObject(editedLocal, globalConfiguration, catalog)
+  if (!checkedLocal.ok) {
+    return checkedLocal
   }
+  const localConfiguration = checkedLocal.value
 
   const definition = await prepareSandboxDefinition(paths.home, globalConfiguration, {
     root: projectRoot,
@@ -353,7 +229,7 @@ async function initializeProjectUnlocked(
     return definition
   }
 
-  if (!(await confirm('Save configuration?', undefined, { signal: dependencies.signal }))) {
+  if (!(await confirm('Save configuration?', undefined, { signal: options.signal }))) {
     return success({
       root: projectRoot,
       stateDirectory,
@@ -895,61 +771,6 @@ async function readLocalConfiguration(
   return success({ configuration: configuration.value, state: state.value })
 }
 
-async function allocateSandboxIdentity(
-  projectRoot: string,
-  paths: DevboxPaths,
-  registry: ProjectRegistry,
-): Promise<Result<string>> {
-  const identity = sandboxIdentity(projectRoot)
-  for (let suffix = 1; suffix < 1000000; suffix += 1) {
-    const candidate = suffix === 1 ? identity : `${identity}-${suffix}`
-    if (
-      !isSafeStateDirectoryName(candidate) ||
-      Object.values(registry.projects).some(entry => entry.identity === candidate)
-    ) {
-      continue
-    }
-    try {
-      await lstat(projectStateDirectory(candidate, paths.home))
-    } catch (error) {
-      if (isMissingFileError(error)) {
-        return success(candidate)
-      }
-      return failure({
-        kind: 'operational',
-        code: 'state-directory-observation-failed',
-        observed: `Devbox could not inspect Project state directory: ${projectStateDirectory(candidate, paths.home)}.`,
-        nextAction: 'Check write access to ~/.devbox and run devbox init again.',
-      })
-    }
-  }
-  return failure({
-    kind: 'operational',
-    code: 'state-directory-allocation-failed',
-    observed: `Devbox could not allocate a unique Project state directory for ${projectRoot}.`,
-    nextAction: 'Remove stale Devbox state only through its supported command and try again.',
-  })
-}
-
-function allocateSandboxName(projectRoot: string, registry: ProjectRegistry): Result<string> {
-  const name = sandboxName(projectRoot)
-  for (let suffix = 1; suffix < 1000000; suffix += 1) {
-    const candidate = suffix === 1 ? name : `${name}-${suffix}`
-    if (
-      isSafeSandboxName(candidate) &&
-      !Object.values(registry.projects).some(entry => entry.name === candidate)
-    ) {
-      return success(candidate)
-    }
-  }
-  return failure({
-    kind: 'operational',
-    code: 'sandbox-name-allocation-failed',
-    observed: `Devbox could not allocate a unique Sandbox name for ${projectRoot}.`,
-    nextAction: 'Remove stale Devbox state only through its supported command and try again.',
-  })
-}
-
 function validateGlobalObject(
   configuration: GlobalConfiguration,
   catalog: RuntimeCatalog,
@@ -1003,12 +824,4 @@ function missingConfiguration(scope: 'global' | 'local', path: string): Result<n
     observed: `Devbox could not find the ${scope} configuration: ${path}.`,
     nextAction: `Restore the supported version-1 ${scope} YAML configuration and try again.`,
   })
-}
-
-function isMissingFileError(error: unknown): error is NodeJS.ErrnoException {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    (error as NodeJS.ErrnoException).code === 'ENOENT'
-  )
 }

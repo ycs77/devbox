@@ -13,7 +13,7 @@ import {
   parseGlobalConfiguration,
   type GlobalConfiguration,
 } from '../configuration/index.js'
-import { devboxPaths } from '../project/index.js'
+import { devboxPaths } from '../project/registry.js'
 import { failure, InterruptedError, success, type Result } from '../result.js'
 import {
   createNodeWorkspaceContribution,

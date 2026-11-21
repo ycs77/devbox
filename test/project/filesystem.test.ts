@@ -9,9 +9,8 @@ import {
   configureGlobal,
   configureLocalProject,
   initializeProject,
-  projectStateDirectory,
-  sandboxIdentity,
 } from '../../src/project/index.js'
+import { projectStateDirectory, sandboxIdentity } from '../../src/project/registry.js'
 import { success } from '../../src/result.js'
 
 vi.mock('node:fs/promises', async () => {
@@ -63,32 +62,45 @@ async function createProjectState(): Promise<{
 }> {
   await mkdir(projectRoot, { recursive: true })
 
-  const result = await initializeProject(
-    {
+  const result = await initializeProject({ root: projectRoot, devboxHome })
+  expect(result).toMatchObject({
+    ok: true,
+    value: {
       root: projectRoot,
+      created: true,
+      stateDirectory: '/workspace/user-state/.devbox/projects/workspace-project',
     },
-    {
-      devboxHome,
-    },
-  )
-  expect(result).toMatchObject({ ok: true, value: { root: projectRoot, created: true } })
+  })
 
   return { devboxHome, projectRoot }
 }
 
 describe('Project filesystem failures', () => {
+  it('does not retain partial registration when initial publication fails', async () => {
+    await mkdir(projectRoot, { recursive: true })
+    vi.mocked(rename)
+      .mockImplementationOnce(memfsRename)
+      .mockRejectedValueOnce(new Error('disk full'))
+      .mockImplementation(memfsRename)
+
+    const result = await initializeProject({ root: projectRoot, devboxHome })
+
+    expect(result).toMatchObject({ ok: false, error: { code: 'state-write-failed' } })
+    for (const path of [
+      join(devboxHome, 'config.yaml'),
+      join(devboxHome, 'projects.yaml'),
+      join(devboxHome, 'projects', 'workspace-project', 'config.yaml'),
+      join(devboxHome, 'projects', 'workspace-project', 'compose.yaml'),
+    ]) {
+      await expect(readFile(path, 'utf8')).rejects.toMatchObject({ code: 'ENOENT' })
+    }
+  })
+
   it('restores every definition when an unchanged Global refresh fails partway through', async () => {
     await createProjectState()
     const secondRoot = '/workspace/second-project'
     await mkdir(secondRoot, { recursive: true })
-    const second = await initializeProject(
-      {
-        root: secondRoot,
-      },
-      {
-        devboxHome,
-      },
-    )
+    const second = await initializeProject({ root: secondRoot, devboxHome })
     if (!second.ok) {
       throw new Error(second.error.observed)
     }
@@ -170,14 +182,7 @@ describe('Project filesystem failures', () => {
     const { devboxHome, projectRoot } = await createProjectState()
     const secondProjectRoot = '/workspace/second-project'
     await mkdir(secondProjectRoot, { recursive: true })
-    const secondProject = await initializeProject(
-      {
-        root: secondProjectRoot,
-      },
-      {
-        devboxHome,
-      },
-    )
+    const secondProject = await initializeProject({ root: secondProjectRoot, devboxHome })
     expect(secondProject).toMatchObject({ ok: true, value: { created: true } })
     if (!secondProject.ok) {
       throw new Error('Second Project initialization failed.')

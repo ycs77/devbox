@@ -46,7 +46,7 @@ function createCli(signal: AbortSignal, interactive: boolean): CAC {
       showLogo()
       console.log()
       intro(c.bgCyan(' devbox '))
-      const result = await initializeProject({}, { signal })
+      const result = await initializeProject({ signal })
       if (!result.ok) {
         return result
       }

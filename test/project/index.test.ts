@@ -15,14 +15,10 @@ import { validateSupportedHost } from '../../src/host.js'
 import {
   configureGlobal,
   configureLocalProject,
-  escapePathSegment,
   initializeProject,
-  projectStateDirectory,
   removeProject,
-  sandboxIdentity,
-  sandboxName,
-  unescapePathSegment,
 } from '../../src/project/index.js'
+import { projectStateDirectory, sandboxIdentity } from '../../src/project/registry.js'
 import { InterruptedError, success } from '../../src/result.js'
 import { withStateLocks } from '../../src/state-lock/index.js'
 
@@ -80,14 +76,7 @@ async function createProjectState(
   root: string,
   devboxHome: string,
 ): Promise<{ readonly root: string; readonly stateDirectory: string }> {
-  const result = await initializeProject(
-    {
-      root,
-    },
-    {
-      devboxHome,
-    },
-  )
+  const result = await initializeProject({ root, devboxHome })
   expect(result).toMatchObject({ ok: true, value: { root, created: true } })
   if (!result.ok) {
     throw new Error(result.error.observed)
@@ -115,20 +104,13 @@ describe('initializeProject', () => {
       confirmationMessage = message
       return false
     })
-    const result = await initializeProject(
-      {
-        root: projectRoot,
-        initialGlobalConfiguration: {
-          version: 1,
-          node: ['24'],
-          agent: ['claude-code'],
-          agent_notifications: true,
-        },
-      },
-      {
-        devboxHome,
-      },
-    )
+    vi.mocked(editGlobal).mockResolvedValueOnce({
+      version: 1,
+      node: ['24'],
+      agent: ['claude-code'],
+      agent_notifications: true,
+    })
+    const result = await initializeProject({ root: projectRoot, devboxHome })
 
     expect(result).toMatchObject({
       ok: true,
@@ -147,22 +129,15 @@ describe('initializeProject', () => {
     vi.mocked(confirm).mockImplementation(async () => {
       throw new InterruptedError()
     })
-    await expect(
-      initializeProject(
-        {
-          root: projectRoot,
-          initialGlobalConfiguration: {
-            version: 1,
-            node: ['24'],
-            agent: ['claude-code'],
-            agent_notifications: true,
-          },
-        },
-        {
-          devboxHome,
-        },
-      ),
-    ).rejects.toBeInstanceOf(InterruptedError)
+    vi.mocked(editGlobal).mockResolvedValueOnce({
+      version: 1,
+      node: ['24'],
+      agent: ['claude-code'],
+      agent_notifications: true,
+    })
+    await expect(initializeProject({ root: projectRoot, devboxHome })).rejects.toBeInstanceOf(
+      InterruptedError,
+    )
     await expect(stat(devboxHome)).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
@@ -181,14 +156,7 @@ describe('initializeProject', () => {
     await entered.promise
 
     try {
-      const result = await initializeProject(
-        {
-          root: projectRoot,
-        },
-        {
-          devboxHome,
-        },
-      )
+      const result = await initializeProject({ root: projectRoot, devboxHome })
 
       expect(result).toMatchObject({
         ok: false,
@@ -244,22 +212,8 @@ describe('initializeProject', () => {
     const secondProjectRoot = join(sandbox, 'second-project')
     await Promise.all([mkdir(firstProjectRoot), mkdir(secondProjectRoot)])
 
-    const initial = await initializeProject(
-      {
-        root: firstProjectRoot,
-      },
-      {
-        devboxHome,
-      },
-    )
-    const localOnly = await initializeProject(
-      {
-        root: secondProjectRoot,
-      },
-      {
-        devboxHome,
-      },
-    )
+    const initial = await initializeProject({ root: firstProjectRoot, devboxHome })
+    const localOnly = await initializeProject({ root: secondProjectRoot, devboxHome })
 
     expect(initial).toMatchObject({
       ok: true,
@@ -277,25 +231,18 @@ describe('initializeProject', () => {
     const devboxHome = join(sandbox, 'user-state', '.devbox')
     await mkdir(projectRoot)
 
-    const project = await initializeProject(
-      {
-        root: projectRoot,
-        initialGlobalConfiguration: {
-          version: 1,
-          node: ['24', '22'],
-          agent: ['claude-code', 'agy'],
-          agent_notifications: true,
-        },
-        initialLocalConfiguration: {
-          version: 1,
-          node: '22',
-          ports: ['3000:3000', 'APP_PORT:5173:5173'],
-        },
-      },
-      {
-        devboxHome,
-      },
-    )
+    vi.mocked(editGlobal).mockResolvedValueOnce({
+      version: 1,
+      node: ['24', '22'],
+      agent: ['claude-code', 'agy'],
+      agent_notifications: true,
+    })
+    vi.mocked(editLocal).mockResolvedValueOnce({
+      version: 1,
+      node: '22',
+      ports: ['3000:3000', 'APP_PORT:5173:5173'],
+    })
+    const project = await initializeProject({ root: projectRoot, devboxHome })
     if (!project.ok) {
       throw new Error(project.error.observed)
     }
@@ -365,21 +312,14 @@ describe('initializeProject', () => {
     const projectRoot = join(sandbox, 'project')
     const devboxHome = join(sandbox, 'user-state', '.devbox')
     await mkdir(projectRoot)
-    const project = await initializeProject(
-      {
-        root: projectRoot,
-        initialGlobalConfiguration: {
-          version: 1,
-          node: ['24'],
-          agent: ['claude-code'],
-          agent_notifications: false,
-        },
-        initialLocalConfiguration: { version: 1, node: '24', ports: [] },
-      },
-      {
-        devboxHome,
-      },
-    )
+    vi.mocked(editGlobal).mockResolvedValueOnce({
+      version: 1,
+      node: ['24'],
+      agent: ['claude-code'],
+      agent_notifications: false,
+    })
+    vi.mocked(editLocal).mockResolvedValueOnce({ version: 1, node: '24', ports: [] })
+    const project = await initializeProject({ root: projectRoot, devboxHome })
     expect(project).toMatchObject({ ok: true, value: { created: true } })
     const configuration = join(devboxHome, 'agents', 'claude', '.claude.json')
     await writeFile(configuration, '{"theme":"dark"}\n')
@@ -398,6 +338,35 @@ describe('initializeProject', () => {
     await expect(readFile(configuration, 'utf8')).resolves.toBe('{"theme":"dark"}\n')
   })
 
+  it.each(['global', 'local'] as const)(
+    'rejects catalog-external interactive %s input during initialization without writing state',
+    async scope => {
+      const sandbox = await temporaryDirectory()
+      const root = join(sandbox, 'project')
+      const devboxHome = join(sandbox, 'user-state', '.devbox')
+      await mkdir(root)
+      if (scope === 'global') {
+        vi.mocked(editGlobal).mockResolvedValueOnce({
+          version: 1,
+          node: ['26'],
+          agent: [],
+          agent_notifications: true,
+        })
+      } else {
+        vi.mocked(editLocal).mockResolvedValueOnce({ version: 1, node: '26', ports: [] })
+      }
+
+      const result = await initializeProject({ root, devboxHome })
+
+      expect(result).toMatchObject({
+        ok: false,
+        error: { code: `invalid-${scope}-configuration` },
+      })
+      expect(confirm).not.toHaveBeenCalled()
+      await expect(stat(devboxHome)).rejects.toMatchObject({ code: 'ENOENT' })
+    },
+  )
+
   it('leaves a registered Project unchanged when init repeats', async () => {
     const sandbox = await temporaryDirectory()
     const projectRoot = join(sandbox, 'project')
@@ -405,26 +374,21 @@ describe('initializeProject', () => {
     await mkdir(projectRoot)
     const project = await createProjectState(projectRoot, devboxHome)
     const localPath = join(project.stateDirectory, 'config.yaml')
-    const localBefore = await readFile(localPath, 'utf8')
+    const localBefore = 'invalid Local YAML: ['
+    const globalBefore = 'invalid Global YAML: ['
+    await writeFile(localPath, localBefore)
+    await writeFile(join(devboxHome, 'config.yaml'), globalBefore)
     await rm(join(project.stateDirectory, 'compose.yaml'))
-
-    let confirmed = false
-    vi.mocked(confirm).mockImplementation(async () => {
-      confirmed = true
-      return true
-    })
-    const result = await initializeProject(
-      {
-        root: projectRoot,
-        initialLocalConfiguration: { version: 1, node: null, ports: [] },
-      },
-      {
-        devboxHome,
-      },
-    )
+    vi.mocked(editGlobal).mockClear()
+    vi.mocked(editLocal).mockClear()
+    vi.mocked(confirm).mockClear()
+    const result = await initializeProject({ root: projectRoot, devboxHome })
 
     expect(result).toMatchObject({ ok: true, value: { created: false } })
-    expect(confirmed).toBe(false)
+    expect(editGlobal).not.toHaveBeenCalled()
+    expect(editLocal).not.toHaveBeenCalled()
+    expect(confirm).not.toHaveBeenCalled()
+    await expect(readFile(join(devboxHome, 'config.yaml'), 'utf8')).resolves.toBe(globalBefore)
     await expect(readFile(localPath, 'utf8')).resolves.toBe(localBefore)
     await expect(stat(join(project.stateDirectory, 'compose.yaml'))).rejects.toMatchObject({
       code: 'ENOENT',
@@ -547,14 +511,7 @@ describe('initializeProject', () => {
       `version: 1\nprojects:\n  ${projectRoot}: legacy-identity\n`,
     )
 
-    const result = await initializeProject(
-      {
-        root: projectRoot,
-      },
-      {
-        devboxHome,
-      },
-    )
+    const result = await initializeProject({ root: projectRoot, devboxHome })
 
     expect(result).toMatchObject({ ok: false, error: { code: 'invalid-project-registry' } })
     await expect(stat(join(devboxHome, 'config.yaml'))).rejects.toMatchObject({ code: 'ENOENT' })
@@ -571,14 +528,7 @@ describe('initializeProject', () => {
       `version: 1\nprojects:\n  ${projectRoot}:\n    identity: valid-identity\n    name: "project\\n"\n`,
     )
 
-    const result = await initializeProject(
-      {
-        root: projectRoot,
-      },
-      {
-        devboxHome,
-      },
-    )
+    const result = await initializeProject({ root: projectRoot, devboxHome })
 
     expect(result).toMatchObject({ ok: false, error: { code: 'invalid-project-registry' } })
   })
@@ -594,14 +544,7 @@ describe('initializeProject', () => {
       `version: 1\nprojects:\n  ${projectRoot}:\n    identity: valid-identity\n    name: a\n`,
     )
 
-    const result = await initializeProject(
-      {
-        root: projectRoot,
-      },
-      {
-        devboxHome,
-      },
-    )
+    const result = await initializeProject({ root: projectRoot, devboxHome })
 
     expect(result).toMatchObject({ ok: false, error: { code: 'invalid-project-registry' } })
   })
@@ -624,14 +567,7 @@ describe('initializeProject', () => {
       node: globalConfiguration.node[0] ?? null,
       ports: [],
     }))
-    const firstResult = await initializeProject(
-      {
-        root: firstRoot,
-      },
-      {
-        devboxHome,
-      },
-    )
+    const firstResult = await initializeProject({ root: firstRoot, devboxHome })
 
     vi.mocked(editGlobal).mockImplementation(async () => {
       throw new Error('Global configuration prompt must not run when Global state exists.')
@@ -641,14 +577,7 @@ describe('initializeProject', () => {
       node: globalConfiguration.node[0] ?? null,
       ports: [],
     }))
-    const secondResult = await initializeProject(
-      {
-        root: secondRoot,
-      },
-      {
-        devboxHome,
-      },
-    )
+    const secondResult = await initializeProject({ root: secondRoot, devboxHome })
 
     expect(firstResult).toMatchObject({ ok: true, value: { created: true } })
     expect(secondResult).toMatchObject({ ok: true, value: { created: true } })
@@ -1143,29 +1072,5 @@ describe('Project removal', () => {
       projects: Record<string, { identity: string; name: string }>
     }
     expect(registry.projects[projectRoot]!.identity).toBe(basename(project.stateDirectory))
-  })
-})
-
-describe('Sandbox identity encoding', () => {
-  it('maps an absolute Project root to a safe flat identity and state directory', () => {
-    const identity = sandboxIdentity(
-      '/home/lucas/dev/testing/devbox/test-results/package-smoke-fixed/project',
-    )
-
-    expect(identity).toBe('home-lucas-dev-testing-devbox-test-results-package-smoke-fixed-project')
-    expect(projectStateDirectory(identity, '/home/lucas/.devbox')).toBe(
-      '/home/lucas/.devbox/projects/home-lucas-dev-testing-devbox-test-results-package-smoke-fixed-project',
-    )
-  })
-
-  it('normalizes one-character Project basenames to Docker-safe Sandbox names', () => {
-    expect(sandboxName('/workspace/a')).toBe('project-a')
-  })
-
-  it('round-trips unsafe path segments without opaque hashes', () => {
-    const segment = 'nested directory_日本語%'
-
-    expect(escapePathSegment(segment)).toBe('nested%20directory_%E6%97%A5%E6%9C%AC%E8%AA%9E%25')
-    expect(unescapePathSegment(escapePathSegment(segment))).toBe(segment)
   })
 })
