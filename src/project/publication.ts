@@ -2,16 +2,25 @@ import { randomUUID } from 'node:crypto'
 import { lstat, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { basename, dirname, join } from 'node:path'
 import {
+  parseGlobalConfiguration,
+  parseLocalConfiguration,
   serializeGlobalConfiguration,
   serializeLocalConfiguration,
   type GlobalConfiguration,
   type LocalConfiguration,
+  type RuntimeCatalog,
 } from '../configuration/index.js'
 import { failure, success, type Result } from '../result.js'
 import { renderProjectCompose } from './compose.js'
-import { serializeProjectRegistry, type ProjectRegistry } from './registry.js'
+import {
+  devboxPaths,
+  parseProjectRegistry,
+  serializeProjectRegistry,
+  type DevboxPaths,
+  type ProjectRegistry,
+} from './registry.js'
 
-export interface FileState {
+interface FileState {
   readonly exists: boolean
   readonly content: string
 }
@@ -29,85 +38,137 @@ export interface SandboxDefinitionInput {
   readonly localConfiguration: LocalConfiguration
 }
 
-export interface PreparedSandboxDefinition extends StateWrite {}
-
 export interface PublicationProject extends SandboxDefinitionInput {
-  readonly localPrevious?: FileState
-  readonly preparedDefinition?: PreparedSandboxDefinition
+  readonly configurationChange: 'create' | 'update' | 'none'
 }
 
 export interface ProjectStatePublication {
-  readonly devboxHome: string
   readonly globalConfiguration: GlobalConfiguration
-  readonly globalPrevious?: FileState
-  readonly registry?: { readonly value: ProjectRegistry; readonly previous: FileState }
+  readonly globalConfigurationChanged?: boolean
+  readonly registry?: ProjectRegistry
   readonly projects: readonly PublicationProject[]
 }
 
-export async function publishProjectState(
-  input: ProjectStatePublication,
-): Promise<Result<boolean>> {
-  const definitions: StateWrite[] = []
-  for (const project of input.projects) {
-    const prepared =
-      project.preparedDefinition === undefined
-        ? await prepareSandboxDefinition(input.devboxHome, input.globalConfiguration, project)
-        : success(project.preparedDefinition)
-    if (!prepared.ok) {
-      return prepared
+export class ProjectPublication {
+  readonly #paths: DevboxPaths
+  readonly #files = new Map<string, FileState>()
+  readonly #definitions = new Map<string, StateWrite>()
+
+  constructor(devboxHome: string) {
+    this.#paths = devboxPaths(devboxHome)
+  }
+
+  async readRegistry(): Promise<Result<ProjectRegistry | undefined>> {
+    const state = await this.#read(this.#paths.projectRegistry)
+    if (!state.ok) return state
+    return state.value.exists ? parseProjectRegistry(state.value.content) : success(undefined)
+  }
+
+  async readGlobal(catalog: RuntimeCatalog): Promise<Result<GlobalConfiguration | undefined>> {
+    const state = await this.#read(this.#paths.globalConfiguration)
+    if (!state.ok) return state
+    return state.value.exists
+      ? parseGlobalConfiguration(state.value.content, catalog)
+      : success(undefined)
+  }
+
+  async readLocal(
+    stateDirectory: string,
+    globalConfiguration: GlobalConfiguration,
+    catalog: RuntimeCatalog,
+  ): Promise<Result<LocalConfiguration>> {
+    const path = join(stateDirectory, 'config.yaml')
+    const state = await this.#read(path)
+    if (!state.ok) return state
+    if (!state.value.exists) {
+      return failure({
+        kind: 'validation',
+        code: 'missing-local-configuration',
+        observed: `Devbox could not find the local configuration: ${path}.`,
+        nextAction: 'Restore the supported version-1 local YAML configuration and try again.',
+      })
     }
-    definitions.push(prepared.value)
+    return parseLocalConfiguration(state.value.content, globalConfiguration, catalog)
   }
 
-  const claudeHostConfiguration = await ensureClaudeHostConfiguration(
-    input.devboxHome,
-    input.globalConfiguration,
-  )
-  if (!claudeHostConfiguration.ok) {
-    return claudeHostConfiguration
+  async prepareDefinition(
+    globalConfiguration: GlobalConfiguration,
+    project: SandboxDefinitionInput,
+  ): Promise<Result<void>> {
+    const prepared = await prepareSandboxDefinition(this.#paths.home, globalConfiguration, project)
+    if (!prepared.ok) return prepared
+    this.#definitions.set(project.stateDirectory, prepared.value)
+    return success(undefined)
   }
 
-  const writes: StateWrite[] = [
-    ...(input.globalPrevious === undefined
-      ? []
-      : [
-          {
-            path: join(input.devboxHome, 'config.yaml'),
-            content: serializeGlobalConfiguration(input.globalConfiguration),
-            previous: input.globalPrevious,
-          },
-        ]),
-    ...input.projects.flatMap(project =>
-      project.localPrevious === undefined
+  async publish(input: ProjectStatePublication): Promise<Result<boolean>> {
+    const definitions: StateWrite[] = []
+    for (const project of input.projects) {
+      if (!this.#definitions.has(project.stateDirectory)) {
+        const prepared = await this.prepareDefinition(input.globalConfiguration, project)
+        if (!prepared.ok) return prepared
+      }
+      definitions.push(this.#definitions.get(project.stateDirectory)!)
+    }
+
+    const claudeHostConfiguration = await ensureClaudeHostConfiguration(
+      this.#paths.home,
+      input.globalConfiguration,
+    )
+    if (!claudeHostConfiguration.ok) return claudeHostConfiguration
+
+    const writes: StateWrite[] = [
+      ...(input.globalConfigurationChanged
+        ? [
+            this.#write(
+              this.#paths.globalConfiguration,
+              serializeGlobalConfiguration(input.globalConfiguration),
+            ),
+          ]
+        : []),
+      ...input.projects.flatMap(project =>
+        project.configurationChange === 'none'
+          ? []
+          : [
+              this.#write(
+                join(project.stateDirectory, 'config.yaml'),
+                serializeLocalConfiguration(project.localConfiguration),
+                project.configurationChange === 'create',
+              ),
+            ],
+      ),
+      ...(input.registry === undefined
         ? []
-        : [
-            {
-              path: join(project.stateDirectory, 'config.yaml'),
-              content: serializeLocalConfiguration(project.localConfiguration),
-              previous: project.localPrevious,
-            },
-          ],
-    ),
-    ...(input.registry === undefined
-      ? []
-      : [
-          {
-            path: join(input.devboxHome, 'projects.yaml'),
-            content: serializeProjectRegistry(input.registry.value),
-            previous: input.registry.previous,
-          },
-        ]),
-    ...definitions,
-  ].filter(write => !write.previous.exists || write.content !== write.previous.content)
-  const written = await writeStateTransaction(writes)
-  return written.ok ? success(writes.length > 0) : written
+        : [this.#write(this.#paths.projectRegistry, serializeProjectRegistry(input.registry))]),
+      ...definitions,
+    ].filter(write => !write.previous.exists || write.content !== write.previous.content)
+    const written = await writeStateTransaction(writes)
+    return written.ok ? success(writes.length > 0) : written
+  }
+
+  async #read(path: string): Promise<Result<FileState>> {
+    const observed = this.#files.get(path)
+    if (observed !== undefined) return success(observed)
+    const state = await readOptionalFile(path)
+    if (state.ok) this.#files.set(path, state.value)
+    return state
+  }
+
+  #write(path: string, content: string, created = false): StateWrite {
+    // Existing files were observed before interaction; a new Project's Local file is known absent.
+    return {
+      path,
+      content,
+      previous: created ? { exists: false, content: '' } : this.#files.get(path)!,
+    }
+  }
 }
 
-export async function prepareSandboxDefinition(
+async function prepareSandboxDefinition(
   devboxHome: string,
   globalConfiguration: GlobalConfiguration,
   project: SandboxDefinitionInput,
-): Promise<Result<PreparedSandboxDefinition>> {
+): Promise<Result<StateWrite>> {
   const claudeHostConfiguration = globalConfiguration.agent.includes('claude-code')
     ? join(devboxHome, 'agents', 'claude', '.claude.json')
     : undefined
@@ -181,7 +242,12 @@ async function ensureClaudeHostConfiguration(
   }
 }
 
-export async function readOptionalFile(path: string): Promise<Result<FileState>> {
+export async function readOptionalText(path: string): Promise<Result<string | undefined>> {
+  const state = await readOptionalFile(path)
+  return state.ok ? success(state.value.exists ? state.value.content : undefined) : state
+}
+
+async function readOptionalFile(path: string): Promise<Result<FileState>> {
   try {
     return success({ exists: true, content: await readFile(path, 'utf8') })
   } catch (error) {

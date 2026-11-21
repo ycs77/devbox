@@ -1,6 +1,164 @@
-import { isAbsolute } from 'node:path'
+import { lstat } from 'node:fs/promises'
+import { homedir } from 'node:os'
+import { basename, isAbsolute, join, parse, relative, sep } from 'node:path'
 import { parseDocument, stringify } from 'yaml'
 import { failure, success, type Result } from '../result.js'
+
+export interface DevboxPaths {
+  readonly home: string
+  readonly globalConfiguration: string
+  readonly projectRegistry: string
+  readonly projects: string
+  readonly buildContext: string
+  readonly claudeHostConfiguration: string
+}
+
+export function devboxPaths(devboxHome = join(homedir(), '.devbox')): DevboxPaths {
+  return {
+    home: devboxHome,
+    globalConfiguration: join(devboxHome, 'config.yaml'),
+    projectRegistry: join(devboxHome, 'projects.yaml'),
+    projects: join(devboxHome, 'projects'),
+    buildContext: join(devboxHome, 'build'),
+    claudeHostConfiguration: join(devboxHome, 'agents', 'claude', '.claude.json'),
+  }
+}
+
+export function sandboxIdentity(projectRoot: string): string {
+  const root = parse(projectRoot).root
+  const pathWithinRoot = relative(root, projectRoot)
+
+  if (
+    !isAbsolute(projectRoot) ||
+    pathWithinRoot === '..' ||
+    pathWithinRoot.startsWith(`..${sep}`)
+  ) {
+    throw new TypeError('Project root must be an absolute path.')
+  }
+
+  return pathWithinRoot === '' ? 'root' : pathWithinRoot.split(sep).map(escapePathSegment).join('-')
+}
+
+export function projectStateDirectory(sandboxIdentity: string, devboxHome: string): string {
+  if (!isSafeStateDirectoryName(sandboxIdentity)) {
+    throw new TypeError('Sandbox identity must be a safe state directory name.')
+  }
+
+  return join(devboxHome, 'projects', sandboxIdentity)
+}
+
+export function sandboxName(projectRoot: string): string {
+  const normalized = basename(projectRoot)
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^[^a-z0-9]+/, '')
+    .replace(/-+$/, '')
+
+  return normalized.length < 2 ? `project-${normalized || 'root'}` : normalized
+}
+
+export function escapePathSegment(segment: string): string {
+  const bytes = new TextEncoder().encode(segment)
+  let escaped = ''
+
+  for (const byte of bytes) {
+    if (
+      (byte >= 0x41 && byte <= 0x5a) ||
+      (byte >= 0x61 && byte <= 0x7a) ||
+      (byte >= 0x30 && byte <= 0x39) ||
+      byte === 0x2d ||
+      byte === 0x5f
+    ) {
+      escaped += String.fromCharCode(byte)
+    } else {
+      escaped += `%${byte.toString(16).toUpperCase().padStart(2, '0')}`
+    }
+  }
+
+  return escaped
+}
+
+export function unescapePathSegment(segment: string): string {
+  const bytes: number[] = []
+
+  for (let index = 0; index < segment.length; index += 1) {
+    if (segment[index] === '%') {
+      const hex = segment.slice(index + 1, index + 3)
+      if (!/^[0-9A-F]{2}$/i.test(hex)) {
+        throw new TypeError(`Invalid escaped Project path segment: ${segment}`)
+      }
+      bytes.push(Number.parseInt(hex, 16))
+      index += 2
+      continue
+    }
+
+    const codePoint = segment.codePointAt(index)
+    if (codePoint === undefined || codePoint > 0x7f) {
+      throw new TypeError(`Invalid escaped Project path segment: ${segment}`)
+    }
+    bytes.push(codePoint)
+  }
+
+  return new TextDecoder().decode(new Uint8Array(bytes))
+}
+
+export async function allocateSandboxIdentity(
+  projectRoot: string,
+  paths: DevboxPaths,
+  registry: ProjectRegistry,
+): Promise<Result<string>> {
+  const identity = sandboxIdentity(projectRoot)
+  for (let suffix = 1; suffix < 1000000; suffix += 1) {
+    const candidate = suffix === 1 ? identity : `${identity}-${suffix}`
+    if (
+      !isSafeStateDirectoryName(candidate) ||
+      Object.values(registry.projects).some(entry => entry.identity === candidate)
+    ) {
+      continue
+    }
+    try {
+      await lstat(projectStateDirectory(candidate, paths.home))
+    } catch (error) {
+      if (isMissingFileError(error)) {
+        return success(candidate)
+      }
+      return failure({
+        kind: 'operational',
+        code: 'state-directory-observation-failed',
+        observed: `Devbox could not inspect Project state directory: ${projectStateDirectory(candidate, paths.home)}.`,
+        nextAction: 'Check write access to ~/.devbox and run devbox init again.',
+      })
+    }
+  }
+  return failure({
+    kind: 'operational',
+    code: 'state-directory-allocation-failed',
+    observed: `Devbox could not allocate a unique Project state directory for ${projectRoot}.`,
+    nextAction: 'Remove stale Devbox state only through its supported command and try again.',
+  })
+}
+
+export function allocateSandboxName(
+  projectRoot: string,
+  registry: ProjectRegistry,
+): Result<string> {
+  const name = sandboxName(projectRoot)
+  for (let suffix = 1; suffix < 1000000; suffix += 1) {
+    const candidate = suffix === 1 ? name : `${name}-${suffix}`
+    if (
+      isSafeSandboxName(candidate) &&
+      !Object.values(registry.projects).some(entry => entry.name === candidate)
+    ) {
+      return success(candidate)
+    }
+  }
+  return failure({
+    kind: 'operational',
+    code: 'sandbox-name-allocation-failed',
+    observed: `Devbox could not allocate a unique Sandbox name for ${projectRoot}.`,
+    nextAction: 'Remove stale Devbox state only through its supported command and try again.',
+  })
+}
 
 export interface ProjectRegistration {
   readonly identity: string
@@ -103,4 +261,12 @@ function invalid(observed: string): Result<never> {
     observed,
     nextAction: 'Repair ~/.devbox/projects.yaml using the supported version-1 registry schema.',
   })
+}
+
+function isMissingFileError(error: unknown): error is NodeJS.ErrnoException {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    (error as NodeJS.ErrnoException).code === 'ENOENT'
+  )
 }

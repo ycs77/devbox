@@ -1,11 +1,35 @@
+import type * as Host from '../../src/host.js'
 import { spawnSync } from 'node:child_process'
 import { mkdtemp, mkdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { confirm, editGlobal, editLocal } from '../../src/configuration/prompter.js'
+import { validateSupportedHost } from '../../src/host.js'
 import { initializeProject } from '../../src/project/index.js'
 import { success } from '../../src/result.js'
-import { configurationPrompter } from '../helpers/configuration-prompter.js'
+
+vi.mock('../../src/configuration/prompter.js', () => ({
+  confirm: vi.fn(),
+  editGlobal: vi.fn(),
+  editLocal: vi.fn(),
+}))
+
+vi.mock('../../src/host.js', async importOriginal => ({
+  ...(await importOriginal<typeof Host>()),
+  validateSupportedHost: vi.fn(),
+}))
+
+beforeEach(() => {
+  vi.mocked(confirm).mockReset().mockResolvedValue(true)
+  vi.mocked(editGlobal)
+    .mockReset()
+    .mockImplementation(async configuration => configuration)
+  vi.mocked(editLocal)
+    .mockReset()
+    .mockImplementation(async configuration => configuration)
+  vi.mocked(validateSupportedHost).mockReset().mockResolvedValue(success(undefined))
+})
 
 const temporaryDirectories: string[] = []
 const dockerComposeAvailable =
@@ -37,27 +61,18 @@ describe('published Compose definition', () => {
       const devboxHome = join(sandbox, 'user-state', '.devbox')
       await mkdir(root)
 
-      const project = await initializeProject(
-        {
-          root,
-          initialGlobalConfiguration: {
-            version: 1,
-            node: ['24'],
-            agent: [],
-            agent_notifications: false,
-          },
-          initialLocalConfiguration: {
-            version: 1,
-            node: '24',
-            ports: ['3000:3000', 'APP_PORT:5173:5173'],
-          },
-        },
-        {
-          devboxHome,
-          validateHost: async () => success(undefined),
-          prompt: configurationPrompter({ confirm: async () => true }),
-        },
-      )
+      vi.mocked(editGlobal).mockResolvedValueOnce({
+        version: 1,
+        node: ['24'],
+        agent: [],
+        agent_notifications: false,
+      })
+      vi.mocked(editLocal).mockResolvedValueOnce({
+        version: 1,
+        node: '24',
+        ports: ['3000:3000', 'APP_PORT:5173:5173'],
+      })
+      const project = await initializeProject({ root, devboxHome })
 
       expect(project).toMatchObject({ ok: true, value: { created: true } })
       if (!project.ok) {

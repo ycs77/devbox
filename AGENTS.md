@@ -39,6 +39,8 @@ Use the default canonical labels: `needs-triage`, `needs-info`, `ready-for-agent
 
 This is a single-context repo using root `GLOSSARY.md` and `docs/adr/`. See `docs/agents/domain.md`.
 
+ADRs must not include issue/PR numbers, external tracking links, task/slice or phase identifiers, or execution progress.
+
 ### Writing tests
 
 When adding or changing tests, follow `docs/agents/writing-tests.md` for behaviour-first test selection, seam choice, failure-case priority, mocking, isolation, and verification.

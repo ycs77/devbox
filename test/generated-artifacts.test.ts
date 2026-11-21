@@ -1,12 +1,32 @@
+import type * as Host from '../src/host.js'
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { confirm, editLocal } from '../src/configuration/prompter.js'
+import { validateSupportedHost } from '../src/host.js'
 import { initializeProject } from '../src/project/index.js'
 import { success } from '../src/result.js'
 import { buildWorkspace } from '../src/workspace/build.js'
-import { configurationPrompter } from './helpers/configuration-prompter.js'
+
+vi.mock('../src/configuration/prompter.js', () => ({
+  confirm: vi.fn(),
+  editLocal: vi.fn(),
+}))
+
+vi.mock('../src/host.js', async importOriginal => ({
+  ...(await importOriginal<typeof Host>()),
+  validateSupportedHost: vi.fn(),
+}))
+
+beforeEach(() => {
+  vi.mocked(confirm).mockReset().mockResolvedValue(true)
+  vi.mocked(editLocal)
+    .mockReset()
+    .mockImplementation(async configuration => configuration)
+  vi.mocked(validateSupportedHost).mockReset().mockResolvedValue(success(undefined))
+})
 
 const fixtureDirectory = fileURLToPath(new URL('./fixtures/generated/', import.meta.url))
 
@@ -69,21 +89,12 @@ describe('generated Workspace and Sandbox artifacts', () => {
     await mkdir(projectRoot)
     await prepareAllFeaturesGlobalConfiguration(devboxHome)
 
-    const project = await initializeProject(
-      {
-        root: projectRoot,
-        initialLocalConfiguration: {
-          version: 1,
-          node: '24',
-          ports: ['3000:3000', 'APP_PORT:5173:5173'],
-        },
-      },
-      {
-        devboxHome,
-        validateHost: async () => success(undefined),
-        prompt: configurationPrompter({ confirm: async () => true }),
-      },
-    )
+    vi.mocked(editLocal).mockResolvedValueOnce({
+      version: 1,
+      node: '24',
+      ports: ['3000:3000', 'APP_PORT:5173:5173'],
+    })
+    const project = await initializeProject({ root: projectRoot, devboxHome })
 
     expect(project).toMatchObject({ ok: true, value: { created: true } })
     if (!project.ok) {

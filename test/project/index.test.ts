@@ -1,23 +1,57 @@
 import type { ConfirmationDetails } from '../../src/configuration/prompter.js'
+import type * as Host from '../../src/host.js'
 import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { parse } from 'yaml'
+import {
+  confirm,
+  editGlobal,
+  editLocal,
+  selectNodeReplacement,
+} from '../../src/configuration/prompter.js'
+import { validateSupportedHost } from '../../src/host.js'
 import {
   configureGlobal,
   configureLocalProject,
-  escapePathSegment,
   initializeProject,
-  projectStateDirectory,
   removeProject,
-  sandboxIdentity,
-  sandboxName,
-  unescapePathSegment,
 } from '../../src/project/index.js'
+import { projectStateDirectory, sandboxIdentity } from '../../src/project/registry.js'
 import { InterruptedError, success } from '../../src/result.js'
 import { withStateLocks } from '../../src/state-lock/index.js'
-import { configurationPrompter } from '../helpers/configuration-prompter.js'
+
+vi.mock('../../src/configuration/prompter.js', () => ({
+  confirm: vi.fn(),
+  editGlobal: vi.fn(),
+  editLocal: vi.fn(),
+  selectNodeReplacement: vi.fn(),
+}))
+
+vi.mock('../../src/host.js', async importOriginal => ({
+  ...(await importOriginal<typeof Host>()),
+  validateSupportedHost: vi.fn(),
+}))
+
+beforeEach(() => {
+  vi.mocked(confirm).mockReset().mockResolvedValue(true)
+  vi.mocked(editGlobal)
+    .mockReset()
+    .mockImplementation(async configuration => configuration)
+  vi.mocked(editLocal)
+    .mockReset()
+    .mockImplementation(async configuration => configuration)
+  vi.mocked(selectNodeReplacement)
+    .mockReset()
+    .mockImplementation(async (configuration, globalConfiguration) => ({
+      ...configuration,
+      node: globalConfiguration.node.includes(configuration.node ?? '')
+        ? configuration.node
+        : (globalConfiguration.node[0] ?? null),
+    }))
+  vi.mocked(validateSupportedHost).mockReset().mockResolvedValue(success(undefined))
+})
 
 const temporaryDirectories: string[] = []
 
@@ -42,16 +76,7 @@ async function createProjectState(
   root: string,
   devboxHome: string,
 ): Promise<{ readonly root: string; readonly stateDirectory: string }> {
-  const result = await initializeProject(
-    {
-      root,
-    },
-    {
-      devboxHome,
-      validateHost: async () => success(undefined),
-      prompt: configurationPrompter({ confirm: async () => true }),
-    },
-  )
+  const result = await initializeProject({ root, devboxHome })
   expect(result).toMatchObject({ ok: true, value: { root, created: true } })
   if (!result.ok) {
     throw new Error(result.error.observed)
@@ -75,27 +100,17 @@ describe('initializeProject', () => {
     await mkdir(projectRoot)
 
     let confirmationMessage: string | undefined
-    const result = await initializeProject(
-      {
-        root: projectRoot,
-        initialGlobalConfiguration: {
-          version: 1,
-          node: ['24'],
-          agent: ['claude-code'],
-          agent_notifications: true,
-        },
-      },
-      {
-        devboxHome,
-        validateHost: async () => success(undefined),
-        prompt: configurationPrompter({
-          confirm: async message => {
-            confirmationMessage = message
-            return false
-          },
-        }),
-      },
-    )
+    vi.mocked(confirm).mockImplementation(async message => {
+      confirmationMessage = message
+      return false
+    })
+    vi.mocked(editGlobal).mockResolvedValueOnce({
+      version: 1,
+      node: ['24'],
+      agent: ['claude-code'],
+      agent_notifications: true,
+    })
+    const result = await initializeProject({ root: projectRoot, devboxHome })
 
     expect(result).toMatchObject({
       ok: true,
@@ -111,28 +126,18 @@ describe('initializeProject', () => {
     const devboxHome = join(sandbox, 'user-state', '.devbox')
     await mkdir(projectRoot)
 
-    await expect(
-      initializeProject(
-        {
-          root: projectRoot,
-          initialGlobalConfiguration: {
-            version: 1,
-            node: ['24'],
-            agent: ['claude-code'],
-            agent_notifications: true,
-          },
-        },
-        {
-          devboxHome,
-          validateHost: async () => success(undefined),
-          prompt: configurationPrompter({
-            confirm: async () => {
-              throw new InterruptedError()
-            },
-          }),
-        },
-      ),
-    ).rejects.toBeInstanceOf(InterruptedError)
+    vi.mocked(confirm).mockImplementation(async () => {
+      throw new InterruptedError()
+    })
+    vi.mocked(editGlobal).mockResolvedValueOnce({
+      version: 1,
+      node: ['24'],
+      agent: ['claude-code'],
+      agent_notifications: true,
+    })
+    await expect(initializeProject({ root: projectRoot, devboxHome })).rejects.toBeInstanceOf(
+      InterruptedError,
+    )
     await expect(stat(devboxHome)).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
@@ -151,16 +156,7 @@ describe('initializeProject', () => {
     await entered.promise
 
     try {
-      const result = await initializeProject(
-        {
-          root: projectRoot,
-        },
-        {
-          devboxHome,
-          validateHost: async () => success(undefined),
-          prompt: configurationPrompter({ confirm: async () => true }),
-        },
-      )
+      const result = await initializeProject({ root: projectRoot, devboxHome })
 
       expect(result).toMatchObject({
         ok: false,
@@ -216,26 +212,8 @@ describe('initializeProject', () => {
     const secondProjectRoot = join(sandbox, 'second-project')
     await Promise.all([mkdir(firstProjectRoot), mkdir(secondProjectRoot)])
 
-    const initial = await initializeProject(
-      {
-        root: firstProjectRoot,
-      },
-      {
-        devboxHome,
-        validateHost: async () => success(undefined),
-        prompt: configurationPrompter({ confirm: async () => true }),
-      },
-    )
-    const localOnly = await initializeProject(
-      {
-        root: secondProjectRoot,
-      },
-      {
-        devboxHome,
-        validateHost: async () => success(undefined),
-        prompt: configurationPrompter({ confirm: async () => true }),
-      },
-    )
+    const initial = await initializeProject({ root: firstProjectRoot, devboxHome })
+    const localOnly = await initializeProject({ root: secondProjectRoot, devboxHome })
 
     expect(initial).toMatchObject({
       ok: true,
@@ -253,27 +231,18 @@ describe('initializeProject', () => {
     const devboxHome = join(sandbox, 'user-state', '.devbox')
     await mkdir(projectRoot)
 
-    const project = await initializeProject(
-      {
-        root: projectRoot,
-        initialGlobalConfiguration: {
-          version: 1,
-          node: ['24', '22'],
-          agent: ['claude-code', 'agy'],
-          agent_notifications: true,
-        },
-        initialLocalConfiguration: {
-          version: 1,
-          node: '22',
-          ports: ['3000:3000', 'APP_PORT:5173:5173'],
-        },
-      },
-      {
-        devboxHome,
-        validateHost: async () => success(undefined),
-        prompt: configurationPrompter({ confirm: async () => true }),
-      },
-    )
+    vi.mocked(editGlobal).mockResolvedValueOnce({
+      version: 1,
+      node: ['24', '22'],
+      agent: ['claude-code', 'agy'],
+      agent_notifications: true,
+    })
+    vi.mocked(editLocal).mockResolvedValueOnce({
+      version: 1,
+      node: '22',
+      ports: ['3000:3000', 'APP_PORT:5173:5173'],
+    })
+    const project = await initializeProject({ root: projectRoot, devboxHome })
     if (!project.ok) {
       throw new Error(project.error.observed)
     }
@@ -343,41 +312,53 @@ describe('initializeProject', () => {
     const projectRoot = join(sandbox, 'project')
     const devboxHome = join(sandbox, 'user-state', '.devbox')
     await mkdir(projectRoot)
-    const project = await initializeProject(
-      {
-        root: projectRoot,
-        initialGlobalConfiguration: {
-          version: 1,
-          node: ['24'],
-          agent: ['claude-code'],
-          agent_notifications: false,
-        },
-        initialLocalConfiguration: { version: 1, node: '24', ports: [] },
-      },
-      {
-        devboxHome,
-        validateHost: async () => success(undefined),
-        prompt: configurationPrompter({ confirm: async () => true }),
-      },
-    )
+    vi.mocked(editGlobal).mockResolvedValueOnce({
+      version: 1,
+      node: ['24'],
+      agent: ['claude-code'],
+      agent_notifications: false,
+    })
+    vi.mocked(editLocal).mockResolvedValueOnce({ version: 1, node: '24', ports: [] })
+    const project = await initializeProject({ root: projectRoot, devboxHome })
     expect(project).toMatchObject({ ok: true, value: { created: true } })
     const configuration = join(devboxHome, 'agents', 'claude', '.claude.json')
     await writeFile(configuration, '{"theme":"dark"}\n')
 
-    const reconfigured = await configureLocalProject(
-      {
-        root: projectRoot,
-        nextConfiguration: { version: 1, node: '24', ports: ['3000:3000'] },
-      },
-      {
-        devboxHome,
-        prompt: configurationPrompter({ confirm: async () => true }),
-      },
-    )
+    vi.mocked(editLocal).mockResolvedValueOnce({ version: 1, node: '24', ports: ['3000:3000'] })
+    const reconfigured = await configureLocalProject({ root: projectRoot, devboxHome })
 
     expect(reconfigured).toMatchObject({ ok: true, value: { changed: true } })
     await expect(readFile(configuration, 'utf8')).resolves.toBe('{"theme":"dark"}\n')
   })
+
+  it.each(['global', 'local'] as const)(
+    'rejects catalog-external interactive %s input during initialization without writing state',
+    async scope => {
+      const sandbox = await temporaryDirectory()
+      const root = join(sandbox, 'project')
+      const devboxHome = join(sandbox, 'user-state', '.devbox')
+      await mkdir(root)
+      if (scope === 'global') {
+        vi.mocked(editGlobal).mockResolvedValueOnce({
+          version: 1,
+          node: ['26'],
+          agent: [],
+          agent_notifications: true,
+        })
+      } else {
+        vi.mocked(editLocal).mockResolvedValueOnce({ version: 1, node: '26', ports: [] })
+      }
+
+      const result = await initializeProject({ root, devboxHome })
+
+      expect(result).toMatchObject({
+        ok: false,
+        error: { code: `invalid-${scope}-configuration` },
+      })
+      expect(confirm).not.toHaveBeenCalled()
+      await expect(stat(devboxHome)).rejects.toMatchObject({ code: 'ENOENT' })
+    },
+  )
 
   it('leaves a registered Project unchanged when init repeats', async () => {
     const sandbox = await temporaryDirectory()
@@ -386,29 +367,21 @@ describe('initializeProject', () => {
     await mkdir(projectRoot)
     const project = await createProjectState(projectRoot, devboxHome)
     const localPath = join(project.stateDirectory, 'config.yaml')
-    const localBefore = await readFile(localPath, 'utf8')
+    const localBefore = 'invalid Local YAML: ['
+    const globalBefore = 'invalid Global YAML: ['
+    await writeFile(localPath, localBefore)
+    await writeFile(join(devboxHome, 'config.yaml'), globalBefore)
     await rm(join(project.stateDirectory, 'compose.yaml'))
-
-    let confirmed = false
-    const result = await initializeProject(
-      {
-        root: projectRoot,
-        initialLocalConfiguration: { version: 1, node: null, ports: [] },
-      },
-      {
-        devboxHome,
-        validateHost: async () => success(undefined),
-        prompt: configurationPrompter({
-          confirm: async () => {
-            confirmed = true
-            return true
-          },
-        }),
-      },
-    )
+    vi.mocked(editGlobal).mockClear()
+    vi.mocked(editLocal).mockClear()
+    vi.mocked(confirm).mockClear()
+    const result = await initializeProject({ root: projectRoot, devboxHome })
 
     expect(result).toMatchObject({ ok: true, value: { created: false } })
-    expect(confirmed).toBe(false)
+    expect(editGlobal).not.toHaveBeenCalled()
+    expect(editLocal).not.toHaveBeenCalled()
+    expect(confirm).not.toHaveBeenCalled()
+    await expect(readFile(join(devboxHome, 'config.yaml'), 'utf8')).resolves.toBe(globalBefore)
     await expect(readFile(localPath, 'utf8')).resolves.toBe(localBefore)
     await expect(stat(join(project.stateDirectory, 'compose.yaml'))).rejects.toMatchObject({
       code: 'ENOENT',
@@ -531,15 +504,7 @@ describe('initializeProject', () => {
       `version: 1\nprojects:\n  ${projectRoot}: legacy-identity\n`,
     )
 
-    const result = await initializeProject(
-      {
-        root: projectRoot,
-      },
-      {
-        devboxHome,
-        validateHost: async () => success(undefined),
-      },
-    )
+    const result = await initializeProject({ root: projectRoot, devboxHome })
 
     expect(result).toMatchObject({ ok: false, error: { code: 'invalid-project-registry' } })
     await expect(stat(join(devboxHome, 'config.yaml'))).rejects.toMatchObject({ code: 'ENOENT' })
@@ -556,15 +521,7 @@ describe('initializeProject', () => {
       `version: 1\nprojects:\n  ${projectRoot}:\n    identity: valid-identity\n    name: "project\\n"\n`,
     )
 
-    const result = await initializeProject(
-      {
-        root: projectRoot,
-      },
-      {
-        devboxHome,
-        validateHost: async () => success(undefined),
-      },
-    )
+    const result = await initializeProject({ root: projectRoot, devboxHome })
 
     expect(result).toMatchObject({ ok: false, error: { code: 'invalid-project-registry' } })
   })
@@ -580,15 +537,7 @@ describe('initializeProject', () => {
       `version: 1\nprojects:\n  ${projectRoot}:\n    identity: valid-identity\n    name: a\n`,
     )
 
-    const result = await initializeProject(
-      {
-        root: projectRoot,
-      },
-      {
-        devboxHome,
-        validateHost: async () => success(undefined),
-      },
-    )
+    const result = await initializeProject({ root: projectRoot, devboxHome })
 
     expect(result).toMatchObject({ ok: false, error: { code: 'invalid-project-registry' } })
   })
@@ -599,51 +548,29 @@ describe('initializeProject', () => {
     const secondRoot = join(sandbox, 'second')
     const devboxHome = join(sandbox, 'user-state', '.devbox')
     await Promise.all([mkdir(firstRoot), mkdir(secondRoot)])
-    const firstResult = await initializeProject(
-      {
-        root: firstRoot,
-      },
-      {
-        devboxHome,
-        validateHost: async () => success(undefined),
-        prompt: configurationPrompter({
-          confirm: async () => true,
-          editGlobal: async () => ({
-            version: 1,
-            node: ['22'],
+    vi.mocked(editGlobal).mockImplementation(async () => ({
+      version: 1,
+      node: ['22'],
 
-            agent: [],
-            agent_notifications: false,
-          }),
-          editLocal: async (_configuration, _catalog, globalConfiguration) => ({
-            version: 1,
-            node: globalConfiguration.node[0] ?? null,
-            ports: [],
-          }),
-        }),
-      },
-    )
+      agent: [],
+      agent_notifications: false,
+    }))
+    vi.mocked(editLocal).mockImplementation(async (_configuration, globalConfiguration) => ({
+      version: 1,
+      node: globalConfiguration.node[0] ?? null,
+      ports: [],
+    }))
+    const firstResult = await initializeProject({ root: firstRoot, devboxHome })
 
-    const secondResult = await initializeProject(
-      {
-        root: secondRoot,
-      },
-      {
-        devboxHome,
-        validateHost: async () => success(undefined),
-        prompt: configurationPrompter({
-          confirm: async () => true,
-          editGlobal: async () => {
-            throw new Error('Global configuration prompt must not run when Global state exists.')
-          },
-          editLocal: async (_configuration, _catalog, globalConfiguration) => ({
-            version: 1,
-            node: globalConfiguration.node[0] ?? null,
-            ports: [],
-          }),
-        }),
-      },
-    )
+    vi.mocked(editGlobal).mockImplementation(async () => {
+      throw new Error('Global configuration prompt must not run when Global state exists.')
+    })
+    vi.mocked(editLocal).mockImplementation(async (_configuration, globalConfiguration) => ({
+      version: 1,
+      node: globalConfiguration.node[0] ?? null,
+      ports: [],
+    }))
+    const secondResult = await initializeProject({ root: secondRoot, devboxHome })
 
     expect(firstResult).toMatchObject({ ok: true, value: { created: true } })
     expect(secondResult).toMatchObject({ ok: true, value: { created: true } })
@@ -692,26 +619,8 @@ describe('configuration boundaries', () => {
       }
       const configure = () =>
         scope === 'local'
-          ? configureLocalProject(
-              { root: firstRoot },
-              {
-                devboxHome,
-                prompt: configurationPrompter({
-                  editLocal: async current => current,
-                  confirm: async () => true,
-                }),
-              },
-            )
-          : configureGlobal(
-              {},
-              {
-                devboxHome,
-                prompt: configurationPrompter({
-                  editGlobal: async current => current,
-                  confirm: async () => true,
-                }),
-              },
-            )
+          ? configureLocalProject({ root: firstRoot, devboxHome })
+          : configureGlobal({ devboxHome })
 
       expect(await configure()).toMatchObject({ ok: true, value: { scope, changed: true } })
       const definition = parse(await readFile(firstComposePath, 'utf8'))
@@ -757,22 +666,11 @@ describe('configuration boundaries', () => {
         'version: 1\nnode: "24"\nports: ["3000:3000"]\n',
       )
 
+      vi.mocked(confirm).mockImplementation(async () => false)
       const result =
         scope === 'local'
-          ? await configureLocalProject(
-              { root },
-              {
-                devboxHome,
-                prompt: configurationPrompter({ confirm: async () => false }),
-              },
-            )
-          : await configureGlobal(
-              {},
-              {
-                devboxHome,
-                prompt: configurationPrompter({ confirm: async () => false }),
-              },
-            )
+          ? await configureLocalProject({ root, devboxHome })
+          : await configureGlobal({ devboxHome })
 
       expect(result).toMatchObject({ ok: true, value: { changed: false } })
       await expect(readFile(composePath, 'utf8')).resolves.toBe(retained)
@@ -785,6 +683,14 @@ describe('configuration boundaries', () => {
     const devboxHome = join(sandbox, 'user-state', '.devbox')
     await mkdir(projectRoot)
     const project = await createProjectState(projectRoot, devboxHome)
+    const unrelatedRoot = join(sandbox, 'unrelated-project')
+    await mkdir(unrelatedRoot)
+    const unrelated = await createProjectState(unrelatedRoot, devboxHome)
+    const unrelatedLocalPath = join(unrelated.stateDirectory, 'config.yaml')
+    const unrelatedComposePath = join(unrelated.stateDirectory, 'compose.yaml')
+    const unrelatedYaml = 'invalid unrelated Local YAML: ['
+    await writeFile(unrelatedLocalPath, unrelatedYaml)
+    const unrelatedCompose = await readFile(unrelatedComposePath, 'utf8')
     const globalPath = join(devboxHome, 'config.yaml')
     const registryPath = join(devboxHome, 'projects.yaml')
     const globalBefore = await readFile(globalPath, 'utf8')
@@ -793,21 +699,12 @@ describe('configuration boundaries', () => {
     let confirmation:
       | { readonly message: string; readonly details?: ConfirmationDetails }
       | undefined
-    const result = await configureLocalProject(
-      {
-        root: projectRoot,
-        nextConfiguration: { version: 1, node: null, ports: [] },
-      },
-      {
-        devboxHome,
-        prompt: configurationPrompter({
-          confirm: async (message, details) => {
-            confirmation = { message, details }
-            return true
-          },
-        }),
-      },
-    )
+    vi.mocked(confirm).mockImplementation(async (message, details) => {
+      confirmation = { message, details }
+      return true
+    })
+    vi.mocked(editLocal).mockResolvedValueOnce({ version: 1, node: null, ports: [] })
+    const result = await configureLocalProject({ root: projectRoot, devboxHome })
 
     expect(result).toEqual({
       ok: true,
@@ -822,6 +719,8 @@ describe('configuration boundaries', () => {
     })
     await expect(readFile(globalPath, 'utf8')).resolves.toBe(globalBefore)
     await expect(readFile(registryPath, 'utf8')).resolves.toBe(registryBefore)
+    await expect(readFile(unrelatedLocalPath, 'utf8')).resolves.toBe(unrelatedYaml)
+    await expect(readFile(unrelatedComposePath, 'utf8')).resolves.toBe(unrelatedCompose)
     await expect(readFile(join(project.stateDirectory, 'config.yaml'), 'utf8')).resolves.toContain(
       'node: null',
     )
@@ -845,25 +744,17 @@ describe('configuration boundaries', () => {
     let confirmation:
       | { readonly message: string; readonly details?: ConfirmationDetails }
       | undefined
-    const result = await configureGlobal(
-      {
-        nextConfiguration: {
-          version: 1,
-          node: ['24'],
-          agent: ['codex'],
-          agent_notifications: false,
-        },
-      },
-      {
-        devboxHome,
-        prompt: configurationPrompter({
-          confirm: async (message, details) => {
-            confirmation = { message, details }
-            return true
-          },
-        }),
-      },
-    )
+    vi.mocked(confirm).mockImplementation(async (message, details) => {
+      confirmation = { message, details }
+      return true
+    })
+    vi.mocked(editGlobal).mockResolvedValueOnce({
+      version: 1,
+      node: ['24'],
+      agent: ['codex'],
+      agent_notifications: false,
+    })
+    const result = await configureGlobal({ devboxHome })
 
     expect(result).toEqual({ ok: true, value: { scope: 'global', changed: true } })
     expect(confirmation).toMatchObject({
@@ -917,18 +808,10 @@ describe('configuration boundaries', () => {
     await entered.promise
 
     try {
-      const result = await configureGlobal(
-        {},
-        {
-          devboxHome,
-          prompt: configurationPrompter({
-            confirm: async () => true,
-            editGlobal: async () => {
-              throw new Error('Global configuration prompt must not run while a Project is locked.')
-            },
-          }),
-        },
-      )
+      vi.mocked(editGlobal).mockImplementation(async () => {
+        throw new Error('Global configuration prompt must not run while a Project is locked.')
+      })
+      const result = await configureGlobal({ devboxHome })
 
       expect(result).toMatchObject({
         ok: false,
@@ -940,27 +823,88 @@ describe('configuration boundaries', () => {
     }
   })
 
-  it('fails closed when a registered Project Local configuration is missing', async () => {
-    const sandbox = await temporaryDirectory()
-    const projectRoot = join(sandbox, 'project')
-    const devboxHome = join(sandbox, 'user-state', '.devbox')
-    await mkdir(projectRoot)
-    const project = await createProjectState(projectRoot, devboxHome)
-    await rm(join(project.stateDirectory, 'config.yaml'))
+  it.each(['global', 'local'] as const)(
+    'fails closed when the required %s configuration is missing',
+    async scope => {
+      const sandbox = await temporaryDirectory()
+      const projectRoot = join(sandbox, 'project')
+      const devboxHome = join(sandbox, 'user-state', '.devbox')
+      await mkdir(projectRoot)
+      const project = await createProjectState(projectRoot, devboxHome)
+      await rm(join(scope === 'global' ? devboxHome : project.stateDirectory, 'config.yaml'))
 
-    const result = await configureLocalProject(
-      { root: projectRoot },
-      {
-        devboxHome,
-        prompt: configurationPrompter({ confirm: async () => true }),
-      },
-    )
+      const result = await configureLocalProject({ root: projectRoot, devboxHome })
 
-    expect(result).toMatchObject({
-      ok: false,
-      error: { code: 'missing-local-configuration' },
-    })
-  })
+      expect(result).toMatchObject({
+        ok: false,
+        error: { code: `missing-${scope}-configuration` },
+      })
+    },
+  )
+
+  it.each(['editor', 'confirmation'] as const)(
+    'preserves configuration and definition when Local %s is cancelled',
+    async stage => {
+      const sandbox = await temporaryDirectory()
+      const root = join(sandbox, 'project')
+      const devboxHome = join(sandbox, 'user-state', '.devbox')
+      await mkdir(root)
+      const project = await createProjectState(root, devboxHome)
+      const paths = [
+        join(devboxHome, 'config.yaml'),
+        join(project.stateDirectory, 'config.yaml'),
+        join(project.stateDirectory, 'compose.yaml'),
+      ]
+      const before = await Promise.all(paths.map(path => readFile(path, 'utf8')))
+      vi.mocked(stage === 'editor' ? editLocal : confirm).mockRejectedValueOnce(
+        new InterruptedError(),
+      )
+
+      await expect(configureLocalProject({ root, devboxHome })).rejects.toBeInstanceOf(
+        InterruptedError,
+      )
+
+      expect(await Promise.all(paths.map(path => readFile(path, 'utf8')))).toEqual(before)
+    },
+  )
+
+  it.each(['global', 'project'] as const)(
+    'does not enter Local interaction while the required %s lock is busy',
+    async scope => {
+      const sandbox = await temporaryDirectory()
+      const root = join(sandbox, 'project')
+      const devboxHome = join(sandbox, 'user-state', '.devbox')
+      await mkdir(root)
+      await createProjectState(root, devboxHome)
+      vi.mocked(editLocal).mockClear()
+      vi.mocked(confirm).mockClear()
+      const entered = deferred()
+      const release = deferred()
+      const running = withStateLocks(
+        {
+          devboxHome,
+          global: scope === 'global',
+          projectRoots: scope === 'project' ? [root] : [],
+        },
+        async () => {
+          entered.resolve()
+          await release.promise
+          return success(undefined)
+        },
+      )
+      await entered.promise
+      try {
+        const result = await configureLocalProject({ root, devboxHome })
+
+        expect(result).toMatchObject({ ok: false, error: { code: 'command-lock-busy' } })
+        expect(editLocal).not.toHaveBeenCalled()
+        expect(confirm).not.toHaveBeenCalled()
+      } finally {
+        release.resolve()
+        await running
+      }
+    },
+  )
 
   it('does not write Local configuration when configuration confirmation is declined', async () => {
     const sandbox = await temporaryDirectory()
@@ -971,16 +915,9 @@ describe('configuration boundaries', () => {
     const localPath = join(project.stateDirectory, 'config.yaml')
     const before = await readFile(localPath, 'utf8')
 
-    const result = await configureLocalProject(
-      {
-        root: projectRoot,
-        nextConfiguration: { version: 1, node: null, ports: [] },
-      },
-      {
-        devboxHome,
-        prompt: configurationPrompter({ confirm: async () => false }),
-      },
-    )
+    vi.mocked(confirm).mockResolvedValue(false)
+    vi.mocked(editLocal).mockResolvedValueOnce({ version: 1, node: null, ports: [] })
+    const result = await configureLocalProject({ root: projectRoot, devboxHome })
 
     expect(result).toEqual({
       ok: true,
@@ -999,16 +936,7 @@ describe('configuration boundaries', () => {
     await writeFile(localPath, 'version: 1\nnode: "24"\nunknown: true\n')
     const invalidBefore = await readFile(localPath, 'utf8')
 
-    const result = await configureLocalProject(
-      {
-        root: projectRoot,
-        nextConfiguration: { version: 1, node: null, ports: [] },
-      },
-      {
-        devboxHome,
-        prompt: configurationPrompter({ confirm: async () => true }),
-      },
-    )
+    const result = await configureLocalProject({ root: projectRoot, devboxHome })
 
     expect(result).toMatchObject({ ok: false, error: { code: 'invalid-local-configuration' } })
     await expect(readFile(localPath, 'utf8')).resolves.toBe(invalidBefore)
@@ -1025,31 +953,15 @@ describe('configuration boundaries', () => {
     const globalBefore = await readFile(globalPath, 'utf8')
     const localBefore = await readFile(localPath, 'utf8')
 
-    const globalResult = await configureGlobal(
-      {},
-      {
-        devboxHome,
-        prompt: configurationPrompter({
-          confirm: async () => true,
-          editGlobal: async () => ({
-            version: 1,
-            node: ['26'],
-            agent: [],
-            agent_notifications: true,
-          }),
-        }),
-      },
-    )
-    const localResult = await configureLocalProject(
-      { root: projectRoot },
-      {
-        devboxHome,
-        prompt: configurationPrompter({
-          confirm: async () => true,
-          editLocal: async () => ({ version: 1, node: '26', ports: [] }),
-        }),
-      },
-    )
+    vi.mocked(editGlobal).mockImplementation(async () => ({
+      version: 1,
+      node: ['26'],
+      agent: [],
+      agent_notifications: true,
+    }))
+    const globalResult = await configureGlobal({ devboxHome })
+    vi.mocked(editLocal).mockImplementation(async () => ({ version: 1, node: '26', ports: [] }))
+    const localResult = await configureLocalProject({ root: projectRoot, devboxHome })
 
     expect(globalResult).toMatchObject({
       ok: false,
@@ -1071,18 +983,17 @@ describe('configuration boundaries', () => {
     const project = await createProjectState(projectRoot, devboxHome)
     await rm(projectRoot, { recursive: true, force: true })
 
-    const result = await configureGlobal(
-      {
-        nextConfiguration: { version: 1, node: [], agent: [], agent_notifications: true },
-      },
-      {
-        devboxHome,
-        prompt: configurationPrompter({
-          confirm: async () => true,
-          selectNodeReplacement: async () => ({ version: 1, node: null, ports: [] }),
-        }),
-      },
-    )
+    vi.mocked(selectNodeReplacement).mockImplementation(async configuration => ({
+      ...configuration,
+      node: null,
+    }))
+    vi.mocked(editGlobal).mockResolvedValueOnce({
+      version: 1,
+      node: [],
+      agent: [],
+      agent_notifications: true,
+    })
+    const result = await configureGlobal({ devboxHome })
 
     expect(result).toEqual({ ok: true, value: { scope: 'global', changed: true } })
     expect(parse(await readFile(join(devboxHome, 'config.yaml'), 'utf8'))).toMatchObject({
@@ -1092,6 +1003,7 @@ describe('configuration boundaries', () => {
       parse(await readFile(join(project.stateDirectory, 'config.yaml'), 'utf8')),
     ).toMatchObject({
       node: null,
+      ports: ['APP_PORT:5173:5173'],
     })
   })
 })
@@ -1163,29 +1075,5 @@ describe('Project removal', () => {
       projects: Record<string, { identity: string; name: string }>
     }
     expect(registry.projects[projectRoot]!.identity).toBe(basename(project.stateDirectory))
-  })
-})
-
-describe('Sandbox identity encoding', () => {
-  it('maps an absolute Project root to a safe flat identity and state directory', () => {
-    const identity = sandboxIdentity(
-      '/home/lucas/dev/testing/devbox/test-results/package-smoke-fixed/project',
-    )
-
-    expect(identity).toBe('home-lucas-dev-testing-devbox-test-results-package-smoke-fixed-project')
-    expect(projectStateDirectory(identity, '/home/lucas/.devbox')).toBe(
-      '/home/lucas/.devbox/projects/home-lucas-dev-testing-devbox-test-results-package-smoke-fixed-project',
-    )
-  })
-
-  it('normalizes one-character Project basenames to Docker-safe Sandbox names', () => {
-    expect(sandboxName('/workspace/a')).toBe('project-a')
-  })
-
-  it('round-trips unsafe path segments without opaque hashes', () => {
-    const segment = 'nested directory_日本語%'
-
-    expect(escapePathSegment(segment)).toBe('nested%20directory_%E6%97%A5%E6%9C%AC%E8%AA%9E%25')
-    expect(unescapePathSegment(escapePathSegment(segment))).toBe(segment)
   })
 })

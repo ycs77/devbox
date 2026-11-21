@@ -1,11 +1,35 @@
+import type * as Host from '../../src/host.js'
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { confirm, editGlobal, editLocal } from '../../src/configuration/prompter.js'
+import { validateSupportedHost } from '../../src/host.js'
 import { initializeProject, runSandboxLifecycle, runSandboxShell } from '../../src/project/index.js'
 import { success } from '../../src/result.js'
 import { withStateLocks } from '../../src/state-lock/index.js'
-import { configurationPrompter } from '../helpers/configuration-prompter.js'
+
+vi.mock('../../src/configuration/prompter.js', () => ({
+  confirm: vi.fn(),
+  editGlobal: vi.fn(),
+  editLocal: vi.fn(),
+}))
+
+vi.mock('../../src/host.js', async importOriginal => ({
+  ...(await importOriginal<typeof Host>()),
+  validateSupportedHost: vi.fn(),
+}))
+
+beforeEach(() => {
+  vi.mocked(confirm).mockReset().mockResolvedValue(true)
+  vi.mocked(editGlobal)
+    .mockReset()
+    .mockImplementation(async configuration => configuration)
+  vi.mocked(editLocal)
+    .mockReset()
+    .mockImplementation(async configuration => configuration)
+  vi.mocked(validateSupportedHost).mockReset().mockResolvedValue(success(undefined))
+})
 
 const temporaryDirectories: string[] = []
 
@@ -30,23 +54,14 @@ async function createProjectState(
   root: string,
   devboxHome: string,
 ): Promise<{ readonly stateDirectory: string }> {
-  const result = await initializeProject(
-    {
-      root,
-      initialGlobalConfiguration: {
-        version: 1,
-        node: ['24'],
-        agent: ['claude-code'],
-        agent_notifications: true,
-      },
-      initialLocalConfiguration: { version: 1, node: '24', ports: [] },
-    },
-    {
-      devboxHome,
-      validateHost: async () => success(undefined),
-      prompt: configurationPrompter({ confirm: async () => true }),
-    },
-  )
+  vi.mocked(editGlobal).mockResolvedValueOnce({
+    version: 1,
+    node: ['24'],
+    agent: ['claude-code'],
+    agent_notifications: true,
+  })
+  vi.mocked(editLocal).mockResolvedValueOnce({ version: 1, node: '24', ports: [] })
+  const result = await initializeProject({ root, devboxHome })
   expect(result).toMatchObject({ ok: true, value: { root, created: true } })
   if (!result.ok) {
     throw new Error(result.error.observed)
