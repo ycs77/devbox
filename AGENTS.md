@@ -5,6 +5,13 @@
 - Node.js v26
 - TypeScript formatting: 2 spaces, single quotes, no semicolons, trailing commas
 
+## Verification
+
+Beyond `pnpm check`:
+
+- **Packaging changes** (`package.json`, `bin/`, tsdown bundle, command registration): run `pnpm smoke`.
+- **Before release**: run `pnpm smoke` and the `verify-devbox` skill.
+
 ## AI team
 
 Each role runs in its namesake Herdr tab:
