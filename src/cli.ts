@@ -3,7 +3,7 @@ import { intro, outro } from '@clack/prompts'
 import { cac } from 'cac'
 import c from 'picocolors'
 import pkg from '../package.json' with { type: 'json' }
-import { createConfigurationPrompter } from './configuration/prompter.js'
+import { confirm, selectConfigurationScope } from './configuration/prompter.js'
 import { HostCommandError } from './host.js'
 import { showLogo } from './logo.js'
 import {
@@ -29,8 +29,6 @@ interface CommandOptions {
 }
 
 function createCli(signal: AbortSignal, interactive: boolean): CAC {
-  const prompt = createConfigurationPrompter({ signal })
-
   const cli = cac('devbox')
 
   cli.command('').action(() => cli.outputHelp())
@@ -48,13 +46,7 @@ function createCli(signal: AbortSignal, interactive: boolean): CAC {
       showLogo()
       console.log()
       intro(c.bgCyan(' devbox '))
-      const result = await initializeProject(
-        {},
-        {
-          signal,
-          prompt,
-        },
-      )
+      const result = await initializeProject({}, { signal })
       if (!result.ok) {
         return result
       }
@@ -89,9 +81,9 @@ function createCli(signal: AbortSignal, interactive: boolean): CAC {
         )
       }
       intro(c.bgCyan(' devbox '))
-      const scope = await prompt.selectConfigurationScope()
+      const scope = await selectConfigurationScope({ signal })
       if (scope === 'global') {
-        const result = await configureGlobal({}, { signal, prompt })
+        const result = await configureGlobal({}, { signal })
         if (!result.ok) {
           return result
         }
@@ -105,7 +97,7 @@ function createCli(signal: AbortSignal, interactive: boolean): CAC {
         return success({})
       }
 
-      const result = await configureLocalProject({}, { signal, prompt })
+      const result = await configureLocalProject({}, { signal })
       if (!result.ok) {
         return result
       }
@@ -138,7 +130,11 @@ function createCli(signal: AbortSignal, interactive: boolean): CAC {
           'Run devbox rm from a TTY, or pass --yes to confirm removal.',
         )
       }
-      const result = await removeProject({ signal, confirm: prompt.confirm, yes: options.yes })
+      const result = await removeProject({
+        signal,
+        confirm: (message, details) => confirm(message, details, { signal }),
+        yes: options.yes,
+      })
       if (!result.ok) {
         return result
       }

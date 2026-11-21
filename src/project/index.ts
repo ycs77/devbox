@@ -1,4 +1,4 @@
-import type { ConfigurationPrompter, ConfirmationHandler } from '../configuration/prompter.js'
+import type { ConfirmationHandler } from '../configuration/prompter.js'
 import { lstat, rm } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { basename, isAbsolute, join, parse, relative, sep } from 'node:path'
@@ -16,6 +16,7 @@ import {
   type LocalConfiguration,
   type RuntimeCatalog,
 } from '../configuration/index.js'
+import { confirm, editGlobal, editLocal, selectNodeReplacement } from '../configuration/prompter.js'
 import { currentHostEnvironment, type HostEnvironment, validateSupportedHost } from '../host.js'
 import { failure, InterruptedError, success, type Result } from '../result.js'
 import { withStateLocks, type StateLockContext } from '../state-lock/index.js'
@@ -62,8 +63,6 @@ export interface InitializeProjectDependencies {
   readonly devboxHome?: string
   readonly signal?: AbortSignal
   readonly catalog?: RuntimeCatalog
-  readonly prompt?: ConfigurationPrompter
-  readonly validateHost?: () => Promise<Result<void>>
 }
 
 export interface ConfigureLocalInput {
@@ -75,7 +74,6 @@ export interface ConfigureLocalDependencies {
   readonly devboxHome?: string
   readonly signal?: AbortSignal
   readonly catalog?: RuntimeCatalog
-  readonly prompt?: ConfigurationPrompter
 }
 
 export interface ConfigureGlobalInput {
@@ -87,7 +85,6 @@ export interface ConfigureGlobalDependencies {
   readonly devboxHome?: string
   readonly signal?: AbortSignal
   readonly catalog?: RuntimeCatalog
-  readonly prompt?: ConfigurationPrompter
 }
 
 export interface RemoveProjectInput {
@@ -240,7 +237,7 @@ async function initializeProjectUnlocked(
     throw new InterruptedError()
   }
 
-  const hostCheck = await (dependencies.validateHost ?? validateSupportedHost)()
+  const hostCheck = await validateSupportedHost()
   if (!hostCheck.ok) {
     return hostCheck
   }
@@ -311,15 +308,14 @@ async function initializeProjectUnlocked(
     globalConfiguration = initialGlobal.value
     globalChanged = true
   } else {
-    globalConfiguration = defaultGlobalConfiguration(catalog)
-    if (dependencies.prompt) {
-      const editedGlobal = await dependencies.prompt.editGlobal(globalConfiguration, catalog)
-      const checkedGlobal = validateGlobalObject(editedGlobal, catalog)
-      if (!checkedGlobal.ok) {
-        return checkedGlobal
-      }
-      globalConfiguration = checkedGlobal.value
+    const editedGlobal = await editGlobal(defaultGlobalConfiguration(catalog), catalog, {
+      signal: dependencies.signal,
+    })
+    const checkedGlobal = validateGlobalObject(editedGlobal, catalog)
+    if (!checkedGlobal.ok) {
+      return checkedGlobal
     }
+    globalConfiguration = checkedGlobal.value
     globalChanged = true
   }
 
@@ -335,19 +331,16 @@ async function initializeProjectUnlocked(
     }
     localConfiguration = initialLocal.value
   } else {
-    localConfiguration = defaultLocalConfiguration(globalConfiguration)
-    if (dependencies.prompt) {
-      const editedLocal = await dependencies.prompt.editLocal(
-        localConfiguration,
-        catalog,
-        globalConfiguration,
-      )
-      const checkedLocal = validateLocalObject(editedLocal, globalConfiguration, catalog)
-      if (!checkedLocal.ok) {
-        return checkedLocal
-      }
-      localConfiguration = checkedLocal.value
+    const editedLocal = await editLocal(
+      defaultLocalConfiguration(globalConfiguration),
+      globalConfiguration,
+      { signal: dependencies.signal },
+    )
+    const checkedLocal = validateLocalObject(editedLocal, globalConfiguration, catalog)
+    if (!checkedLocal.ok) {
+      return checkedLocal
     }
+    localConfiguration = checkedLocal.value
   }
 
   const definition = await prepareSandboxDefinition(paths.home, globalConfiguration, {
@@ -360,7 +353,7 @@ async function initializeProjectUnlocked(
     return definition
   }
 
-  if (dependencies.prompt && !(await dependencies.prompt.confirm('Save configuration?'))) {
+  if (!(await confirm('Save configuration?', undefined, { signal: dependencies.signal }))) {
     return success({
       root: projectRoot,
       stateDirectory,
@@ -460,32 +453,30 @@ async function configureLocalProjectUnlocked(
   }
   const currentConfiguration = localState.value.configuration
 
-  let nextConfiguration = input.nextConfiguration ?? currentConfiguration
-  if (input.nextConfiguration === undefined && dependencies.prompt) {
-    nextConfiguration = await dependencies.prompt.editLocal(
-      currentConfiguration,
-      catalog,
-      globalConfiguration,
-    )
-  }
+  const nextConfiguration =
+    input.nextConfiguration ??
+    (await editLocal(currentConfiguration, globalConfiguration, { signal: dependencies.signal }))
   const nextCheck = validateLocalObject(nextConfiguration, globalConfiguration, catalog)
   if (!nextCheck.ok) {
     return nextCheck
   }
   const localChanged = !configurationsEqual(currentConfiguration, nextCheck.value)
 
-  const confirm = dependencies.prompt?.confirm ?? (async () => true)
   if (
-    !(await confirm('Save Project configuration?', {
-      title: 'Review configuration',
-      sections: [
-        {
-          title: `Project: ${projectRoot}`,
-          current: serializeLocalConfiguration(currentConfiguration).trim(),
-          next: serializeLocalConfiguration(nextCheck.value).trim(),
-        },
-      ],
-    }))
+    !(await confirm(
+      'Save Project configuration?',
+      {
+        title: 'Review configuration',
+        sections: [
+          {
+            title: `Project: ${projectRoot}`,
+            current: serializeLocalConfiguration(currentConfiguration).trim(),
+            next: serializeLocalConfiguration(nextCheck.value).trim(),
+          },
+        ],
+      },
+      { signal: dependencies.signal },
+    ))
   ) {
     return success({ scope: 'local', root: projectRoot, changed: false })
   }
@@ -555,10 +546,9 @@ async function configureGlobalUnlocked(
 
   await locks.acquireProjectScopes(Object.keys(registry.projects))
 
-  let nextConfiguration = input.nextConfiguration ?? currentConfiguration
-  if (input.nextConfiguration === undefined && dependencies.prompt) {
-    nextConfiguration = await dependencies.prompt.editGlobal(currentConfiguration, catalog)
-  }
+  const nextConfiguration =
+    input.nextConfiguration ??
+    (await editGlobal(currentConfiguration, catalog, { signal: dependencies.signal }))
   const nextCheck = validateGlobalObject(nextConfiguration, catalog)
   if (!nextCheck.ok) {
     return nextCheck
@@ -585,21 +575,11 @@ async function configureGlobalUnlocked(
       continue
     }
 
-    let replacement = input.nextLocalConfigurations?.[root]
-    if (replacement === undefined && dependencies.prompt) {
-      replacement = await dependencies.prompt.selectNodeReplacement(
-        localConfiguration,
-        nextCheck.value,
-      )
-    }
-    if (replacement === undefined) {
-      return failure({
-        kind: 'validation',
-        code: 'node-replacement-required',
-        observed: `Global Node Runtime ${localConfiguration.node} is selected by Project ${root}.`,
-        nextAction: `Select a replacement Node Runtime or none for Project ${root}.`,
-      })
-    }
+    const replacement =
+      input.nextLocalConfigurations?.[root] ??
+      (await selectNodeReplacement(localConfiguration, nextCheck.value, {
+        signal: dependencies.signal,
+      }))
     const replacementCheck = validateLocalObject(replacement, nextCheck.value, catalog)
     if (!replacementCheck.ok) {
       return replacementCheck
@@ -610,23 +590,26 @@ async function configureGlobalUnlocked(
   const globalChanged =
     !globalState.value.state.exists || !configurationsEqual(currentConfiguration, nextCheck.value)
 
-  const confirm = dependencies.prompt?.confirm ?? (async () => true)
   if (
-    !(await confirm('Save Global configuration?', {
-      title: 'Review configuration',
-      sections: [
-        {
-          title: 'Global configuration',
-          current: serializeGlobalConfiguration(currentConfiguration).trim(),
-          next: serializeGlobalConfiguration(nextCheck.value).trim(),
-        },
-        ...[...replacementConfigurations].map(([root, configuration]) => ({
-          title: `Project: ${root}`,
-          current: serializeLocalConfiguration(localConfigurations.get(root)!).trim(),
-          next: serializeLocalConfiguration(configuration).trim(),
-        })),
-      ],
-    }))
+    !(await confirm(
+      'Save Global configuration?',
+      {
+        title: 'Review configuration',
+        sections: [
+          {
+            title: 'Global configuration',
+            current: serializeGlobalConfiguration(currentConfiguration).trim(),
+            next: serializeGlobalConfiguration(nextCheck.value).trim(),
+          },
+          ...[...replacementConfigurations].map(([root, configuration]) => ({
+            title: `Project: ${root}`,
+            current: serializeLocalConfiguration(localConfigurations.get(root)!).trim(),
+            next: serializeLocalConfiguration(configuration).trim(),
+          })),
+        ],
+      },
+      { signal: dependencies.signal },
+    ))
   ) {
     return success({ scope: 'global', changed: false })
   }

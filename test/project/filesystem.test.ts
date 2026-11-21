@@ -1,7 +1,10 @@
+import type * as Host from '../../src/host.js'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fs, vol } from 'memfs'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { confirm, editGlobal, editLocal } from '../../src/configuration/prompter.js'
+import { validateSupportedHost } from '../../src/host.js'
 import {
   configureGlobal,
   configureLocalProject,
@@ -10,7 +13,6 @@ import {
   sandboxIdentity,
 } from '../../src/project/index.js'
 import { success } from '../../src/result.js'
-import { configurationPrompter } from '../helpers/configuration-prompter.js'
 
 vi.mock('node:fs/promises', async () => {
   // The mock factory runs before static imports, so memfs must load inside it.
@@ -20,6 +22,28 @@ vi.mock('node:fs/promises', async () => {
     readFile: vi.fn(fs.promises.readFile),
     rename: vi.fn(fs.promises.rename),
   }
+})
+
+vi.mock('../../src/configuration/prompter.js', () => ({
+  confirm: vi.fn(),
+  editGlobal: vi.fn(),
+  editLocal: vi.fn(),
+}))
+
+vi.mock('../../src/host.js', async importOriginal => ({
+  ...(await importOriginal<typeof Host>()),
+  validateSupportedHost: vi.fn(),
+}))
+
+beforeEach(() => {
+  vi.mocked(confirm).mockReset().mockResolvedValue(true)
+  vi.mocked(editGlobal)
+    .mockReset()
+    .mockImplementation(async configuration => configuration)
+  vi.mocked(editLocal)
+    .mockReset()
+    .mockImplementation(async configuration => configuration)
+  vi.mocked(validateSupportedHost).mockReset().mockResolvedValue(success(undefined))
 })
 
 const projectRoot = '/workspace/project'
@@ -45,8 +69,6 @@ async function createProjectState(): Promise<{
     },
     {
       devboxHome,
-      validateHost: async () => success(undefined),
-      prompt: configurationPrompter({ confirm: async () => true }),
     },
   )
   expect(result).toMatchObject({ ok: true, value: { root: projectRoot, created: true } })
@@ -65,7 +87,6 @@ describe('Project filesystem failures', () => {
       },
       {
         devboxHome,
-        validateHost: async () => success(undefined),
       },
     )
     if (!second.ok) {
@@ -90,10 +111,6 @@ describe('Project filesystem failures', () => {
       {},
       {
         devboxHome,
-        prompt: configurationPrompter({
-          editGlobal: async current => current,
-          confirm: async () => true,
-        }),
       },
     )
 
@@ -138,7 +155,6 @@ describe('Project filesystem failures', () => {
       },
       {
         devboxHome,
-        prompt: configurationPrompter({ confirm: async () => true }),
       },
     )
 
@@ -160,8 +176,6 @@ describe('Project filesystem failures', () => {
       },
       {
         devboxHome,
-        validateHost: async () => success(undefined),
-        prompt: configurationPrompter({ confirm: async () => true }),
       },
     )
     expect(secondProject).toMatchObject({ ok: true, value: { created: true } })
@@ -191,7 +205,6 @@ describe('Project filesystem failures', () => {
       },
       {
         devboxHome,
-        prompt: configurationPrompter({ confirm: async () => true }),
       },
     )
 

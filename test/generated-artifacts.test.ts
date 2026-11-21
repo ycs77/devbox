@@ -1,12 +1,28 @@
+import type * as Host from '../src/host.js'
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { confirm } from '../src/configuration/prompter.js'
+import { validateSupportedHost } from '../src/host.js'
 import { initializeProject } from '../src/project/index.js'
 import { success } from '../src/result.js'
 import { buildWorkspace } from '../src/workspace/build.js'
-import { configurationPrompter } from './helpers/configuration-prompter.js'
+
+vi.mock('../src/configuration/prompter.js', () => ({
+  confirm: vi.fn(),
+}))
+
+vi.mock('../src/host.js', async importOriginal => ({
+  ...(await importOriginal<typeof Host>()),
+  validateSupportedHost: vi.fn(),
+}))
+
+beforeEach(() => {
+  vi.mocked(confirm).mockReset().mockResolvedValue(true)
+  vi.mocked(validateSupportedHost).mockReset().mockResolvedValue(success(undefined))
+})
 
 const fixtureDirectory = fileURLToPath(new URL('./fixtures/generated/', import.meta.url))
 
@@ -80,8 +96,6 @@ describe('generated Workspace and Sandbox artifacts', () => {
       },
       {
         devboxHome,
-        validateHost: async () => success(undefined),
-        prompt: configurationPrompter({ confirm: async () => true }),
       },
     )
 

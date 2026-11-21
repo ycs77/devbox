@@ -1,11 +1,27 @@
+import type * as Host from '../../src/host.js'
 import { spawnSync } from 'node:child_process'
 import { mkdtemp, mkdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { confirm } from '../../src/configuration/prompter.js'
+import { validateSupportedHost } from '../../src/host.js'
 import { initializeProject } from '../../src/project/index.js'
 import { success } from '../../src/result.js'
-import { configurationPrompter } from '../helpers/configuration-prompter.js'
+
+vi.mock('../../src/configuration/prompter.js', () => ({
+  confirm: vi.fn(),
+}))
+
+vi.mock('../../src/host.js', async importOriginal => ({
+  ...(await importOriginal<typeof Host>()),
+  validateSupportedHost: vi.fn(),
+}))
+
+beforeEach(() => {
+  vi.mocked(confirm).mockReset().mockResolvedValue(true)
+  vi.mocked(validateSupportedHost).mockReset().mockResolvedValue(success(undefined))
+})
 
 const temporaryDirectories: string[] = []
 const dockerComposeAvailable =
@@ -54,8 +70,6 @@ describe('published Compose definition', () => {
         },
         {
           devboxHome,
-          validateHost: async () => success(undefined),
-          prompt: configurationPrompter({ confirm: async () => true }),
         },
       )
 

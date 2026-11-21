@@ -1,11 +1,27 @@
+import type * as Host from '../../src/host.js'
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { confirm } from '../../src/configuration/prompter.js'
+import { validateSupportedHost } from '../../src/host.js'
 import { initializeProject, runSandboxLifecycle, runSandboxShell } from '../../src/project/index.js'
 import { success } from '../../src/result.js'
 import { withStateLocks } from '../../src/state-lock/index.js'
-import { configurationPrompter } from '../helpers/configuration-prompter.js'
+
+vi.mock('../../src/configuration/prompter.js', () => ({
+  confirm: vi.fn(),
+}))
+
+vi.mock('../../src/host.js', async importOriginal => ({
+  ...(await importOriginal<typeof Host>()),
+  validateSupportedHost: vi.fn(),
+}))
+
+beforeEach(() => {
+  vi.mocked(confirm).mockReset().mockResolvedValue(true)
+  vi.mocked(validateSupportedHost).mockReset().mockResolvedValue(success(undefined))
+})
 
 const temporaryDirectories: string[] = []
 
@@ -43,8 +59,6 @@ async function createProjectState(
     },
     {
       devboxHome,
-      validateHost: async () => success(undefined),
-      prompt: configurationPrompter({ confirm: async () => true }),
     },
   )
   expect(result).toMatchObject({ ok: true, value: { root, created: true } })
